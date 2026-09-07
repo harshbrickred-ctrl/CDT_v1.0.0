@@ -63,5 +63,10 @@ Start at [docs/README.md](docs/README.md).
 | API + Postgres | [Render](https://render.com) — Blueprint from repo-root [`render.yaml`](render.yaml) |
 
 1. Push to GitHub, then on Render: **New → Blueprint** → select this repo. Set `SEED_ADMIN_PASSWORD`, `SEED_DEMO_PASSWORD`, and `CORS_ORIGIN` (your Vercel URL).
-2. On Vercel: import the repo with Root Directory `apps/web`. Set `VITE_API_BASE_URL` to `https://<cdt-api>.onrender.com/api/v1`.
+2. On Vercel: import the repo with Root Directory `apps/web`. Set `VITE_API_BASE_URL` to `https://cdt-api-470n.onrender.com/api/v1` (use your actual Render host).
 3. Redeploy the web app after the API URL is known so Vite embeds the correct API base.
+
+**Current testing URLs**
+- Web: https://cdt-web-kappa.vercel.app
+- API: https://cdt-api-470n.onrender.com
+- Admin: `admin@sst.local` / `Admin@123`
