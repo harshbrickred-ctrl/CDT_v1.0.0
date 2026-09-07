@@ -1,0 +1,50 @@
+# Render Blueprint — CDT API + Postgres (testing)
+# https://dashboard.render.com/blueprints
+#
+# After deploy, set SEED_ADMIN_PASSWORD / SEED_DEMO_PASSWORD / CORS_ORIGIN
+# (CORS_ORIGIN = your Vercel URL, e.g. https://cdt-web.vercel.app).
+
+databases:
+  - name: cdt-postgres
+    plan: free
+    databaseName: cdt
+    user: cdt
+
+services:
+  - type: web
+    name: cdt-api
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: >
+      corepack enable &&
+      pnpm install --frozen-lockfile &&
+      pnpm --filter @cdt/shared-types build &&
+      pnpm --filter @cdt/shared-utils build &&
+      pnpm --filter @cdt/api exec prisma generate &&
+      pnpm --filter @cdt/api build
+    startCommand: pnpm --filter @cdt/api start:render
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: cdt-postgres
+          property: connectionString
+      - key: JWT_ACCESS_TTL
+        value: 15m
+      - key: JWT_REFRESH_TTL
+        value: 7d
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: SEED_ADMIN_EMAIL
+        value: admin@sst.local
+      - key: SEED_ADMIN_PASSWORD
+        sync: false
+      - key: SEED_DEMO_PASSWORD
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false

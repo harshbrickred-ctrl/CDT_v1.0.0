@@ -7,11 +7,13 @@
     "dev": "nest start --watch",
     "start": "node dist/main.js",
     "start:prod": "node dist/main.js",
+    "start:render": "prisma migrate deploy && tsx prisma/seed-prod.ts && node dist/main.js",
     "lint": "echo \"no lint configured\"",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "echo \"no tests\"",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:seed": "tsx prisma/seed.ts",
     "prisma:clean": "tsx prisma/clean-for-delivery.ts"
   },
@@ -31,8 +33,10 @@
     "class-validator": "^0.14.1",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
+    "prisma": "^6.1.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "tsx": "^4.19.2",
     "zod": "^3.24.1"
   },
   "devDependencies": {
@@ -43,8 +47,6 @@
     "@types/express": "^5.0.0",
     "@types/node": "^22.10.2",
     "@types/passport-jwt": "^4.0.1",
-    "prisma": "^6.1.0",
-    "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   },
   "prisma": {
