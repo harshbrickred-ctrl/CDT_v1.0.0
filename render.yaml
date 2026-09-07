@@ -17,7 +17,7 @@ services:
     plan: free
     region: oregon
     buildCommand: >
-      corepack enable &&
+      npm install -g pnpm@9.15.0 &&
       pnpm install --frozen-lockfile &&
       pnpm --filter @cdt/shared-types build &&
       pnpm --filter @cdt/shared-utils build &&
@@ -26,6 +26,8 @@ services:
     startCommand: pnpm --filter @cdt/api start:render
     healthCheckPath: /health
     envVars:
+      - key: NODE_VERSION
+        value: "20"
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
