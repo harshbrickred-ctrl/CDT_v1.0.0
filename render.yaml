@@ -43,8 +43,8 @@ services:
       - key: SEED_ADMIN_EMAIL
         value: admin@sst.local
       - key: SEED_ADMIN_PASSWORD
-        sync: false
+        value: Admin@123
       - key: SEED_DEMO_PASSWORD
-        sync: false
+        value: Admin@123
       - key: CORS_ORIGIN
-        sync: false
+        value: https://cdt-web-kappa.vercel.app
