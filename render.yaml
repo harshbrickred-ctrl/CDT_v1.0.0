@@ -18,7 +18,7 @@ services:
     region: oregon
     buildCommand: >
       npm install -g pnpm@9.15.0 &&
-      pnpm install --frozen-lockfile &&
+      pnpm install --frozen-lockfile --prod=false &&
       pnpm --filter @cdt/shared-types build &&
       pnpm --filter @cdt/shared-utils build &&
       pnpm --filter @cdt/api exec prisma generate &&
