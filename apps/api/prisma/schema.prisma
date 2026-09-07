@@ -1,0 +1,324 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  DELIVERY_MANAGER
+  ACCOUNT_MANAGER
+}
+
+enum CandidateStatus {
+  ACTIVE
+  RELEASED
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum InvoiceStatus {
+  PENDING_REVIEW
+  APPROVED
+  SENT
+  PAID
+  REJECTED
+}
+
+enum BillingType {
+  HOURLY
+  FIXED
+}
+
+enum ClientFeedback {
+  GOOD
+  AVERAGE
+  POOR
+}
+
+enum EngagementHealth {
+  ON_TRACK
+  AT_RISK
+  ESCALATED
+}
+
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  fullName     String    @map("full_name")
+  role         Role
+  isActive     Boolean   @default(true) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
+
+  refreshTokens      RefreshToken[]
+  auditLogs          AuditLog[]       @relation("AuditActor")
+  leavesRequested    Leave[]          @relation("LeaveRequester")
+  leavesApproved     Leave[]          @relation("LeaveApprover")
+  timesheetsApproved Timesheet[]      @relation("TimesheetApprover")
+  candidatesReleased Candidate[]      @relation("CandidateReleaser")
+  candidatesManaged  Candidate[]      @relation("CandidateAccountManager")
+  reviewsWritten     DeliveryReview[] @relation("Reviewer")
+  invoicesGenerated  Invoice[]        @relation("InvoiceGenerator")
+  invoicesReviewed   Invoice[]        @relation("InvoiceReviewer")
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model Client {
+  id             String    @id @default(uuid()) @db.Uuid
+  name           String
+  nameNormalized String    @unique @map("name_normalized")
+  code           String?   @unique
+  isActive       Boolean   @default(true) @map("is_active")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  candidates Candidate[]
+
+  @@map("clients")
+}
+
+model Candidate {
+  id                     String          @id @default(uuid()) @db.Uuid
+  publicId               String          @unique @map("public_id")
+  clientId               String          @map("client_id") @db.Uuid
+  fullName               String          @map("full_name")
+  email                  String?
+  mobile                 String?
+  roleTitle              String?         @map("role_title")
+  sstReference           String?         @map("sst_reference")
+  joinedOn               DateTime?       @map("joined_on") @db.Date
+  contractEndDate        DateTime?       @map("contract_end_date") @db.Date
+  projectAccount         String?         @map("project_account")
+  workLocation           String?         @map("work_location")
+  clientReportingManager String?         @map("client_reporting_manager")
+  accountManagerUserId   String?         @map("account_manager_user_id") @db.Uuid
+  billingType            BillingType     @default(HOURLY) @map("billing_type")
+  hourlyRate             Decimal?        @map("hourly_rate") @db.Decimal(12, 2)
+  monthlyFixedAmount     Decimal?        @map("monthly_fixed_amount") @db.Decimal(14, 2)
+  maxBillableHours       Decimal?        @map("max_billable_hours") @db.Decimal(7, 2)
+  hoursPerDay            Decimal         @default(8) @map("hours_per_day") @db.Decimal(4, 2)
+  currency               String          @default("INR")
+  status                 CandidateStatus @default(ACTIVE)
+  releasedAt             DateTime?       @map("released_at")
+  releasedById           String?         @map("released_by_id") @db.Uuid
+  releaseReason          String?         @map("release_reason")
+  createdAt              DateTime        @default(now()) @map("created_at")
+  updatedAt              DateTime        @updatedAt @map("updated_at")
+  deletedAt              DateTime?       @map("deleted_at")
+
+  client         Client           @relation(fields: [clientId], references: [id])
+  releasedBy     User?            @relation("CandidateReleaser", fields: [releasedById], references: [id])
+  accountManager User?            @relation("CandidateAccountManager", fields: [accountManagerUserId], references: [id])
+  leaves         Leave[]
+  timesheets     Timesheet[]
+  reviews        DeliveryReview[]
+  invoices       Invoice[]
+
+  @@index([clientId])
+  @@index([status])
+  @@index([accountManagerUserId])
+  @@map("candidates")
+}
+
+model Leave {
+  id              String      @id @default(uuid()) @db.Uuid
+  publicId        String      @unique @map("public_id")
+  candidateId     String      @map("candidate_id") @db.Uuid
+  leaveTypeCode   String      @map("leave_type_code")
+  startDate       DateTime    @map("start_date") @db.Date
+  endDate         DateTime    @map("end_date") @db.Date
+  days            Decimal     @db.Decimal(5, 2)
+  status          LeaveStatus @default(PENDING)
+  reason          String?
+  requestedById   String      @map("requested_by_id") @db.Uuid
+  approverId      String?     @map("approver_id") @db.Uuid
+  approvedAt      DateTime?   @map("approved_at")
+  rejectedAt      DateTime?   @map("rejected_at")
+  rejectionReason String?     @map("rejection_reason")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+  deletedAt       DateTime?   @map("deleted_at")
+
+  candidate   Candidate @relation(fields: [candidateId], references: [id])
+  requestedBy User      @relation("LeaveRequester", fields: [requestedById], references: [id])
+  approver    User?     @relation("LeaveApprover", fields: [approverId], references: [id])
+
+  @@index([candidateId, status])
+  @@index([startDate, endDate])
+  @@map("leaves")
+}
+
+model Timesheet {
+  id             String         @id @default(uuid()) @db.Uuid
+  publicId       String         @unique @map("public_id")
+  candidateId    String         @map("candidate_id") @db.Uuid
+  yearMonth      String         @map("year_month")
+  periodStart    DateTime       @map("period_start") @db.Date
+  periodEnd      DateTime       @map("period_end") @db.Date
+  workingDays    Decimal        @map("working_days") @db.Decimal(5, 2)
+  leaveDays      Decimal        @map("leave_days") @db.Decimal(5, 2)
+  lopDays        Decimal        @default(0) @map("lop_days") @db.Decimal(5, 2)
+  daysWorked     Decimal        @map("days_worked") @db.Decimal(5, 2)
+  attendancePct  Decimal?       @map("attendance_pct") @db.Decimal(5, 2)
+  approvalStatus ApprovalStatus @default(PENDING) @map("approval_status")
+  approvedById   String?        @map("approved_by_id") @db.Uuid
+  remarks        String?
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+  deletedAt      DateTime?      @map("deleted_at")
+
+  candidate  Candidate @relation(fields: [candidateId], references: [id])
+  approvedBy User?     @relation("TimesheetApprover", fields: [approvedById], references: [id])
+  invoice    Invoice?
+
+  @@unique([candidateId, yearMonth])
+  @@index([yearMonth])
+  @@index([approvalStatus])
+  @@map("timesheets")
+}
+
+model Invoice {
+  id                 String        @id @default(uuid()) @db.Uuid
+  publicId           String        @unique @map("public_id")
+  candidateId        String        @map("candidate_id") @db.Uuid
+  timesheetId        String        @unique @map("timesheet_id") @db.Uuid
+  yearMonth          String        @map("year_month")
+  billingType        BillingType   @default(HOURLY) @map("billing_type")
+  hourlyRate         Decimal       @map("hourly_rate") @db.Decimal(12, 2)
+  monthlyFixedAmount Decimal?      @map("monthly_fixed_amount") @db.Decimal(14, 2)
+  maxBillableHours   Decimal?      @map("max_billable_hours") @db.Decimal(7, 2)
+  hoursPerDay        Decimal       @map("hours_per_day") @db.Decimal(4, 2)
+  daysWorked         Decimal       @map("days_worked") @db.Decimal(5, 2)
+  workingDays        Decimal       @map("working_days") @db.Decimal(5, 2)
+  lopDays            Decimal       @default(0) @map("lop_days") @db.Decimal(5, 2)
+  billableDays       Decimal       @default(0) @map("billable_days") @db.Decimal(5, 2)
+  rawHours           Decimal       @default(0) @map("raw_hours") @db.Decimal(8, 2)
+  billableHours      Decimal       @default(0) @map("billable_hours") @db.Decimal(8, 2)
+  amount             Decimal       @db.Decimal(14, 2)
+  currency           String        @default("INR")
+  status             InvoiceStatus @default(PENDING_REVIEW)
+  generatedById      String        @map("generated_by_id") @db.Uuid
+  reviewedById       String?       @map("reviewed_by_id") @db.Uuid
+  reviewedAt         DateTime?     @map("reviewed_at")
+  rejectionReason    String?       @map("rejection_reason")
+  sentAt             DateTime?     @map("sent_at")
+  dueDate            DateTime?     @map("due_date") @db.Date
+  paidAt             DateTime?     @map("paid_at")
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
+
+  candidate   Candidate @relation(fields: [candidateId], references: [id])
+  timesheet   Timesheet @relation(fields: [timesheetId], references: [id])
+  generatedBy User      @relation("InvoiceGenerator", fields: [generatedById], references: [id])
+  reviewedBy  User?     @relation("InvoiceReviewer", fields: [reviewedById], references: [id])
+
+  @@index([yearMonth])
+  @@index([status])
+  @@index([candidateId])
+  @@map("invoices")
+}
+
+model DeliveryReview {
+  id               String           @id @default(uuid()) @db.Uuid
+  publicId         String           @unique @map("public_id")
+  candidateId      String           @map("candidate_id") @db.Uuid
+  yearMonth        String           @map("year_month")
+  reviewDate       DateTime         @map("review_date") @db.Date
+  utilizationPct   Decimal?         @map("utilization_pct") @db.Decimal(5, 2)
+  timesheetMissing Boolean          @default(false) @map("timesheet_missing")
+  clientFeedback   ClientFeedback   @map("client_feedback")
+  engagementHealth EngagementHealth @map("engagement_health")
+  escalationNotes  String?          @map("escalation_notes")
+  reviewerId       String           @map("reviewer_id") @db.Uuid
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+  deletedAt        DateTime?        @map("deleted_at")
+
+  candidate Candidate @relation(fields: [candidateId], references: [id])
+  reviewer  User      @relation("Reviewer", fields: [reviewerId], references: [id])
+
+  @@unique([candidateId, yearMonth])
+  @@index([yearMonth, engagementHealth])
+  @@map("delivery_reviews")
+}
+
+model LookupType {
+  id     String         @id @default(uuid()) @db.Uuid
+  code   String         @unique
+  values LookupValue[]
+
+  @@map("lookup_types")
+}
+
+model LookupValue {
+  id        String  @id @default(uuid()) @db.Uuid
+  typeId    String  @map("type_id") @db.Uuid
+  code      String
+  label     String
+  sortOrder Int     @default(0) @map("sort_order")
+  isActive  Boolean @default(true) @map("is_active")
+
+  type LookupType @relation(fields: [typeId], references: [id])
+
+  @@unique([typeId, code])
+  @@map("lookup_values")
+}
+
+model AuditLog {
+  id             String   @id @default(uuid()) @db.Uuid
+  entityType     String   @map("entity_type")
+  entityId       String   @map("entity_id") @db.Uuid
+  entityPublicId String?  @map("entity_public_id")
+  action         String
+  actorUserId    String?  @map("actor_user_id") @db.Uuid
+  beforeJson     Json?    @map("before_json")
+  afterJson      Json?    @map("after_json")
+  ip             String?
+  userAgent      String?  @map("user_agent")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  actor User? @relation("AuditActor", fields: [actorUserId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model IdSequence {
+  prefix    String @id
+  nextValue Int    @map("next_value")
+
+  @@map("id_sequences")
+}

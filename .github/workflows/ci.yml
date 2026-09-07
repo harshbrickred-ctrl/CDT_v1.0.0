@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: cdt
+          POSTGRES_PASSWORD: cdt
+          POSTGRES_DB: cdt
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd "pg_isready -U cdt"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://cdt:cdt@localhost:5434/cdt?schema=public
+      JWT_ACCESS_SECRET: ci-access-secret-min-32-chars-long!!
+      JWT_REFRESH_SECRET: ci-refresh-secret-min-32-chars-long!
+      SEED_ADMIN_EMAIL: admin@brickred.local
+      SEED_ADMIN_PASSWORD: ChangeMeNow!
+      CORS_ORIGIN: http://localhost:5173
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install
+      - run: pnpm --filter @cdt/shared-types build
+      - run: pnpm --filter @cdt/shared-utils build
+      - run: pnpm --filter @cdt/shared-utils test
+      - run: pnpm --filter @cdt/api prisma:generate
+      - run: pnpm --filter @cdt/api exec prisma migrate deploy
+      - run: pnpm --filter @cdt/api build
+      - run: pnpm --filter @cdt/web build

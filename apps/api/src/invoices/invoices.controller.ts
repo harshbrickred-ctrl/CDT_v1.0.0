@@ -1,0 +1,93 @@
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { InvoiceStatus, Role } from '@prisma/client';
+import { InvoicesService } from './invoices.service';
+import { GenerateInvoiceDto, RejectInvoiceDto } from './dto/invoices.dto';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
+import { CurrentUser, AuthUser } from '../common/decorators/current-user.decorator';
+
+@ApiTags('invoices')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Controller('invoices')
+export class InvoicesController {
+  constructor(private readonly invoices: InvoicesService) {}
+
+  @Get()
+  findAll(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('status') status?: InvoiceStatus,
+    @Query('yearMonth') yearMonth?: string,
+    @Query('candidateId') candidateId?: string,
+    @Query('clientId') clientId?: string,
+  ) {
+    return this.invoices.findAll({
+      page: page ? Number(page) : 1,
+      pageSize: pageSize ? Number(pageSize) : 20,
+      status,
+      yearMonth,
+      candidateId,
+      clientId,
+    });
+  }
+
+  @Get(':id')
+  findOne(@Param('id', ParseUUIDPipe) id: string) {
+    return this.invoices.findOne(id);
+  }
+
+  @Post('generate')
+  @Roles(Role.ADMIN, Role.DELIVERY_MANAGER, Role.ACCOUNT_MANAGER)
+  generate(@Body() dto: GenerateInvoiceDto, @CurrentUser() user: AuthUser) {
+    return this.invoices.generate(dto, user.id);
+  }
+
+  @Post(':id/approve')
+  @Roles(Role.ADMIN, Role.ACCOUNT_MANAGER)
+  approve(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.invoices.approve(id, user.id);
+  }
+
+  @Post(':id/send')
+  @Roles(Role.ADMIN, Role.ACCOUNT_MANAGER)
+  send(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.invoices.send(id, user.id);
+  }
+
+  @Post(':id/mark-paid')
+  @Roles(Role.ADMIN, Role.ACCOUNT_MANAGER)
+  markPaid(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.invoices.markPaid(id, user.id);
+  }
+
+  @Post(':id/reject')
+  @Roles(Role.ADMIN, Role.ACCOUNT_MANAGER)
+  reject(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RejectInvoiceDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.invoices.reject(id, dto, user.id);
+  }
+}
