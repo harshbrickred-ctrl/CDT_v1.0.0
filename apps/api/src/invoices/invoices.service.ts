@@ -101,6 +101,7 @@ export class InvoicesService {
   }
 
   async findAll(params: {
+    organizationId: string;
     page?: number;
     pageSize?: number;
     status?: InvoiceStatus;
@@ -111,6 +112,7 @@ export class InvoicesService {
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 20;
     const where: Prisma.InvoiceWhereInput = {
+      organizationId: params.organizationId,
       ...(params.status ? { status: params.status } : {}),
       ...(params.yearMonth ? { yearMonth: params.yearMonth } : {}),
       ...(params.candidateId ? { candidateId: params.candidateId } : {}),
@@ -134,18 +136,22 @@ export class InvoicesService {
     };
   }
 
-  async findOne(id: string) {
-    const invoice = await this.prisma.invoice.findUnique({
-      where: { id },
+  async findOne(organizationId: string, id: string) {
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id, organizationId },
       include: invoiceInclude,
     });
     if (!invoice) throw new NotFoundException('Invoice not found');
     return this.serialize(invoice);
   }
 
-  async generate(dto: GenerateInvoiceDto, actorUserId: string) {
+  async generate(
+    organizationId: string,
+    dto: GenerateInvoiceDto,
+    actorUserId: string,
+  ) {
     const timesheet = await this.prisma.timesheet.findFirst({
-      where: { id: dto.timesheetId, deletedAt: null },
+      where: { id: dto.timesheetId, organizationId, deletedAt: null },
       include: {
         candidate: true,
         invoice: { select: { id: true } },
@@ -195,10 +201,11 @@ export class InvoicesService {
       workingDays,
       lopDays,
     });
-    const publicId = await this.ids.allocateNext('INV');
+    const publicId = await this.ids.allocateNext(organizationId, 'INV');
 
     const invoice = await this.prisma.invoice.create({
       data: {
+        organizationId,
         publicId,
         candidateId: timesheet.candidateId,
         timesheetId: timesheet.id,
@@ -223,6 +230,7 @@ export class InvoicesService {
     });
 
     await this.audit.record({
+      organizationId,
       actorUserId,
       action: 'GENERATE',
       entityType: 'Invoice',
@@ -234,8 +242,8 @@ export class InvoicesService {
     return this.serialize(invoice);
   }
 
-  async approve(id: string, actorUserId: string) {
-    const before = await this.findOne(id);
+  async approve(organizationId: string, id: string, actorUserId: string) {
+    const before = await this.findOne(organizationId, id);
     if (before.status !== InvoiceStatus.PENDING_REVIEW) {
       throw new BadRequestException('Only pending invoices can be approved');
     }
@@ -250,6 +258,7 @@ export class InvoicesService {
       include: invoiceInclude,
     });
     await this.audit.record({
+      organizationId,
       actorUserId,
       action: 'APPROVE',
       entityType: 'Invoice',
@@ -261,8 +270,8 @@ export class InvoicesService {
     return this.serialize(invoice);
   }
 
-  async send(id: string, actorUserId: string) {
-    const before = await this.findOne(id);
+  async send(organizationId: string, id: string, actorUserId: string) {
+    const before = await this.findOne(organizationId, id);
     if (before.status !== InvoiceStatus.APPROVED) {
       throw new BadRequestException('Only approved invoices can be sent');
     }
@@ -280,6 +289,7 @@ export class InvoicesService {
       include: invoiceInclude,
     });
     await this.audit.record({
+      organizationId,
       actorUserId,
       action: 'SEND',
       entityType: 'Invoice',
@@ -291,8 +301,8 @@ export class InvoicesService {
     return this.serialize(invoice);
   }
 
-  async markPaid(id: string, actorUserId: string) {
-    const before = await this.findOne(id);
+  async markPaid(organizationId: string, id: string, actorUserId: string) {
+    const before = await this.findOne(organizationId, id);
     if (before.status !== InvoiceStatus.SENT) {
       throw new BadRequestException('Only sent invoices can be marked paid');
     }
@@ -305,6 +315,7 @@ export class InvoicesService {
       include: invoiceInclude,
     });
     await this.audit.record({
+      organizationId,
       actorUserId,
       action: 'MARK_PAID',
       entityType: 'Invoice',
@@ -316,8 +327,13 @@ export class InvoicesService {
     return this.serialize(invoice);
   }
 
-  async reject(id: string, dto: RejectInvoiceDto, actorUserId: string) {
-    const before = await this.findOne(id);
+  async reject(
+    organizationId: string,
+    id: string,
+    dto: RejectInvoiceDto,
+    actorUserId: string,
+  ) {
+    const before = await this.findOne(organizationId, id);
     if (before.status !== InvoiceStatus.PENDING_REVIEW) {
       throw new BadRequestException('Only pending invoices can be rejected');
     }
@@ -332,6 +348,7 @@ export class InvoicesService {
       include: invoiceInclude,
     });
     await this.audit.record({
+      organizationId,
       actorUserId,
       action: 'REJECT',
       entityType: 'Invoice',

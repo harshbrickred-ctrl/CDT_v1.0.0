@@ -30,6 +30,7 @@ export class CandidatesController {
 
   @Get()
   findAll(
+    @CurrentUser() user: AuthUser,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('clientId') clientId?: string,
@@ -37,6 +38,7 @@ export class CandidatesController {
     @Query('q') q?: string,
   ) {
     return this.candidates.findAll({
+      organizationId: user.organizationId,
       page: page ? Number(page) : 1,
       pageSize: pageSize ? Number(pageSize) : 20,
       clientId,
@@ -46,19 +48,19 @@ export class CandidatesController {
   }
 
   @Get(':id/timeline')
-  timeline(@Param('id') id: string) {
-    return this.candidates.timeline(id);
+  timeline(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.candidates.timeline(user.organizationId, id);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.candidates.findOne(id);
+  findOne(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.candidates.findOne(user.organizationId, id);
   }
 
   @Post()
   @Roles(Role.ADMIN, Role.DELIVERY_MANAGER)
   create(@Body() dto: CreateCandidateDto, @CurrentUser() user: AuthUser) {
-    return this.candidates.create(dto, user.id);
+    return this.candidates.create(user.organizationId, dto, user.id);
   }
 
   @Patch(':id')
@@ -68,7 +70,7 @@ export class CandidatesController {
     @Body() dto: UpdateCandidateDto,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.candidates.update(id, dto, user.id);
+    return this.candidates.update(user.organizationId, id, dto, user.id);
   }
 
   @Post(':id/release')
@@ -78,6 +80,6 @@ export class CandidatesController {
     @Body() dto: ReleaseCandidateDto,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.candidates.release(id, dto, user.id);
+    return this.candidates.release(user.organizationId, id, dto, user.id);
   }
 }

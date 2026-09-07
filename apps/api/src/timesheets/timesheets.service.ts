@@ -66,12 +66,14 @@ export class TimesheetsService {
   }
 
   private async computeLeaveDays(
+    organizationId: string,
     candidateId: string,
     periodStart: Date,
     periodEnd: Date,
   ): Promise<{ leaveDays: number; lopDays: number }> {
     const leaves = await this.prisma.leave.findMany({
       where: {
+        organizationId,
         candidateId,
         deletedAt: null,
         status: LeaveStatus.APPROVED,
@@ -101,6 +103,7 @@ export class TimesheetsService {
   }
 
   async findAll(params: {
+    organizationId: string;
     page?: number;
     pageSize?: number;
     candidateId?: string;
@@ -111,6 +114,7 @@ export class TimesheetsService {
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 20;
     const where: Prisma.TimesheetWhereInput = {
+      organizationId: params.organizationId,
       deletedAt: null,
       ...(params.candidateId ? { candidateId: params.candidateId } : {}),
       ...(params.yearMonth ? { yearMonth: params.yearMonth } : {}),
@@ -137,18 +141,22 @@ export class TimesheetsService {
     };
   }
 
-  async findOne(id: string) {
+  async findOne(organizationId: string, id: string) {
     const row = await this.prisma.timesheet.findFirst({
-      where: { id, deletedAt: null },
+      where: { id, organizationId, deletedAt: null },
       include: timesheetInclude,
     });
     if (!row) throw new NotFoundException('Timesheet not found');
     return this.serialize(row);
   }
 
-  async upsert(dto: UpsertTimesheetDto, actorUserId: string) {
+  async upsert(
+    organizationId: string,
+    dto: UpsertTimesheetDto,
+    actorUserId: string,
+  ) {
     const candidate = await this.prisma.candidate.findFirst({
-      where: { id: dto.candidateId, deletedAt: null },
+      where: { id: dto.candidateId, organizationId, deletedAt: null },
     });
     if (!candidate) throw new NotFoundException('Candidate not found');
 
@@ -161,6 +169,7 @@ export class TimesheetsService {
     }
 
     const { leaveDays, lopDays } = await this.computeLeaveDays(
+      organizationId,
       dto.candidateId,
       periodStart,
       periodEnd,
@@ -178,6 +187,9 @@ export class TimesheetsService {
 
     try {
       if (existing && !existing.deletedAt) {
+        if (existing.organizationId !== organizationId) {
+          throw new NotFoundException('Candidate not found');
+        }
         const before = existing;
         const row = await this.prisma.timesheet.update({
           where: { id: existing.id },
@@ -196,6 +208,7 @@ export class TimesheetsService {
           include: timesheetInclude,
         });
         await this.audit.record({
+          organizationId,
           actorUserId,
           action: 'UPDATE',
           entityType: 'Timesheet',
@@ -208,6 +221,9 @@ export class TimesheetsService {
       }
 
       if (existing?.deletedAt) {
+        if (existing.organizationId !== organizationId) {
+          throw new NotFoundException('Candidate not found');
+        }
         const row = await this.prisma.timesheet.update({
           where: { id: existing.id },
           data: {
@@ -226,6 +242,7 @@ export class TimesheetsService {
           include: timesheetInclude,
         });
         await this.audit.record({
+          organizationId,
           actorUserId,
           action: 'CREATE',
           entityType: 'Timesheet',
@@ -236,9 +253,10 @@ export class TimesheetsService {
         return this.serialize(row);
       }
 
-      const publicId = await this.ids.allocateNext('TSH');
+      const publicId = await this.ids.allocateNext(organizationId, 'TSH');
       const row = await this.prisma.timesheet.create({
         data: {
+          organizationId,
           publicId,
           candidateId: dto.candidateId,
           yearMonth: dto.yearMonth,
@@ -255,6 +273,7 @@ export class TimesheetsService {
         include: timesheetInclude,
       });
       await this.audit.record({
+        organizationId,
         actorUserId,
         action: 'CREATE',
         entityType: 'Timesheet',
@@ -271,14 +290,19 @@ export class TimesheetsService {
     }
   }
 
-  async recalculate(id: string, actorUserId: string) {
+  async recalculate(
+    organizationId: string,
+    id: string,
+    actorUserId: string,
+  ) {
     const before = await this.prisma.timesheet.findFirst({
-      where: { id, deletedAt: null },
+      where: { id, organizationId, deletedAt: null },
       include: timesheetInclude,
     });
     if (!before) throw new NotFoundException('Timesheet not found');
 
     const { leaveDays, lopDays } = await this.computeLeaveDays(
+      organizationId,
       before.candidateId,
       before.periodStart,
       before.periodEnd,
@@ -297,6 +321,7 @@ export class TimesheetsService {
       include: timesheetInclude,
     });
     await this.audit.record({
+      organizationId,
       actorUserId,
       action: 'RECALCULATE',
       entityType: 'Timesheet',
@@ -308,9 +333,9 @@ export class TimesheetsService {
     return this.serialize(row);
   }
 
-  async approve(id: string, actorUserId: string) {
+  async approve(organizationId: string, id: string, actorUserId: string) {
     const before = await this.prisma.timesheet.findFirst({
-      where: { id, deletedAt: null },
+      where: { id, organizationId, deletedAt: null },
       include: timesheetInclude,
     });
     if (!before) throw new NotFoundException('Timesheet not found');
@@ -326,6 +351,7 @@ export class TimesheetsService {
       include: timesheetInclude,
     });
     await this.audit.record({
+      organizationId,
       actorUserId,
       action: 'APPROVE',
       entityType: 'Timesheet',
@@ -337,9 +363,14 @@ export class TimesheetsService {
     return this.serialize(row);
   }
 
-  async reject(id: string, dto: RejectTimesheetDto, actorUserId: string) {
+  async reject(
+    organizationId: string,
+    id: string,
+    dto: RejectTimesheetDto,
+    actorUserId: string,
+  ) {
     const before = await this.prisma.timesheet.findFirst({
-      where: { id, deletedAt: null },
+      where: { id, organizationId, deletedAt: null },
       include: timesheetInclude,
     });
     if (!before) throw new NotFoundException('Timesheet not found');
@@ -356,6 +387,7 @@ export class TimesheetsService {
       include: timesheetInclude,
     });
     await this.audit.record({
+      organizationId,
       actorUserId,
       action: 'REJECT',
       entityType: 'Timesheet',

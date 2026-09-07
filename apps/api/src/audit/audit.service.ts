@@ -4,6 +4,7 @@ import { paginationMeta, paginationSkip } from '@cdt/shared-types';
 import { PrismaService } from '../prisma/prisma.service';
 
 export type AuditRecordInput = {
+  organizationId: string;
   actorUserId?: string | null;
   action: string;
   entityType: string;
@@ -22,6 +23,7 @@ export class AuditService {
   async record(input: AuditRecordInput) {
     return this.prisma.auditLog.create({
       data: {
+        organizationId: input.organizationId,
         actorUserId: input.actorUserId ?? null,
         action: input.action,
         entityType: input.entityType,
@@ -42,6 +44,7 @@ export class AuditService {
   }
 
   async findAll(params: {
+    organizationId: string;
     page?: number;
     pageSize?: number;
     entityType?: string;
@@ -51,7 +54,9 @@ export class AuditService {
   }) {
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 20;
-    const where: Prisma.AuditLogWhereInput = {};
+    const where: Prisma.AuditLogWhereInput = {
+      organizationId: params.organizationId,
+    };
     if (params.entityType) where.entityType = params.entityType;
     if (params.entityId) where.entityId = params.entityId;
     if (params.actorUserId) where.actorUserId = params.actorUserId;

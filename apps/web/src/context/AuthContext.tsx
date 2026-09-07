@@ -20,6 +20,8 @@ type AuthUser = {
   email: string;
   fullName: string;
   role: string;
+  organizationId?: string;
+  organizationSlug?: OrganizationId;
 };
 
 type AuthContextValue = {
@@ -90,16 +92,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         accessToken: string;
         refreshToken: string;
         user: AuthUser;
-      }>('/auth/login', { email, password });
+      }>('/auth/login', { email, password, organization: org });
+
+      const resolvedOrg =
+        data.user.organizationSlug &&
+        isOrganizationId(data.user.organizationSlug)
+          ? data.user.organizationSlug
+          : org;
 
       sessionStorage.setItem(ACCESS_KEY, data.accessToken);
       sessionStorage.setItem(REFRESH_KEY, data.refreshToken);
       sessionStorage.setItem(USER_KEY, JSON.stringify(data.user));
-      sessionStorage.setItem(ORG_KEY, org);
+      sessionStorage.setItem(ORG_KEY, resolvedOrg);
       setAccessToken(data.accessToken);
       setRefreshToken(data.refreshToken);
       setUser(data.user);
-      setOrganization(org);
+      setOrganization(resolvedOrg);
     },
     [],
   );

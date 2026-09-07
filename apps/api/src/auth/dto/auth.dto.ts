@@ -1,4 +1,9 @@
-import { IsEmail, IsString, MinLength } from 'class-validator';
+import {
+  IsEmail,
+  IsIn,
+  IsString,
+  MinLength,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class LoginDto {
@@ -8,8 +13,13 @@ export class LoginDto {
 
   @ApiProperty()
   @IsString()
-  @MinLength(1)
+  @MinLength(8)
   password!: string;
+
+  @ApiProperty({ example: 'brickred', enum: ['brickred', 'agyom'] })
+  @IsString()
+  @IsIn(['brickred', 'agyom'])
+  organization!: 'brickred' | 'agyom';
 }
 
 export class RefreshDto {

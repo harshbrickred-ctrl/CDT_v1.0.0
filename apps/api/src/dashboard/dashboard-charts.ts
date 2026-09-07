@@ -53,8 +53,12 @@ export type DashboardChartsData = {
   atRiskClients: AtRiskClientItem[];
 };
 
-function candidateBaseWhere(clientId?: string): Prisma.CandidateWhereInput {
+function candidateBaseWhere(
+  organizationId: string,
+  clientId?: string,
+): Prisma.CandidateWhereInput {
   return {
+    organizationId,
     deletedAt: null,
     ...(clientId ? { clientId } : {}),
   };
@@ -92,12 +96,16 @@ function monthLabel(yearMonth: string) {
 export async function fetchDashboardCharts(
   prisma: PrismaClient,
   params: {
+    organizationId: string;
     month: string;
     clientId?: string;
     health?: EngagementHealth;
   },
 ): Promise<DashboardChartsData> {
-  const candidateBase = candidateBaseWhere(params.clientId);
+  const candidateBase = candidateBaseWhere(
+    params.organizationId,
+    params.clientId,
+  );
   const activeWhere: Prisma.CandidateWhereInput = {
     ...candidateBase,
     status: CandidateStatus.ACTIVE,
@@ -107,6 +115,7 @@ export async function fetchDashboardCharts(
     params.health === EngagementHealth.ON_TRACK
       ? { id: { in: [] } }
       : {
+          organizationId: params.organizationId,
           deletedAt: null,
           yearMonth: params.month,
           engagementHealth: params.health ?? {
@@ -124,6 +133,7 @@ export async function fetchDashboardCharts(
   ] = await Promise.all([
     prisma.client.findMany({
       where: {
+        organizationId: params.organizationId,
         deletedAt: null,
         ...(params.clientId ? { id: params.clientId } : {}),
       },
@@ -131,7 +141,11 @@ export async function fetchDashboardCharts(
         id: true,
         name: true,
         candidates: {
-          where: { deletedAt: null, status: CandidateStatus.ACTIVE },
+          where: {
+            organizationId: params.organizationId,
+            deletedAt: null,
+            status: CandidateStatus.ACTIVE,
+          },
           select: { id: true },
         },
       },
@@ -214,7 +228,10 @@ export async function fetchDashboardCharts(
   const candidates =
     candidateIds.length > 0
       ? await prisma.candidate.findMany({
-          where: { id: { in: candidateIds } },
+          where: {
+            organizationId: params.organizationId,
+            id: { in: candidateIds },
+          },
           select: {
             id: true,
             clientId: true,

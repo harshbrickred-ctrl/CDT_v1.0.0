@@ -55,17 +55,39 @@ enum EngagementHealth {
   ESCALATED
 }
 
-model User {
-  id           String    @id @default(uuid()) @db.Uuid
-  email        String    @unique
-  passwordHash String    @map("password_hash")
-  fullName     String    @map("full_name")
-  role         Role
-  isActive     Boolean   @default(true) @map("is_active")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
-  deletedAt    DateTime? @map("deleted_at")
+model Organization {
+  id        String   @id @default(uuid()) @db.Uuid
+  slug      String   @unique
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
+  users            User[]
+  clients          Client[]
+  candidates       Candidate[]
+  leaves           Leave[]
+  timesheets       Timesheet[]
+  invoices         Invoice[]
+  deliveryReviews  DeliveryReview[]
+  auditLogs        AuditLog[]
+  idSequences      IdSequence[]
+
+  @@map("organizations")
+}
+
+model User {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  email          String
+  passwordHash   String    @map("password_hash")
+  fullName       String    @map("full_name")
+  role           Role
+  isActive       Boolean   @default(true) @map("is_active")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  organization       Organization     @relation(fields: [organizationId], references: [id])
   refreshTokens      RefreshToken[]
   auditLogs          AuditLog[]       @relation("AuditActor")
   leavesRequested    Leave[]          @relation("LeaveRequester")
@@ -77,6 +99,8 @@ model User {
   invoicesGenerated  Invoice[]        @relation("InvoiceGenerator")
   invoicesReviewed   Invoice[]        @relation("InvoiceReviewer")
 
+  @@unique([organizationId, email])
+  @@index([organizationId])
   @@map("users")
 }
 
@@ -96,22 +120,28 @@ model RefreshToken {
 
 model Client {
   id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
   name           String
-  nameNormalized String    @unique @map("name_normalized")
-  code           String?   @unique
+  nameNormalized String    @map("name_normalized")
+  code           String?
   isActive       Boolean   @default(true) @map("is_active")
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
   deletedAt      DateTime? @map("deleted_at")
 
-  candidates Candidate[]
+  organization Organization @relation(fields: [organizationId], references: [id])
+  candidates   Candidate[]
 
+  @@unique([organizationId, nameNormalized])
+  @@unique([organizationId, code])
+  @@index([organizationId])
   @@map("clients")
 }
 
 model Candidate {
   id                     String          @id @default(uuid()) @db.Uuid
-  publicId               String          @unique @map("public_id")
+  organizationId         String          @map("organization_id") @db.Uuid
+  publicId               String          @map("public_id")
   clientId               String          @map("client_id") @db.Uuid
   fullName               String          @map("full_name")
   email                  String?
@@ -138,6 +168,7 @@ model Candidate {
   updatedAt              DateTime        @updatedAt @map("updated_at")
   deletedAt              DateTime?       @map("deleted_at")
 
+  organization   Organization     @relation(fields: [organizationId], references: [id])
   client         Client           @relation(fields: [clientId], references: [id])
   releasedBy     User?            @relation("CandidateReleaser", fields: [releasedById], references: [id])
   accountManager User?            @relation("CandidateAccountManager", fields: [accountManagerUserId], references: [id])
@@ -146,6 +177,8 @@ model Candidate {
   reviews        DeliveryReview[]
   invoices       Invoice[]
 
+  @@unique([organizationId, publicId])
+  @@index([organizationId])
   @@index([clientId])
   @@index([status])
   @@index([accountManagerUserId])
@@ -154,7 +187,8 @@ model Candidate {
 
 model Leave {
   id              String      @id @default(uuid()) @db.Uuid
-  publicId        String      @unique @map("public_id")
+  organizationId  String      @map("organization_id") @db.Uuid
+  publicId        String      @map("public_id")
   candidateId     String      @map("candidate_id") @db.Uuid
   leaveTypeCode   String      @map("leave_type_code")
   startDate       DateTime    @map("start_date") @db.Date
@@ -171,10 +205,13 @@ model Leave {
   updatedAt       DateTime    @updatedAt @map("updated_at")
   deletedAt       DateTime?   @map("deleted_at")
 
-  candidate   Candidate @relation(fields: [candidateId], references: [id])
-  requestedBy User      @relation("LeaveRequester", fields: [requestedById], references: [id])
-  approver    User?     @relation("LeaveApprover", fields: [approverId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
+  candidate    Candidate    @relation(fields: [candidateId], references: [id])
+  requestedBy  User         @relation("LeaveRequester", fields: [requestedById], references: [id])
+  approver     User?        @relation("LeaveApprover", fields: [approverId], references: [id])
 
+  @@unique([organizationId, publicId])
+  @@index([organizationId])
   @@index([candidateId, status])
   @@index([startDate, endDate])
   @@map("leaves")
@@ -182,7 +219,8 @@ model Leave {
 
 model Timesheet {
   id             String         @id @default(uuid()) @db.Uuid
-  publicId       String         @unique @map("public_id")
+  organizationId String         @map("organization_id") @db.Uuid
+  publicId       String         @map("public_id")
   candidateId    String         @map("candidate_id") @db.Uuid
   yearMonth      String         @map("year_month")
   periodStart    DateTime       @map("period_start") @db.Date
@@ -199,11 +237,14 @@ model Timesheet {
   updatedAt      DateTime       @updatedAt @map("updated_at")
   deletedAt      DateTime?      @map("deleted_at")
 
-  candidate  Candidate @relation(fields: [candidateId], references: [id])
-  approvedBy User?     @relation("TimesheetApprover", fields: [approvedById], references: [id])
-  invoice    Invoice?
+  organization Organization @relation(fields: [organizationId], references: [id])
+  candidate    Candidate    @relation(fields: [candidateId], references: [id])
+  approvedBy   User?        @relation("TimesheetApprover", fields: [approvedById], references: [id])
+  invoice      Invoice?
 
+  @@unique([organizationId, publicId])
   @@unique([candidateId, yearMonth])
+  @@index([organizationId])
   @@index([yearMonth])
   @@index([approvalStatus])
   @@map("timesheets")
@@ -211,7 +252,8 @@ model Timesheet {
 
 model Invoice {
   id                 String        @id @default(uuid()) @db.Uuid
-  publicId           String        @unique @map("public_id")
+  organizationId     String        @map("organization_id") @db.Uuid
+  publicId           String        @map("public_id")
   candidateId        String        @map("candidate_id") @db.Uuid
   timesheetId        String        @unique @map("timesheet_id") @db.Uuid
   yearMonth          String        @map("year_month")
@@ -239,11 +281,14 @@ model Invoice {
   createdAt          DateTime      @default(now()) @map("created_at")
   updatedAt          DateTime      @updatedAt @map("updated_at")
 
-  candidate   Candidate @relation(fields: [candidateId], references: [id])
-  timesheet   Timesheet @relation(fields: [timesheetId], references: [id])
-  generatedBy User      @relation("InvoiceGenerator", fields: [generatedById], references: [id])
-  reviewedBy  User?     @relation("InvoiceReviewer", fields: [reviewedById], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
+  candidate    Candidate    @relation(fields: [candidateId], references: [id])
+  timesheet    Timesheet    @relation(fields: [timesheetId], references: [id])
+  generatedBy  User         @relation("InvoiceGenerator", fields: [generatedById], references: [id])
+  reviewedBy   User?        @relation("InvoiceReviewer", fields: [reviewedById], references: [id])
 
+  @@unique([organizationId, publicId])
+  @@index([organizationId])
   @@index([yearMonth])
   @@index([status])
   @@index([candidateId])
@@ -252,7 +297,8 @@ model Invoice {
 
 model DeliveryReview {
   id               String           @id @default(uuid()) @db.Uuid
-  publicId         String           @unique @map("public_id")
+  organizationId   String           @map("organization_id") @db.Uuid
+  publicId         String           @map("public_id")
   candidateId      String           @map("candidate_id") @db.Uuid
   yearMonth        String           @map("year_month")
   reviewDate       DateTime         @map("review_date") @db.Date
@@ -266,10 +312,13 @@ model DeliveryReview {
   updatedAt        DateTime         @updatedAt @map("updated_at")
   deletedAt        DateTime?        @map("deleted_at")
 
-  candidate Candidate @relation(fields: [candidateId], references: [id])
-  reviewer  User      @relation("Reviewer", fields: [reviewerId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
+  candidate    Candidate    @relation(fields: [candidateId], references: [id])
+  reviewer     User         @relation("Reviewer", fields: [reviewerId], references: [id])
 
+  @@unique([organizationId, publicId])
   @@unique([candidateId, yearMonth])
+  @@index([organizationId])
   @@index([yearMonth, engagementHealth])
   @@map("delivery_reviews")
 }
@@ -298,6 +347,7 @@ model LookupValue {
 
 model AuditLog {
   id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
   entityType     String   @map("entity_type")
   entityId       String   @map("entity_id") @db.Uuid
   entityPublicId String?  @map("entity_public_id")
@@ -309,16 +359,22 @@ model AuditLog {
   userAgent      String?  @map("user_agent")
   createdAt      DateTime @default(now()) @map("created_at")
 
-  actor User? @relation("AuditActor", fields: [actorUserId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
+  actor        User?        @relation("AuditActor", fields: [actorUserId], references: [id])
 
+  @@index([organizationId])
   @@index([entityType, entityId])
   @@index([createdAt])
   @@map("audit_logs")
 }
 
 model IdSequence {
-  prefix    String @id
-  nextValue Int    @map("next_value")
+  organizationId String @map("organization_id") @db.Uuid
+  prefix         String
+  nextValue      Int    @map("next_value")
 
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@id([organizationId, prefix])
   @@map("id_sequences")
 }

@@ -31,6 +31,7 @@ export class LeavesController {
 
   @Get()
   findAll(
+    @CurrentUser() user: AuthUser,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('candidateId') candidateId?: string,
@@ -38,6 +39,7 @@ export class LeavesController {
     @Query('clientId') clientId?: string,
   ) {
     return this.leaves.findAll({
+      organizationId: user.organizationId,
       page: page ? Number(page) : 1,
       pageSize: pageSize ? Number(pageSize) : 20,
       candidateId,
@@ -47,13 +49,16 @@ export class LeavesController {
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.leaves.findOne(id);
+  findOne(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.leaves.findOne(user.organizationId, id);
   }
 
   @Post()
   create(@Body() dto: CreateLeaveDto, @CurrentUser() user: AuthUser) {
-    return this.leaves.create(dto, user.id);
+    return this.leaves.create(user.organizationId, dto, user.id);
   }
 
   @Patch(':id')
@@ -62,7 +67,7 @@ export class LeavesController {
     @Body() dto: UpdateLeaveDto,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.leaves.update(id, dto, user.id);
+    return this.leaves.update(user.organizationId, id, dto, user.id);
   }
 
   @Post(':id/approve')
@@ -71,7 +76,7 @@ export class LeavesController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.leaves.approve(id, user.id);
+    return this.leaves.approve(user.organizationId, id, user.id);
   }
 
   @Post(':id/reject')
@@ -81,6 +86,6 @@ export class LeavesController {
     @Body() dto: RejectLeaveDto,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.leaves.reject(id, dto, user.id);
+    return this.leaves.reject(user.organizationId, id, dto, user.id);
   }
 }

@@ -17,12 +17,12 @@ export class ImportController {
   constructor(private readonly imports: ImportService) {}
 
   @Post('dry-run')
-  dryRun(@Body() dto: ImportBodyDto) {
-    return this.imports.dryRun(dto);
+  dryRun(@Body() dto: ImportBodyDto, @CurrentUser() user: AuthUser) {
+    return this.imports.dryRun(user.organizationId, dto);
   }
 
   @Post('commit')
   commit(@Body() dto: ImportBodyDto, @CurrentUser() user: AuthUser) {
-    return this.imports.commit(dto, user.id);
+    return this.imports.commit(user.organizationId, dto, user.id);
   }
 }

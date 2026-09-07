@@ -55,17 +55,25 @@ export class CandidatesService {
     };
   }
 
-  private resolveWhere(idOrPublicId: string): Prisma.CandidateWhereInput {
+  private resolveWhere(
+    organizationId: string,
+    idOrPublicId: string,
+  ): Prisma.CandidateWhereInput {
     if (isUuid(idOrPublicId)) {
-      return { id: idOrPublicId, deletedAt: null };
+      return { id: idOrPublicId, organizationId, deletedAt: null };
     }
     if (idOrPublicId.toUpperCase().startsWith('CD-')) {
-      return { publicId: idOrPublicId.toUpperCase(), deletedAt: null };
+      return {
+        publicId: idOrPublicId.toUpperCase(),
+        organizationId,
+        deletedAt: null,
+      };
     }
-    return { publicId: idOrPublicId, deletedAt: null };
+    return { publicId: idOrPublicId, organizationId, deletedAt: null };
   }
 
   async findAll(params: {
+    organizationId: string;
     page?: number;
     pageSize?: number;
     clientId?: string;
@@ -75,6 +83,7 @@ export class CandidatesService {
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 20;
     const where: Prisma.CandidateWhereInput = {
+      organizationId: params.organizationId,
       deletedAt: null,
       ...(params.clientId ? { clientId: params.clientId } : {}),
       ...(params.status ? { status: params.status } : {}),
@@ -104,24 +113,29 @@ export class CandidatesService {
     };
   }
 
-  async findOne(idOrPublicId: string) {
+  async findOne(organizationId: string, idOrPublicId: string) {
     const candidate = await this.prisma.candidate.findFirst({
-      where: this.resolveWhere(idOrPublicId),
+      where: this.resolveWhere(organizationId, idOrPublicId),
       include: candidateInclude,
     });
     if (!candidate) throw new NotFoundException('Candidate not found');
     return this.serialize(candidate);
   }
 
-  async create(dto: CreateCandidateDto, actorUserId: string) {
+  async create(
+    organizationId: string,
+    dto: CreateCandidateDto,
+    actorUserId: string,
+  ) {
     const client = await this.prisma.client.findFirst({
-      where: { id: dto.clientId, deletedAt: null },
+      where: { id: dto.clientId, organizationId, deletedAt: null },
     });
     if (!client) throw new NotFoundException('Client not found');
 
-    const publicId = await this.ids.allocateNext('CD');
+    const publicId = await this.ids.allocateNext(organizationId, 'CD');
     const candidate = await this.prisma.candidate.create({
       data: {
+        organizationId,
         publicId,
         clientId: dto.clientId,
         fullName: dto.fullName.trim(),
@@ -148,6 +162,7 @@ export class CandidatesService {
       include: candidateInclude,
     });
     await this.audit.record({
+      organizationId,
       actorUserId,
       action: 'CREATE',
       entityType: 'Candidate',
@@ -159,14 +174,15 @@ export class CandidatesService {
   }
 
   async update(
+    organizationId: string,
     idOrPublicId: string,
     dto: UpdateCandidateDto,
     actorUserId: string,
   ) {
-    const before = await this.findOne(idOrPublicId);
+    const before = await this.findOne(organizationId, idOrPublicId);
     if (dto.clientId) {
       const client = await this.prisma.client.findFirst({
-        where: { id: dto.clientId, deletedAt: null },
+        where: { id: dto.clientId, organizationId, deletedAt: null },
       });
       if (!client) throw new NotFoundException('Client not found');
     }
@@ -225,6 +241,7 @@ export class CandidatesService {
       include: candidateInclude,
     });
     await this.audit.record({
+      organizationId,
       actorUserId,
       action: 'UPDATE',
       entityType: 'Candidate',
@@ -237,11 +254,12 @@ export class CandidatesService {
   }
 
   async release(
+    organizationId: string,
     idOrPublicId: string,
     dto: ReleaseCandidateDto,
     actorUserId: string,
   ) {
-    const before = await this.findOne(idOrPublicId);
+    const before = await this.findOne(organizationId, idOrPublicId);
     if (before.status === CandidateStatus.RELEASED) {
       throw new BadRequestException('Candidate is already released');
     }
@@ -260,6 +278,7 @@ export class CandidatesService {
       include: candidateInclude,
     });
     await this.audit.record({
+      organizationId,
       actorUserId,
       action: 'RELEASE',
       entityType: 'Candidate',
@@ -271,19 +290,31 @@ export class CandidatesService {
     return this.serialize(candidate);
   }
 
-  async timeline(idOrPublicId: string) {
-    const candidate = await this.findOne(idOrPublicId);
+  async timeline(organizationId: string, idOrPublicId: string) {
+    const candidate = await this.findOne(organizationId, idOrPublicId);
     const [leaves, timesheets, reviews] = await Promise.all([
       this.prisma.leave.findMany({
-        where: { candidateId: candidate.id, deletedAt: null },
+        where: {
+          organizationId,
+          candidateId: candidate.id,
+          deletedAt: null,
+        },
         orderBy: { startDate: 'desc' },
       }),
       this.prisma.timesheet.findMany({
-        where: { candidateId: candidate.id, deletedAt: null },
+        where: {
+          organizationId,
+          candidateId: candidate.id,
+          deletedAt: null,
+        },
         orderBy: { yearMonth: 'desc' },
       }),
       this.prisma.deliveryReview.findMany({
-        where: { candidateId: candidate.id, deletedAt: null },
+        where: {
+          organizationId,
+          candidateId: candidate.id,
+          deletedAt: null,
+        },
         orderBy: { yearMonth: 'desc' },
       }),
     ]);

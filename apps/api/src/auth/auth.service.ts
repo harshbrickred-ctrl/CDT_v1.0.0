@@ -10,6 +10,8 @@ export type JwtPayload = {
   sub: string;
   email: string;
   role: string;
+  organizationId: string;
+  organizationSlug: 'brickred' | 'agyom';
 };
 
 @Injectable()
@@ -39,11 +41,15 @@ export class AuthService {
     email: string;
     role: string;
     fullName: string;
+    organizationId: string;
+    organizationSlug: 'brickred' | 'agyom';
   }) {
     const payload: JwtPayload = {
       sub: user.id,
       email: user.email,
       role: user.role,
+      organizationId: user.organizationId,
+      organizationSlug: user.organizationSlug,
     };
 
     const accessTtl = this.config.get<string>('JWT_ACCESS_TTL') ?? '15m';
@@ -75,13 +81,27 @@ export class AuthService {
         email: user.email,
         fullName: user.fullName,
         role: user.role,
+        organizationId: user.organizationId,
+        organizationSlug: user.organizationSlug,
       },
     };
   }
 
   async login(dto: LoginDto) {
+    const org = await this.prisma.organization.findUnique({
+      where: { slug: dto.organization },
+    });
+    if (!org) {
+      throw new UnauthorizedException('Invalid organization');
+    }
+
     const user = await this.prisma.user.findFirst({
-      where: { email: dto.email.toLowerCase(), deletedAt: null },
+      where: {
+        email: dto.email.toLowerCase(),
+        organizationId: org.id,
+        deletedAt: null,
+      },
+      include: { organization: true },
     });
     if (!user || !user.isActive) {
       throw new UnauthorizedException('Invalid credentials');
@@ -90,14 +110,21 @@ export class AuthService {
     if (!ok) {
       throw new UnauthorizedException('Invalid credentials');
     }
-    return this.issueTokens(user);
+    return this.issueTokens({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      fullName: user.fullName,
+      organizationId: user.organizationId,
+      organizationSlug: user.organization.slug as 'brickred' | 'agyom',
+    });
   }
 
   async refresh(refreshToken: string) {
     const tokenHash = this.hashToken(refreshToken);
     const stored = await this.prisma.refreshToken.findUnique({
       where: { tokenHash },
-      include: { user: true },
+      include: { user: { include: { organization: true } } },
     });
     if (!stored || stored.revokedAt || stored.expiresAt < new Date()) {
       throw new UnauthorizedException('Invalid refresh token');
@@ -111,7 +138,14 @@ export class AuthService {
       data: { revokedAt: new Date() },
     });
 
-    return this.issueTokens(stored.user);
+    return this.issueTokens({
+      id: stored.user.id,
+      email: stored.user.email,
+      role: stored.user.role,
+      fullName: stored.user.fullName,
+      organizationId: stored.user.organizationId,
+      organizationSlug: stored.user.organization.slug as 'brickred' | 'agyom',
+    });
   }
 
   async logout(refreshToken: string) {
@@ -133,11 +167,23 @@ export class AuthService {
         role: true,
         isActive: true,
         createdAt: true,
+        organizationId: true,
+        organization: { select: { slug: true, name: true } },
       },
     });
     if (!user || !user.isActive) {
       throw new UnauthorizedException('User not found');
     }
-    return user;
+    return {
+      id: user.id,
+      email: user.email,
+      fullName: user.fullName,
+      role: user.role,
+      isActive: user.isActive,
+      createdAt: user.createdAt,
+      organizationId: user.organizationId,
+      organizationSlug: user.organization.slug,
+      organizationName: user.organization.name,
+    };
   }
 }

@@ -26,6 +26,7 @@ export class DeliveryReviewsController {
 
   @Get()
   findAll(
+    @CurrentUser() user: AuthUser,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('candidateId') candidateId?: string,
@@ -34,6 +35,7 @@ export class DeliveryReviewsController {
     @Query('health') health?: EngagementHealth,
   ) {
     return this.reviews.findAll({
+      organizationId: user.organizationId,
       page: page ? Number(page) : 1,
       pageSize: pageSize ? Number(pageSize) : 20,
       candidateId,
@@ -44,8 +46,11 @@ export class DeliveryReviewsController {
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.reviews.findOne(id);
+  findOne(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.reviews.findOne(user.organizationId, id);
   }
 
   @Put()
@@ -54,6 +59,6 @@ export class DeliveryReviewsController {
     @Body() dto: UpsertDeliveryReviewDto,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.reviews.upsert(dto, user.id);
+    return this.reviews.upsert(user.organizationId, dto, user.id);
   }
 }

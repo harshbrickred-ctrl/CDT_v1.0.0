@@ -3,9 +3,34 @@ import * as bcrypt from 'bcryptjs';
 
 const ID_PREFIXES = ['CD', 'LV', 'TSH', 'DEL', 'INV'] as const;
 
+export const ORG_DEFS = [
+  {
+    id: '11111111-1111-1111-1111-111111111111',
+    slug: 'brickred' as const,
+    name: 'BrickRed',
+  },
+  {
+    id: '22222222-2222-2222-2222-222222222222',
+    slug: 'agyom' as const,
+    name: 'Agyom',
+  },
+];
+
+export async function ensureOrganizations(prisma: PrismaClient) {
+  for (const org of ORG_DEFS) {
+    await prisma.organization.upsert({
+      where: { slug: org.slug },
+      update: { name: org.name },
+      create: { id: org.id, slug: org.slug, name: org.name },
+    });
+  }
+  return prisma.organization.findMany({ orderBy: { slug: 'asc' } });
+}
+
 export async function upsertUser(
   prisma: PrismaClient,
   input: {
+    organizationId: string;
     email: string;
     fullName: string;
     role: Role;
@@ -13,8 +38,14 @@ export async function upsertUser(
   },
 ) {
   const passwordHash = await bcrypt.hash(input.password, 10);
+  const email = input.email.toLowerCase();
   return prisma.user.upsert({
-    where: { email: input.email },
+    where: {
+      organizationId_email: {
+        organizationId: input.organizationId,
+        email,
+      },
+    },
     update: {
       fullName: input.fullName,
       role: input.role,
@@ -23,7 +54,8 @@ export async function upsertUser(
       deletedAt: null,
     },
     create: {
-      email: input.email,
+      organizationId: input.organizationId,
+      email,
       fullName: input.fullName,
       role: input.role,
       passwordHash,
@@ -116,28 +148,50 @@ export async function seedLookups(prisma: PrismaClient) {
   ]);
 }
 
-export async function seedIdSequences(prisma: PrismaClient) {
+export async function seedIdSequences(
+  prisma: PrismaClient,
+  organizationId: string,
+) {
   for (const prefix of ID_PREFIXES) {
     await prisma.idSequence.upsert({
-      where: { prefix },
+      where: {
+        organizationId_prefix: { organizationId, prefix },
+      },
       update: {},
-      create: { prefix, nextValue: 1 },
+      create: { organizationId, prefix, nextValue: 1 },
     });
   }
 }
 
 /** Force public-id counters back to 1 (for delivery clean). */
-export async function resetIdSequences(prisma: PrismaClient) {
-  for (const prefix of ID_PREFIXES) {
-    await prisma.idSequence.upsert({
-      where: { prefix },
-      update: { nextValue: 1 },
-      create: { prefix, nextValue: 1 },
-    });
+export async function resetIdSequences(
+  prisma: PrismaClient,
+  organizationId?: string,
+) {
+  const orgs = organizationId
+    ? [{ id: organizationId }]
+    : await prisma.organization.findMany({ select: { id: true } });
+
+  for (const org of orgs) {
+    for (const prefix of ID_PREFIXES) {
+      await prisma.idSequence.upsert({
+        where: {
+          organizationId_prefix: {
+            organizationId: org.id,
+            prefix,
+          },
+        },
+        update: { nextValue: 1 },
+        create: { organizationId: org.id, prefix, nextValue: 1 },
+      });
+    }
   }
 }
 
-export async function seedFoundationUsers(prisma: PrismaClient) {
+export async function seedFoundationUsersForOrg(
+  prisma: PrismaClient,
+  organizationId: string,
+) {
   const adminEmail = process.env.SEED_ADMIN_EMAIL;
   const adminPassword = process.env.SEED_ADMIN_PASSWORD;
   if (!adminEmail || !adminPassword) {
@@ -147,6 +201,7 @@ export async function seedFoundationUsers(prisma: PrismaClient) {
   const demoPassword = process.env.SEED_DEMO_PASSWORD || adminPassword;
 
   const admin = await upsertUser(prisma, {
+    organizationId,
     email: adminEmail,
     fullName: 'System Admin',
     role: Role.ADMIN,
@@ -154,6 +209,7 @@ export async function seedFoundationUsers(prisma: PrismaClient) {
   });
 
   const dm = await upsertUser(prisma, {
+    organizationId,
     email: 'dm@brickred.local',
     fullName: 'Demo Delivery Manager',
     role: Role.DELIVERY_MANAGER,
@@ -161,24 +217,37 @@ export async function seedFoundationUsers(prisma: PrismaClient) {
   });
 
   const am = await upsertUser(prisma, {
+    organizationId,
     email: 'am@brickred.local',
     fullName: 'Demo Account Manager',
     role: Role.ACCOUNT_MANAGER,
     password: demoPassword,
   });
 
-  return {
-    admin,
-    dm,
-    am,
-    adminEmail,
-    demoUsers: ['dm@brickred.local', 'am@brickred.local'] as const,
-  };
+  return { admin, dm, am, adminEmail };
 }
 
 export async function seedFoundation(prisma: PrismaClient) {
-  const users = await seedFoundationUsers(prisma);
+  const orgs = await ensureOrganizations(prisma);
   await seedLookups(prisma);
-  await seedIdSequences(prisma);
-  return users;
+
+  const bySlug: Record<
+    string,
+    Awaited<ReturnType<typeof seedFoundationUsersForOrg>>
+  > = {};
+
+  for (const org of orgs) {
+    await seedIdSequences(prisma, org.id);
+    bySlug[org.slug] = await seedFoundationUsersForOrg(prisma, org.id);
+  }
+
+  const brickred = bySlug.brickred;
+  return {
+    admin: brickred.admin,
+    dm: brickred.dm,
+    am: brickred.am,
+    adminEmail: brickred.adminEmail,
+    demoUsers: ['dm@brickred.local', 'am@brickred.local'] as const,
+    organizations: orgs.map((o) => o.slug),
+  };
 }

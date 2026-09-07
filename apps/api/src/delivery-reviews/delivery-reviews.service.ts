@@ -61,6 +61,7 @@ export class DeliveryReviewsService {
   }
 
   async findAll(params: {
+    organizationId: string;
     page?: number;
     pageSize?: number;
     candidateId?: string;
@@ -71,6 +72,7 @@ export class DeliveryReviewsService {
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 20;
     const where: Prisma.DeliveryReviewWhereInput = {
+      organizationId: params.organizationId,
       deletedAt: null,
       ...(params.candidateId ? { candidateId: params.candidateId } : {}),
       ...(params.yearMonth ? { yearMonth: params.yearMonth } : {}),
@@ -95,24 +97,29 @@ export class DeliveryReviewsService {
     };
   }
 
-  async findOne(id: string) {
+  async findOne(organizationId: string, id: string) {
     const row = await this.prisma.deliveryReview.findFirst({
-      where: { id, deletedAt: null },
+      where: { id, organizationId, deletedAt: null },
       include: reviewInclude,
     });
     if (!row) throw new NotFoundException('Delivery review not found');
     return this.serialize(row);
   }
 
-  async upsert(dto: UpsertDeliveryReviewDto, actorUserId: string) {
+  async upsert(
+    organizationId: string,
+    dto: UpsertDeliveryReviewDto,
+    actorUserId: string,
+  ) {
     this.assertEscalationNotes(dto);
     const candidate = await this.prisma.candidate.findFirst({
-      where: { id: dto.candidateId, deletedAt: null },
+      where: { id: dto.candidateId, organizationId, deletedAt: null },
     });
     if (!candidate) throw new NotFoundException('Candidate not found');
 
     const timesheet = await this.prisma.timesheet.findFirst({
       where: {
+        organizationId,
         candidateId: dto.candidateId,
         yearMonth: dto.yearMonth,
         deletedAt: null,
@@ -134,6 +141,9 @@ export class DeliveryReviewsService {
 
     try {
       if (existing && !existing.deletedAt) {
+        if (existing.organizationId !== organizationId) {
+          throw new NotFoundException('Candidate not found');
+        }
         const before = existing;
         const row = await this.prisma.deliveryReview.update({
           where: { id: existing.id },
@@ -149,6 +159,7 @@ export class DeliveryReviewsService {
           include: reviewInclude,
         });
         await this.audit.record({
+          organizationId,
           actorUserId,
           action: 'UPDATE',
           entityType: 'DeliveryReview',
@@ -161,6 +172,9 @@ export class DeliveryReviewsService {
       }
 
       if (existing?.deletedAt) {
+        if (existing.organizationId !== organizationId) {
+          throw new NotFoundException('Candidate not found');
+        }
         const row = await this.prisma.deliveryReview.update({
           where: { id: existing.id },
           data: {
@@ -176,6 +190,7 @@ export class DeliveryReviewsService {
           include: reviewInclude,
         });
         await this.audit.record({
+          organizationId,
           actorUserId,
           action: 'CREATE',
           entityType: 'DeliveryReview',
@@ -186,9 +201,10 @@ export class DeliveryReviewsService {
         return this.serialize(row);
       }
 
-      const publicId = await this.ids.allocateNext('DEL');
+      const publicId = await this.ids.allocateNext(organizationId, 'DEL');
       const row = await this.prisma.deliveryReview.create({
         data: {
+          organizationId,
           publicId,
           candidateId: dto.candidateId,
           yearMonth: dto.yearMonth,
@@ -203,6 +219,7 @@ export class DeliveryReviewsService {
         include: reviewInclude,
       });
       await this.audit.record({
+        organizationId,
         actorUserId,
         action: 'CREATE',
         entityType: 'DeliveryReview',

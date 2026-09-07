@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { SearchService } from './search.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { CurrentUser, AuthUser } from '../common/decorators/current-user.decorator';
 
 @ApiTags('search')
 @ApiBearerAuth()
@@ -12,7 +13,15 @@ export class SearchController {
   constructor(private readonly search: SearchService) {}
 
   @Get()
-  find(@Query('q') q?: string, @Query('limit') limit?: string) {
-    return this.search.search(q ?? '', limit ? Number(limit) : 20);
+  find(
+    @CurrentUser() user: AuthUser,
+    @Query('q') q?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.search.search(
+      user.organizationId,
+      q ?? '',
+      limit ? Number(limit) : 20,
+    );
   }
 }

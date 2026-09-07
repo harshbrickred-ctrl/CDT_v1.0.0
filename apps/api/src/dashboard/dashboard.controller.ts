@@ -4,6 +4,7 @@ import { EngagementHealth } from '@prisma/client';
 import { DashboardService } from './dashboard.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { CurrentUser, AuthUser } from '../common/decorators/current-user.decorator';
 
 @ApiTags('dashboard')
 @ApiBearerAuth()
@@ -14,25 +15,41 @@ export class DashboardController {
 
   @Get('summary')
   summary(
+    @CurrentUser() user: AuthUser,
     @Query('clientId') clientId?: string,
     @Query('health') health?: EngagementHealth,
     @Query('month') month?: string,
   ) {
-    return this.dashboard.summary({ clientId, health, month });
+    return this.dashboard.summary({
+      organizationId: user.organizationId,
+      clientId,
+      health,
+      month,
+    });
   }
 
   @Get('overdue-reviews')
-  overdueReviews(@Query('month') month?: string) {
-    return this.dashboard.overdueReviews(month);
+  overdueReviews(
+    @CurrentUser() user: AuthUser,
+    @Query('month') month?: string,
+  ) {
+    return this.dashboard.overdueReviews(user.organizationId, month);
   }
 
   @Get('kpi-detail')
   kpiDetail(
+    @CurrentUser() user: AuthUser,
     @Query('kpi') kpi: string,
     @Query('clientId') clientId?: string,
     @Query('health') health?: EngagementHealth,
     @Query('month') month?: string,
   ) {
-    return this.dashboard.kpiDetail({ kpi, clientId, health, month });
+    return this.dashboard.kpiDetail({
+      organizationId: user.organizationId,
+      kpi,
+      clientId,
+      health,
+      month,
+    });
   }
 }

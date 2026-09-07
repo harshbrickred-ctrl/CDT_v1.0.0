@@ -48,15 +48,23 @@ function normalizeName(name: string) {
   return name.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
-async function bumpIdSequence(prefix: 'CD' | 'LV' | 'TSH' | 'DEL' | 'INV', atLeast: number) {
-  const current = await prisma.idSequence.findUnique({ where: { prefix } });
+async function bumpIdSequence(
+  organizationId: string,
+  prefix: 'CD' | 'LV' | 'TSH' | 'DEL' | 'INV',
+  atLeast: number,
+) {
+  const current = await prisma.idSequence.findUnique({
+    where: { organizationId_prefix: { organizationId, prefix } },
+  });
   if (!current) {
-    await prisma.idSequence.create({ data: { prefix, nextValue: atLeast } });
+    await prisma.idSequence.create({
+      data: { organizationId, prefix, nextValue: atLeast },
+    });
     return;
   }
   if (current.nextValue < atLeast) {
     await prisma.idSequence.update({
-      where: { prefix },
+      where: { organizationId_prefix: { organizationId, prefix } },
       data: { nextValue: atLeast },
     });
   }
@@ -85,11 +93,14 @@ type DemoCandidateSpec = {
   skipPrevReview?: boolean;
 };
 
-async function seedDemoPortfolio(users: {
-  admin: { id: string };
-  dm: { id: string };
-  am: { id: string };
-}) {
+async function seedDemoPortfolio(
+  organizationId: string,
+  users: {
+    admin: { id: string };
+    dm: { id: string };
+    am: { id: string };
+  },
+) {
   const today = utcToday();
   const month = yearMonthFrom(today);
   const prevMonth = previousYearMonth(month);
@@ -107,8 +118,11 @@ async function seedDemoPortfolio(users: {
 
   const clientByCode = new Map<string, { id: string; name: string }>();
   for (const c of clients) {
+    const nameNormalized = normalizeName(c.name);
     const row = await prisma.client.upsert({
-      where: { nameNormalized: normalizeName(c.name) },
+      where: {
+        organizationId_nameNormalized: { organizationId, nameNormalized },
+      },
       update: {
         name: c.name,
         code: c.code,
@@ -116,8 +130,9 @@ async function seedDemoPortfolio(users: {
         deletedAt: null,
       },
       create: {
+        organizationId,
         name: c.name,
-        nameNormalized: normalizeName(c.name),
+        nameNormalized,
         code: c.code,
       },
     });
@@ -417,7 +432,12 @@ async function seedDemoPortfolio(users: {
         : null;
 
     const candidate = await prisma.candidate.upsert({
-      where: { publicId: spec.publicId },
+      where: {
+        organizationId_publicId: {
+          organizationId,
+          publicId: spec.publicId,
+        },
+      },
       update: {
         clientId: client.id,
         fullName: spec.fullName,
@@ -438,6 +458,7 @@ async function seedDemoPortfolio(users: {
         deletedAt: null,
       },
       create: {
+        organizationId,
         publicId: spec.publicId,
         clientId: client.id,
         fullName: spec.fullName,
@@ -464,7 +485,7 @@ async function seedDemoPortfolio(users: {
       const publicId = formatPublicId('LV', leaveSeq++);
       const leaveTypeCode = spec.unpaidLeave ? 'UNPAID' : 'CASUAL';
       await prisma.leave.upsert({
-        where: { publicId },
+        where: { organizationId_publicId: { organizationId, publicId } },
         update: {
           candidateId: candidate.id,
           leaveTypeCode,
@@ -479,6 +500,7 @@ async function seedDemoPortfolio(users: {
           deletedAt: null,
         },
         create: {
+          organizationId,
           publicId,
           candidateId: candidate.id,
           leaveTypeCode,
@@ -497,7 +519,7 @@ async function seedDemoPortfolio(users: {
     if (spec.pendingLeave && spec.status === CandidateStatus.ACTIVE) {
       const publicId = formatPublicId('LV', leaveSeq++);
       await prisma.leave.upsert({
-        where: { publicId },
+        where: { organizationId_publicId: { organizationId, publicId } },
         update: {
           candidateId: candidate.id,
           leaveTypeCode: 'SICK',
@@ -512,6 +534,7 @@ async function seedDemoPortfolio(users: {
           deletedAt: null,
         },
         create: {
+          organizationId,
           publicId,
           candidateId: candidate.id,
           leaveTypeCode: 'SICK',
@@ -536,6 +559,7 @@ async function seedDemoPortfolio(users: {
       const approved = spec.timesheet === 'approved';
 
       const data = {
+        organizationId,
         candidateId: candidate.id,
         yearMonth: month,
         periodStart,
@@ -562,7 +586,7 @@ async function seedDemoPortfolio(users: {
         },
       });
       const byPublicId = await prisma.timesheet.findUnique({
-        where: { publicId },
+        where: { organizationId_publicId: { organizationId, publicId } },
       });
 
       if (byPair) {
@@ -580,6 +604,7 @@ async function seedDemoPortfolio(users: {
     if (spec.review && spec.status === CandidateStatus.ACTIVE) {
       const publicId = formatPublicId('DEL', delSeq++);
       const data = {
+        organizationId,
         candidateId: candidate.id,
         yearMonth: month,
         reviewDate: addDays(periodStart, 20),
@@ -604,7 +629,7 @@ async function seedDemoPortfolio(users: {
         },
       });
       const byPublicId = await prisma.deliveryReview.findUnique({
-        where: { publicId },
+        where: { organizationId_publicId: { organizationId, publicId } },
       });
 
       if (byPair) {
@@ -623,6 +648,7 @@ async function seedDemoPortfolio(users: {
     if (spec.status === CandidateStatus.ACTIVE && !spec.skipPrevReview) {
       const publicId = formatPublicId('DEL', delSeq++);
       const data = {
+        organizationId,
         candidateId: candidate.id,
         yearMonth: prevMonth,
         reviewDate: addDays(prevBounds.periodStart, 18),
@@ -643,7 +669,7 @@ async function seedDemoPortfolio(users: {
         },
       });
       const byPublicId = await prisma.deliveryReview.findUnique({
-        where: { publicId },
+        where: { organizationId_publicId: { organizationId, publicId } },
       });
 
       if (byPair) {
@@ -659,10 +685,10 @@ async function seedDemoPortfolio(users: {
     }
   }
 
-  await bumpIdSequence('CD', 26);
-  await bumpIdSequence('LV', leaveSeq);
-  await bumpIdSequence('TSH', tsSeq);
-  await bumpIdSequence('DEL', delSeq);
+  await bumpIdSequence(organizationId, 'CD', 26);
+  await bumpIdSequence(organizationId, 'LV', leaveSeq);
+  await bumpIdSequence(organizationId, 'TSH', tsSeq);
+  await bumpIdSequence(organizationId, 'DEL', delSeq);
 
   return {
     month,
@@ -679,17 +705,22 @@ async function seedDemoPortfolio(users: {
   };
 }
 
-async function seedDemoInvoices(users: {
-  dm: { id: string };
-  am: { id: string };
-}, month: string) {
+async function seedDemoInvoices(
+  organizationId: string,
+  users: {
+    dm: { id: string };
+    am: { id: string };
+  },
+  month: string,
+) {
   const today = utcToday();
 
   // Drop prior demo invoices for this month so billing snapshots stay fresh.
-  await prisma.invoice.deleteMany({ where: { yearMonth: month } });
+  await prisma.invoice.deleteMany({ where: { organizationId, yearMonth: month } });
 
   const approvedTimesheets = await prisma.timesheet.findMany({
     where: {
+      organizationId,
       deletedAt: null,
       yearMonth: month,
       approvalStatus: ApprovalStatus.APPROVED,
@@ -724,6 +755,7 @@ async function seedDemoInvoices(users: {
   ];
 
   const existingInvoices = await prisma.invoice.findMany({
+    where: { organizationId },
     select: { publicId: true },
   });
   let invSeq =
@@ -809,6 +841,7 @@ async function seedDemoInvoices(users: {
         : {};
 
     const data = {
+      organizationId,
       candidateId: ts.candidateId,
       yearMonth: month,
       billingType,
@@ -849,19 +882,25 @@ async function seedDemoInvoices(users: {
     upserted++;
   }
 
-  await bumpIdSequence('INV', invSeq);
+  await bumpIdSequence(organizationId, 'INV', invSeq);
   return { invoices: upserted };
 }
 
 async function main() {
   const { admin, dm, am, adminEmail, demoUsers } = await seedFoundation(prisma);
 
-  const demo = await seedDemoPortfolio({ admin, dm, am });
-  const invoices = await seedDemoInvoices({ dm, am }, demo.month);
+  const brickred = await prisma.organization.findUnique({
+    where: { slug: 'brickred' },
+  });
+  if (!brickred) throw new Error('Missing brickred organization after seedFoundation');
+
+  const demo = await seedDemoPortfolio(brickred.id, { admin, dm, am });
+  const invoices = await seedDemoInvoices(brickred.id, { dm, am }, demo.month);
 
   console.log('Seed complete:', {
     admin: adminEmail,
     demoUsers,
+    organization: brickred.slug,
     demo,
     invoices,
   });

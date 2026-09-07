@@ -23,8 +23,8 @@ const userSelect = {
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll(page = 1, pageSize = 20) {
-    const where = { deletedAt: null };
+  async findAll(organizationId: string, page = 1, pageSize = 20) {
+    const where = { organizationId, deletedAt: null };
     const [total, items] = await this.prisma.$transaction([
       this.prisma.user.count({ where }),
       this.prisma.user.findMany({
@@ -38,18 +38,20 @@ export class UsersService {
     return { items, meta: paginationMeta(total, page, pageSize) };
   }
 
-  async findOne(id: string) {
+  async findOne(organizationId: string, id: string) {
     const user = await this.prisma.user.findFirst({
-      where: { id, deletedAt: null },
+      where: { id, organizationId, deletedAt: null },
       select: userSelect,
     });
     if (!user) throw new NotFoundException('User not found');
     return user;
   }
 
-  async create(dto: CreateUserDto) {
+  async create(organizationId: string, dto: CreateUserDto) {
     const email = dto.email.toLowerCase();
-    const existing = await this.prisma.user.findUnique({ where: { email } });
+    const existing = await this.prisma.user.findUnique({
+      where: { organizationId_email: { organizationId, email } },
+    });
     if (existing && !existing.deletedAt) {
       throw new ConflictException('Email already in use');
     }
@@ -70,6 +72,7 @@ export class UsersService {
     }
     return this.prisma.user.create({
       data: {
+        organizationId,
         email,
         fullName: dto.fullName,
         role: dto.role,
@@ -79,8 +82,8 @@ export class UsersService {
     });
   }
 
-  async update(id: string, dto: UpdateUserDto) {
-    await this.findOne(id);
+  async update(organizationId: string, id: string, dto: UpdateUserDto) {
+    await this.findOne(organizationId, id);
     const data: {
       fullName?: string;
       role?: Role;
@@ -100,8 +103,8 @@ export class UsersService {
     });
   }
 
-  async softDelete(id: string) {
-    await this.findOne(id);
+  async softDelete(organizationId: string, id: string) {
+    await this.findOne(organizationId, id);
     await this.prisma.user.update({
       where: { id },
       data: { deletedAt: new Date(), isActive: false },

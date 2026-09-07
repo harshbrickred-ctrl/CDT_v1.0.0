@@ -43,15 +43,23 @@ export class ImportService {
     private readonly audit: AuditService,
   ) {}
 
-  async dryRun(dto: ImportBodyDto): Promise<ImportResult> {
-    return this.run(dto, false, null);
+  async dryRun(
+    organizationId: string,
+    dto: ImportBodyDto,
+  ): Promise<ImportResult> {
+    return this.run(organizationId, dto, false, null);
   }
 
-  async commit(dto: ImportBodyDto, actorUserId: string): Promise<ImportResult> {
-    return this.run(dto, true, actorUserId);
+  async commit(
+    organizationId: string,
+    dto: ImportBodyDto,
+    actorUserId: string,
+  ): Promise<ImportResult> {
+    return this.run(organizationId, dto, true, actorUserId);
   }
 
   private async run(
+    organizationId: string,
     dto: ImportBodyDto,
     commit: boolean,
     actorUserId: string | null,
@@ -61,10 +69,17 @@ export class ImportService {
 
     switch (dto.entity) {
       case 'clients':
-        created = await this.importClients(dto.rows, commit, actorUserId, errors);
+        created = await this.importClients(
+          organizationId,
+          dto.rows,
+          commit,
+          actorUserId,
+          errors,
+        );
         break;
       case 'candidates':
         created = await this.importCandidates(
+          organizationId,
           dto.rows,
           commit,
           actorUserId,
@@ -72,10 +87,17 @@ export class ImportService {
         );
         break;
       case 'leaves':
-        created = await this.importLeaves(dto.rows, commit, actorUserId, errors);
+        created = await this.importLeaves(
+          organizationId,
+          dto.rows,
+          commit,
+          actorUserId,
+          errors,
+        );
         break;
       case 'timesheets':
         created = await this.importTimesheets(
+          organizationId,
           dto.rows,
           commit,
           actorUserId,
@@ -84,6 +106,7 @@ export class ImportService {
         break;
       case 'delivery-reviews':
         created = await this.importReviews(
+          organizationId,
           dto.rows,
           commit,
           actorUserId,
@@ -108,6 +131,7 @@ export class ImportService {
   }
 
   private async importClients(
+    organizationId: string,
     rows: Record<string, unknown>[],
     commit: boolean,
     actorUserId: string | null,
@@ -123,7 +147,9 @@ export class ImportService {
       }
       const nameNormalized = normalizeClientName(name);
       const existing = await this.prisma.client.findUnique({
-        where: { nameNormalized },
+        where: {
+          organizationId_nameNormalized: { organizationId, nameNormalized },
+        },
       });
       if (existing && !existing.deletedAt) {
         errors.push({
@@ -148,6 +174,7 @@ export class ImportService {
             })
           : await this.prisma.client.create({
               data: {
+                organizationId,
                 name,
                 nameNormalized,
                 code: str(row.code) ?? null,
@@ -155,6 +182,7 @@ export class ImportService {
             });
         if (actorUserId) {
           await this.audit.record({
+            organizationId,
             actorUserId,
             action: 'IMPORT',
             entityType: 'Client',
@@ -179,6 +207,7 @@ export class ImportService {
   }
 
   private async importCandidates(
+    organizationId: string,
     rows: Record<string, unknown>[],
     commit: boolean,
     actorUserId: string | null,
@@ -202,6 +231,7 @@ export class ImportService {
       if (!resolvedClientId && clientName) {
         const client = await this.prisma.client.findFirst({
           where: {
+            organizationId,
             deletedAt: null,
             nameNormalized: normalizeClientName(clientName),
           },
@@ -225,16 +255,17 @@ export class ImportService {
         continue;
       }
       const client = await this.prisma.client.findFirst({
-        where: { id: resolvedClientId, deletedAt: null },
+        where: { id: resolvedClientId, organizationId, deletedAt: null },
       });
       if (!client) {
         errors.push({ row: i, field: 'clientId', message: 'Client not found' });
         continue;
       }
       if (!commit) continue;
-      const publicId = await this.ids.allocateNext('CD');
+      const publicId = await this.ids.allocateNext(organizationId, 'CD');
       const candidate = await this.prisma.candidate.create({
         data: {
+          organizationId,
           publicId,
           clientId: resolvedClientId,
           fullName,
@@ -254,6 +285,7 @@ export class ImportService {
       });
       if (actorUserId) {
         await this.audit.record({
+          organizationId,
           actorUserId,
           action: 'IMPORT',
           entityType: 'Candidate',
@@ -268,6 +300,7 @@ export class ImportService {
   }
 
   private async importLeaves(
+    organizationId: string,
     rows: Record<string, unknown>[],
     commit: boolean,
     actorUserId: string | null,
@@ -290,6 +323,7 @@ export class ImportService {
       }
       const candidate = await this.prisma.candidate.findFirst({
         where: {
+          organizationId,
           deletedAt: null,
           ...(candidateId
             ? { id: candidateId }
@@ -330,9 +364,10 @@ export class ImportService {
       }
       if (!commit || !actorUserId) continue;
       const days = inclusiveCalendarDays(from, to);
-      const publicId = await this.ids.allocateNext('LV');
+      const publicId = await this.ids.allocateNext(organizationId, 'LV');
       const leave = await this.prisma.leave.create({
         data: {
+          organizationId,
           publicId,
           candidateId: candidate.id,
           leaveTypeCode: leaveTypeCode.toUpperCase(),
@@ -345,6 +380,7 @@ export class ImportService {
         },
       });
       await this.audit.record({
+        organizationId,
         actorUserId,
         action: 'IMPORT',
         entityType: 'Leave',
@@ -358,6 +394,7 @@ export class ImportService {
   }
 
   private async importTimesheets(
+    organizationId: string,
     rows: Record<string, unknown>[],
     commit: boolean,
     actorUserId: string | null,
@@ -396,6 +433,7 @@ export class ImportService {
       }
       const candidate = await this.prisma.candidate.findFirst({
         where: {
+          organizationId,
           deletedAt: null,
           ...(candidateId
             ? { id: candidateId }
@@ -426,6 +464,7 @@ export class ImportService {
       const { periodStart, periodEnd } = periodFromYearMonth(yearMonth);
       const leaves = await this.prisma.leave.findMany({
         where: {
+          organizationId,
           candidateId: candidate.id,
           deletedAt: null,
           status: LeaveStatus.APPROVED,
@@ -444,10 +483,11 @@ export class ImportService {
         periodEnd,
       );
       const pct = attendancePct(daysWorked, workingDays);
-      const publicId = await this.ids.allocateNext('TSH');
+      const publicId = await this.ids.allocateNext(organizationId, 'TSH');
       try {
         const timesheet = await this.prisma.timesheet.create({
           data: {
+            organizationId,
             publicId,
             candidateId: candidate.id,
             yearMonth,
@@ -462,6 +502,7 @@ export class ImportService {
         });
         if (actorUserId) {
           await this.audit.record({
+            organizationId,
             actorUserId,
             action: 'IMPORT',
             entityType: 'Timesheet',
@@ -487,6 +528,7 @@ export class ImportService {
   }
 
   private async importReviews(
+    organizationId: string,
     rows: Record<string, unknown>[],
     commit: boolean,
     actorUserId: string | null,
@@ -562,6 +604,7 @@ export class ImportService {
       }
       const candidate = await this.prisma.candidate.findFirst({
         where: {
+          organizationId,
           deletedAt: null,
           ...(candidateId
             ? { id: candidateId }
@@ -592,15 +635,17 @@ export class ImportService {
 
       const timesheet = await this.prisma.timesheet.findFirst({
         where: {
+          organizationId,
           candidateId: candidate.id,
           yearMonth,
           deletedAt: null,
         },
       });
-      const publicId = await this.ids.allocateNext('DEL');
+      const publicId = await this.ids.allocateNext(organizationId, 'DEL');
       try {
         const review = await this.prisma.deliveryReview.create({
           data: {
+            organizationId,
             publicId,
             candidateId: candidate.id,
             yearMonth,
@@ -614,6 +659,7 @@ export class ImportService {
           },
         });
         await this.audit.record({
+          organizationId,
           actorUserId,
           action: 'IMPORT',
           entityType: 'DeliveryReview',

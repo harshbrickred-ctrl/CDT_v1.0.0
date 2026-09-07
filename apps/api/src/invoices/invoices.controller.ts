@@ -26,6 +26,7 @@ export class InvoicesController {
 
   @Get()
   findAll(
+    @CurrentUser() user: AuthUser,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('status') status?: InvoiceStatus,
@@ -34,6 +35,7 @@ export class InvoicesController {
     @Query('clientId') clientId?: string,
   ) {
     return this.invoices.findAll({
+      organizationId: user.organizationId,
       page: page ? Number(page) : 1,
       pageSize: pageSize ? Number(pageSize) : 20,
       status,
@@ -44,14 +46,17 @@ export class InvoicesController {
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.invoices.findOne(id);
+  findOne(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.invoices.findOne(user.organizationId, id);
   }
 
   @Post('generate')
   @Roles(Role.ADMIN, Role.DELIVERY_MANAGER, Role.ACCOUNT_MANAGER)
   generate(@Body() dto: GenerateInvoiceDto, @CurrentUser() user: AuthUser) {
-    return this.invoices.generate(dto, user.id);
+    return this.invoices.generate(user.organizationId, dto, user.id);
   }
 
   @Post(':id/approve')
@@ -60,7 +65,7 @@ export class InvoicesController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.invoices.approve(id, user.id);
+    return this.invoices.approve(user.organizationId, id, user.id);
   }
 
   @Post(':id/send')
@@ -69,7 +74,7 @@ export class InvoicesController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.invoices.send(id, user.id);
+    return this.invoices.send(user.organizationId, id, user.id);
   }
 
   @Post(':id/mark-paid')
@@ -78,7 +83,7 @@ export class InvoicesController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.invoices.markPaid(id, user.id);
+    return this.invoices.markPaid(user.organizationId, id, user.id);
   }
 
   @Post(':id/reject')
@@ -88,6 +93,6 @@ export class InvoicesController {
     @Body() dto: RejectInvoiceDto,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.invoices.reject(id, dto, user.id);
+    return this.invoices.reject(user.organizationId, id, dto, user.id);
   }
 }

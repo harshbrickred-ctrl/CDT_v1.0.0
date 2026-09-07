@@ -5,7 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 export class SearchService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async search(q: string, limit = 20) {
+  async search(organizationId: string, q: string, limit = 20) {
     const query = q?.trim() ?? '';
     if (!query) {
       return { candidates: [], clients: [] };
@@ -14,6 +14,7 @@ export class SearchService {
     const [candidates, clients] = await Promise.all([
       this.prisma.candidate.findMany({
         where: {
+          organizationId,
           deletedAt: null,
           OR: [
             { fullName: { contains: query, mode: 'insensitive' } },
@@ -33,6 +34,7 @@ export class SearchService {
       }),
       this.prisma.client.findMany({
         where: {
+          organizationId,
           deletedAt: null,
           OR: [
             { name: { contains: query, mode: 'insensitive' } },

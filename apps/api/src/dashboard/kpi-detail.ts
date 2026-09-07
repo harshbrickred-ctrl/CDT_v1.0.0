@@ -85,9 +85,11 @@ function fmtStatus(status: string) {
 }
 
 function candidateBaseWhere(
+  organizationId: string,
   clientId?: string,
 ): Prisma.CandidateWhereInput {
   return {
+    organizationId,
     deletedAt: null,
     ...(clientId ? { clientId } : {}),
   };
@@ -96,6 +98,7 @@ function candidateBaseWhere(
 export async function fetchKpiDetail(
   prisma: PrismaClient,
   params: {
+    organizationId: string;
     kpi: string;
     clientId?: string;
     health?: EngagementHealth;
@@ -110,7 +113,10 @@ export async function fetchKpiDetail(
   const month = params.month ?? defaultMonth();
   periodFromYearMonth(month);
   const today = utcToday();
-  const candidateBase = candidateBaseWhere(params.clientId);
+  const candidateBase = candidateBaseWhere(
+    params.organizationId,
+    params.clientId,
+  );
 
   switch (kpi) {
     case 'active':

@@ -28,6 +28,8 @@ Default admin (from seed / `.env`): `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`.
 
 Demo users (same password): `dm@brickred.local`, `am@brickred.local`.
 
+Organizations (`brickred` / `agyom`) are **data-isolated**: pick the org on login; users, clients, and delivery records do not cross between them. The same email can exist in both orgs as separate accounts.
+
 Before delivery, wipe demo/dev business data while keeping logins and lookups:
 
 ```bash

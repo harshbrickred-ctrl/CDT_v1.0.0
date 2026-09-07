@@ -17,8 +17,14 @@ export class ClientsService {
     private readonly audit: AuditService,
   ) {}
 
-  async findAll(page = 1, pageSize = 20, q?: string) {
+  async findAll(
+    organizationId: string,
+    page = 1,
+    pageSize = 20,
+    q?: string,
+  ) {
     const where = {
+      organizationId,
       deletedAt: null,
       ...(q
         ? {
@@ -41,19 +47,25 @@ export class ClientsService {
     return { items, meta: paginationMeta(total, page, pageSize) };
   }
 
-  async findOne(id: string) {
+  async findOne(organizationId: string, id: string) {
     const client = await this.prisma.client.findFirst({
-      where: { id, deletedAt: null },
+      where: { id, organizationId, deletedAt: null },
     });
     if (!client) throw new NotFoundException('Client not found');
     return client;
   }
 
-  async create(dto: CreateClientDto, actorUserId: string) {
+  async create(
+    organizationId: string,
+    dto: CreateClientDto,
+    actorUserId: string,
+  ) {
     const name = dto.name.trim().replace(/\s+/g, ' ');
     const nameNormalized = normalizeClientName(name);
     const existing = await this.prisma.client.findUnique({
-      where: { nameNormalized },
+      where: {
+        organizationId_nameNormalized: { organizationId, nameNormalized },
+      },
     });
     if (existing && !existing.deletedAt) {
       throw new ConflictException('Client name already exists');
@@ -73,6 +85,7 @@ export class ClientsService {
             })
           : await this.prisma.client.create({
               data: {
+                organizationId,
                 name,
                 nameNormalized,
                 code: dto.code ?? null,
@@ -80,6 +93,7 @@ export class ClientsService {
               },
             });
       await this.audit.record({
+        organizationId,
         actorUserId,
         action: 'CREATE',
         entityType: 'Client',
@@ -92,8 +106,13 @@ export class ClientsService {
     }
   }
 
-  async update(id: string, dto: UpdateClientDto, actorUserId: string) {
-    const before = await this.findOne(id);
+  async update(
+    organizationId: string,
+    id: string,
+    dto: UpdateClientDto,
+    actorUserId: string,
+  ) {
+    const before = await this.findOne(organizationId, id);
     const data: {
       name?: string;
       nameNormalized?: string;
@@ -105,7 +124,12 @@ export class ClientsService {
       data.name = name;
       data.nameNormalized = normalizeClientName(name);
       const clash = await this.prisma.client.findUnique({
-        where: { nameNormalized: data.nameNormalized },
+        where: {
+          organizationId_nameNormalized: {
+            organizationId,
+            nameNormalized: data.nameNormalized,
+          },
+        },
       });
       if (clash && clash.id !== id && !clash.deletedAt) {
         throw new ConflictException('Client name already exists');
@@ -119,6 +143,7 @@ export class ClientsService {
         data,
       });
       await this.audit.record({
+        organizationId,
         actorUserId,
         action: 'UPDATE',
         entityType: 'Client',
@@ -132,13 +157,18 @@ export class ClientsService {
     }
   }
 
-  async softDelete(id: string, actorUserId: string) {
-    const before = await this.findOne(id);
+  async softDelete(
+    organizationId: string,
+    id: string,
+    actorUserId: string,
+  ) {
+    const before = await this.findOne(organizationId, id);
     const client = await this.prisma.client.update({
       where: { id },
       data: { deletedAt: new Date(), isActive: false },
     });
     await this.audit.record({
+      organizationId,
       actorUserId,
       action: 'DELETE',
       entityType: 'Client',

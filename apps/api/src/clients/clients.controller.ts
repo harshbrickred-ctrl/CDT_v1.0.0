@@ -28,11 +28,13 @@ export class ClientsController {
 
   @Get()
   findAll(
+    @CurrentUser() user: AuthUser,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('q') q?: string,
   ) {
     return this.clients.findAll(
+      user.organizationId,
       page ? Number(page) : 1,
       pageSize ? Number(pageSize) : 20,
       q,
@@ -40,14 +42,17 @@ export class ClientsController {
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.clients.findOne(id);
+  findOne(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.clients.findOne(user.organizationId, id);
   }
 
   @Post()
   @Roles(Role.ADMIN, Role.DELIVERY_MANAGER)
   create(@Body() dto: CreateClientDto, @CurrentUser() user: AuthUser) {
-    return this.clients.create(dto, user.id);
+    return this.clients.create(user.organizationId, dto, user.id);
   }
 
   @Patch(':id')
@@ -57,7 +62,7 @@ export class ClientsController {
     @Body() dto: UpdateClientDto,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.clients.update(id, dto, user.id);
+    return this.clients.update(user.organizationId, id, dto, user.id);
   }
 
   @Delete(':id')
@@ -66,6 +71,6 @@ export class ClientsController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.clients.softDelete(id, user.id);
+    return this.clients.softDelete(user.organizationId, id, user.id);
   }
 }

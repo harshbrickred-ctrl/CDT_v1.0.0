@@ -30,6 +30,7 @@ export class TimesheetsController {
 
   @Get()
   findAll(
+    @CurrentUser() user: AuthUser,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('candidateId') candidateId?: string,
@@ -38,6 +39,7 @@ export class TimesheetsController {
     @Query('approvalStatus') approvalStatus?: ApprovalStatus,
   ) {
     return this.timesheets.findAll({
+      organizationId: user.organizationId,
       page: page ? Number(page) : 1,
       pageSize: pageSize ? Number(pageSize) : 20,
       candidateId,
@@ -48,13 +50,16 @@ export class TimesheetsController {
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.timesheets.findOne(id);
+  findOne(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.timesheets.findOne(user.organizationId, id);
   }
 
   @Put()
   upsert(@Body() dto: UpsertTimesheetDto, @CurrentUser() user: AuthUser) {
-    return this.timesheets.upsert(dto, user.id);
+    return this.timesheets.upsert(user.organizationId, dto, user.id);
   }
 
   @Post(':id/recalculate')
@@ -62,7 +67,7 @@ export class TimesheetsController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.timesheets.recalculate(id, user.id);
+    return this.timesheets.recalculate(user.organizationId, id, user.id);
   }
 
   @Post(':id/approve')
@@ -71,7 +76,7 @@ export class TimesheetsController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.timesheets.approve(id, user.id);
+    return this.timesheets.approve(user.organizationId, id, user.id);
   }
 
   @Post(':id/reject')
@@ -81,6 +86,6 @@ export class TimesheetsController {
     @Body() dto: RejectTimesheetDto,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.timesheets.reject(id, dto, user.id);
+    return this.timesheets.reject(user.organizationId, id, dto, user.id);
   }
 }

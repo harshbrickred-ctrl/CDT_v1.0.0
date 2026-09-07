@@ -5,6 +5,7 @@ import { AuditService } from './audit.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
+import { CurrentUser, AuthUser } from '../common/decorators/current-user.decorator';
 
 @ApiTags('audit')
 @ApiBearerAuth()
@@ -16,6 +17,7 @@ export class AuditController {
 
   @Get()
   findAll(
+    @CurrentUser() user: AuthUser,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('entityType') entityType?: string,
@@ -24,6 +26,7 @@ export class AuditController {
     @Query('action') action?: string,
   ) {
     return this.audit.findAll({
+      organizationId: user.organizationId,
       page: page ? Number(page) : 1,
       pageSize: pageSize ? Number(pageSize) : 20,
       entityType,

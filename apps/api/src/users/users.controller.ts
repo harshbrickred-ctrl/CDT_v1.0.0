@@ -30,31 +30,37 @@ export class UsersController {
 
   @Get()
   findAll(
+    @CurrentUser() user: AuthUser,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
     return this.users.findAll(
+      user.organizationId,
       page ? Number(page) : 1,
       pageSize ? Number(pageSize) : 20,
     );
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.users.findOne(id);
+  findOne(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.users.findOne(user.organizationId, id);
   }
 
   @Post()
-  create(@Body() dto: CreateUserDto) {
-    return this.users.create(dto);
+  create(@Body() dto: CreateUserDto, @CurrentUser() user: AuthUser) {
+    return this.users.create(user.organizationId, dto);
   }
 
   @Patch(':id')
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateUserDto,
+    @CurrentUser() user: AuthUser,
   ) {
-    return this.users.update(id, dto);
+    return this.users.update(user.organizationId, id, dto);
   }
 
   @Delete(':id')
@@ -65,6 +71,6 @@ export class UsersController {
     if (id === user.id) {
       throw new BadRequestException('You cannot remove your own account');
     }
-    return this.users.softDelete(id);
+    return this.users.softDelete(user.organizationId, id);
   }
 }

@@ -60,9 +60,12 @@ export class LeavesService {
     }
   }
 
-  private async assertActiveCandidate(candidateId: string) {
+  private async assertActiveCandidate(
+    organizationId: string,
+    candidateId: string,
+  ) {
     const candidate = await this.prisma.candidate.findFirst({
-      where: { id: candidateId, deletedAt: null },
+      where: { id: candidateId, organizationId, deletedAt: null },
     });
     if (!candidate) throw new NotFoundException('Candidate not found');
     if (candidate.status !== CandidateStatus.ACTIVE) {
@@ -74,6 +77,7 @@ export class LeavesService {
   }
 
   async findAll(params: {
+    organizationId: string;
     page?: number;
     pageSize?: number;
     candidateId?: string;
@@ -83,6 +87,7 @@ export class LeavesService {
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 20;
     const where: Prisma.LeaveWhereInput = {
+      organizationId: params.organizationId,
       deletedAt: null,
       ...(params.candidateId ? { candidateId: params.candidateId } : {}),
       ...(params.status ? { status: params.status } : {}),
@@ -106,25 +111,30 @@ export class LeavesService {
     };
   }
 
-  async findOne(id: string) {
+  async findOne(organizationId: string, id: string) {
     const leave = await this.prisma.leave.findFirst({
-      where: { id, deletedAt: null },
+      where: { id, organizationId, deletedAt: null },
       include: leaveInclude,
     });
     if (!leave) throw new NotFoundException('Leave not found');
     return this.serialize(leave);
   }
 
-  async create(dto: CreateLeaveDto, actorUserId: string) {
-    await this.assertActiveCandidate(dto.candidateId);
+  async create(
+    organizationId: string,
+    dto: CreateLeaveDto,
+    actorUserId: string,
+  ) {
+    await this.assertActiveCandidate(organizationId, dto.candidateId);
     const startDate = new Date(dto.startDate);
     const endDate = new Date(dto.endDate);
     this.assertDateOrder(startDate, endDate);
     const days = inclusiveCalendarDays(startDate, endDate);
-    const publicId = await this.ids.allocateNext('LV');
+    const publicId = await this.ids.allocateNext(organizationId, 'LV');
 
     const leave = await this.prisma.leave.create({
       data: {
+        organizationId,
         publicId,
         candidateId: dto.candidateId,
         leaveTypeCode: dto.leaveTypeCode.trim().toUpperCase(),
@@ -138,6 +148,7 @@ export class LeavesService {
       include: leaveInclude,
     });
     await this.audit.record({
+      organizationId,
       actorUserId,
       action: 'CREATE',
       entityType: 'Leave',
@@ -148,16 +159,21 @@ export class LeavesService {
     return this.serialize(leave);
   }
 
-  async update(id: string, dto: UpdateLeaveDto, actorUserId: string) {
+  async update(
+    organizationId: string,
+    id: string,
+    dto: UpdateLeaveDto,
+    actorUserId: string,
+  ) {
     const before = await this.prisma.leave.findFirst({
-      where: { id, deletedAt: null },
+      where: { id, organizationId, deletedAt: null },
       include: leaveInclude,
     });
     if (!before) throw new NotFoundException('Leave not found');
     if (before.status !== LeaveStatus.PENDING) {
       throw new BadRequestException('Only PENDING leaves can be updated');
     }
-    await this.assertActiveCandidate(before.candidateId);
+    await this.assertActiveCandidate(organizationId, before.candidateId);
 
     const startDate = dto.startDate
       ? new Date(dto.startDate)
@@ -182,6 +198,7 @@ export class LeavesService {
       include: leaveInclude,
     });
     await this.audit.record({
+      organizationId,
       actorUserId,
       action: 'UPDATE',
       entityType: 'Leave',
@@ -193,9 +210,9 @@ export class LeavesService {
     return this.serialize(leave);
   }
 
-  async approve(id: string, actorUserId: string) {
+  async approve(organizationId: string, id: string, actorUserId: string) {
     const before = await this.prisma.leave.findFirst({
-      where: { id, deletedAt: null },
+      where: { id, organizationId, deletedAt: null },
       include: leaveInclude,
     });
     if (!before) throw new NotFoundException('Leave not found');
@@ -214,6 +231,7 @@ export class LeavesService {
       include: leaveInclude,
     });
     await this.audit.record({
+      organizationId,
       actorUserId,
       action: 'APPROVE',
       entityType: 'Leave',
@@ -225,9 +243,14 @@ export class LeavesService {
     return this.serialize(leave);
   }
 
-  async reject(id: string, dto: RejectLeaveDto, actorUserId: string) {
+  async reject(
+    organizationId: string,
+    id: string,
+    dto: RejectLeaveDto,
+    actorUserId: string,
+  ) {
     const before = await this.prisma.leave.findFirst({
-      where: { id, deletedAt: null },
+      where: { id, organizationId, deletedAt: null },
       include: leaveInclude,
     });
     if (!before) throw new NotFoundException('Leave not found');
@@ -246,6 +269,7 @@ export class LeavesService {
       include: leaveInclude,
     });
     await this.audit.record({
+      organizationId,
       actorUserId,
       action: 'REJECT',
       entityType: 'Leave',
