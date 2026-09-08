@@ -45,4 +45,9 @@ export class LookupsController {
   ) {
     return this.lookups.updateValue(id, dto);
   }
+
+  @Get(':typeCode')
+  findByTypeCode(@Param('typeCode') typeCode: string) {
+    return this.lookups.findByTypeCode(typeCode);
+  }
 }

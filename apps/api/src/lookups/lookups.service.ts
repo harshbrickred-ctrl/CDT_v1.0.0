@@ -21,6 +21,20 @@ export class LookupsService {
     });
   }
 
+  async findByTypeCode(typeCode: string) {
+    const code = typeCode.trim().toUpperCase();
+    const type = await this.prisma.lookupType.findUnique({
+      where: { code },
+      include: {
+        values: {
+          orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
+        },
+      },
+    });
+    if (!type) throw new NotFoundException(`Lookup type ${code} not found`);
+    return type.values;
+  }
+
   async createValue(dto: CreateLookupValueDto) {
     const type = await this.prisma.lookupType.findUnique({
       where: { id: dto.typeId },

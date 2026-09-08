@@ -193,6 +193,13 @@ export interface LookupValue {
   sortOrder?: number;
   isActive?: boolean;
   type?: string;
+  typeId?: string;
+}
+
+export interface LookupType {
+  id: string;
+  code: string;
+  values?: LookupValue[];
 }
 
 export interface AuditLog {

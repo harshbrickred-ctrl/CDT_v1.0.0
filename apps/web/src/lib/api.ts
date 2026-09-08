@@ -9,6 +9,7 @@ import type {
   Invoice,
   Leave,
   LookupValue,
+  LookupType,
   OverdueReviewsResult,
   PaginationMeta,
   SearchHit,
@@ -194,30 +195,28 @@ export const usersApi = {
 
 export const lookupsApi = {
   list: (type: string) => getList<LookupValue>(`/lookups/${type}`),
+  listTypes: () => getOne<LookupType[]>('/lookups'),
   listAll: async () => {
-    const types = [
-      'EMPLOYMENT_STATUS',
-      'WORK_LOCATION',
-      'LEAVE_TYPE',
-      'LEAVE_STATUS',
-      'TIMESHEET_APPROVAL_STATUS',
-      'CLIENT_FEEDBACK',
-      'ENGAGEMENT_HEALTH',
-      'YES_NO',
-      'RELEASE_REASON',
-    ];
-    const results = await Promise.all(
-      types.map(async (type) => {
-        try {
-          const { items } = await getList<LookupValue>(`/lookups/${type}`);
-          return items.map((i) => ({ ...i, type }));
-        } catch {
-          return [] as LookupValue[];
-        }
-      }),
+    const types = await getOne<LookupType[]>('/lookups');
+    return (types ?? []).flatMap((t) =>
+      (t.values ?? []).map((v) => ({
+        ...v,
+        type: t.code,
+        typeId: t.id,
+      })),
     );
-    return results.flat();
   },
+  createValue: (body: {
+    typeId: string;
+    code: string;
+    label: string;
+    sortOrder?: number;
+    isActive?: boolean;
+  }) => postOne<LookupValue>('/lookups/values', body),
+  updateValue: (
+    id: string,
+    body: { label?: string; sortOrder?: number; isActive?: boolean },
+  ) => patchOne<LookupValue>(`/lookups/values/${id}`, body),
 };
 
 export const auditApi = {
