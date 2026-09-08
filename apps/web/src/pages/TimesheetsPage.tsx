@@ -680,7 +680,7 @@ export default function TimesheetsPage() {
                   <th className={thClass}>Timesheet ID</th>
                   <th className={thClass}>Candidate</th>
                   <th className={thClass}>Client</th>
-                  <th className={thClass}>Period</th>
+                  <th className={thClass}>Month</th>
                   <th className={thClass}>Attendance %</th>
                   <th className={thClass}>Status</th>
                 </tr>
@@ -701,7 +701,12 @@ export default function TimesheetsPage() {
                     <td className={tdClass}>
                       {t.candidate?.client?.name ?? '—'}
                     </td>
-                    <td className={tdClass}>{t.yearMonth}</td>
+                    <td className={tdClass}>
+                      <span className="block">{monthLabel(t.yearMonth)}</span>
+                      <span className="block text-xs text-muted-foreground">
+                        {t.yearMonth}
+                      </span>
+                    </td>
                     <td className={tdClass}>{formatPct(t.attendancePct)}</td>
                     <td className={tdClass}>
                       <StatusPill status={t.status ?? t.approvalStatus} />
