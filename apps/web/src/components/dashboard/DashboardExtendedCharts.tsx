@@ -350,6 +350,73 @@ function AtRiskClientsChart({
   );
 }
 
+const INVOICE_BAR_COLORS: Record<string, string> = {
+  invoiced: 'hsl(210 80% 48%)',
+  outstanding: 'hsl(38 92% 46%)',
+  paid: 'hsl(152 45% 36%)',
+  overdue: 'hsl(0 72% 48%)',
+  draft: 'hsl(215 16% 62%)',
+  rejected: 'hsl(0 55% 42%)',
+};
+
+function InvoiceStatusBarsChart({
+  data,
+}: {
+  data: DashboardCharts['invoiceStatusBars'];
+}) {
+  const rows = data.map((d) => ({
+    ...d,
+    fill: INVOICE_BAR_COLORS[d.key] ?? 'hsl(210 80% 48%)',
+  }));
+
+  return (
+    <PageSection title="Invoicing status (by amount)">
+      <Card accent className="!p-4 sm:!p-6">
+        {rows.length === 0 ? (
+          <ChartEmpty message="No invoice amounts for this month." />
+        ) : (
+          <div className="h-72 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={rows}
+                margin={{ top: 8, right: 8, left: 8, bottom: 8 }}
+              >
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="hsl(214 18% 84% / 0.6)"
+                />
+                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                <YAxis
+                  tick={{ fontSize: 11 }}
+                  tickFormatter={(v) =>
+                    v >= 100000 ? `${Math.round(v / 100000)}L` : String(v)
+                  }
+                />
+                <Tooltip
+                  formatter={(value) => [
+                    formatInr(Number(value ?? 0)),
+                    'Amount',
+                  ]}
+                  contentStyle={tooltipStyle}
+                />
+                <Bar
+                  dataKey="amount"
+                  radius={[6, 6, 0, 0]}
+                  animationDuration={600}
+                >
+                  {rows.map((row) => (
+                    <Cell key={row.key} fill={row.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </Card>
+    </PageSection>
+  );
+}
+
 export default function DashboardExtendedCharts({
   charts,
 }: {
@@ -362,10 +429,11 @@ export default function DashboardExtendedCharts({
         <PaymentStatusChart data={charts.paymentStatusByAmount} />
       </div>
       <div className="mb-8 grid gap-4 lg:grid-cols-2">
+        <InvoiceStatusBarsChart data={charts.invoiceStatusBars} />
         <RevenueTrendChart data={charts.revenueTrendByMonth} />
-        <TopClientsByRevenueChart data={charts.topClientsByRevenue} />
       </div>
-      <div className="mb-8">
+      <div className="mb-8 grid gap-4 lg:grid-cols-2">
+        <TopClientsByRevenueChart data={charts.topClientsByRevenue} />
         <AtRiskClientsChart data={charts.atRiskClients} />
       </div>
     </>
@@ -383,7 +451,10 @@ export function DashboardExtendedChartsSkeleton() {
         <div className="h-80 animate-pulse rounded-2xl border border-border/60 bg-muted/40" />
         <div className="h-80 animate-pulse rounded-2xl border border-border/60 bg-muted/40" />
       </div>
-      <div className="mb-8 h-80 animate-pulse rounded-2xl border border-border/60 bg-muted/40" />
+      <div className="mb-8 grid gap-4 lg:grid-cols-2">
+        <div className="h-80 animate-pulse rounded-2xl border border-border/60 bg-muted/40" />
+        <div className="h-80 animate-pulse rounded-2xl border border-border/60 bg-muted/40" />
+      </div>
     </>
   );
 }

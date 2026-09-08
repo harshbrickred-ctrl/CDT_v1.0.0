@@ -17,6 +17,7 @@ import { IdSequenceService } from '../common/id-sequence.service';
 import { AuditService } from '../audit/audit.service';
 import { toNumber } from '../common/prisma-error';
 import { GenerateInvoiceDto, RejectInvoiceDto } from './dto/invoices.dto';
+import { periodFromYearMonth } from '../common/dates';
 
 const invoiceInclude = {
   candidate: {
@@ -276,15 +277,13 @@ export class InvoicesService {
       throw new BadRequestException('Only approved invoices can be sent');
     }
     const now = new Date();
-    const dueDate = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 30),
-    );
+    const { periodEnd } = periodFromYearMonth(before.yearMonth);
     const invoice = await this.prisma.invoice.update({
       where: { id },
       data: {
         status: InvoiceStatus.SENT,
         sentAt: now,
-        dueDate,
+        dueDate: periodEnd,
       },
       include: invoiceInclude,
     });

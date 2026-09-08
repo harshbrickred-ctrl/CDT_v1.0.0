@@ -5,7 +5,7 @@ import {
   Prisma,
   PrismaClient,
 } from '@prisma/client';
-import { previousYearMonth } from '../common/dates';
+import { previousYearMonth, utcToday } from '../common/dates';
 import { toNumber } from '../common/prisma-error';
 
 const INVOICED_STATUSES: InvoiceStatus[] = [
@@ -48,6 +48,7 @@ export type AtRiskClientItem = {
 export type DashboardChartsData = {
   headcountByClient: HeadcountByClientItem[];
   paymentStatusByAmount: PaymentStatusItem[];
+  invoiceStatusBars: PaymentStatusItem[];
   revenueTrendByMonth: RevenueTrendItem[];
   topClientsByRevenue: ClientRevenueItem[];
   atRiskClients: AtRiskClientItem[];
@@ -153,7 +154,7 @@ export async function fetchDashboardCharts(
     }),
     prisma.invoice.findMany({
       where: invoiceScopeWhere(candidateBase, params.month),
-      select: { status: true, amount: true },
+      select: { status: true, amount: true, dueDate: true },
     }),
     prisma.deliveryReview.findMany({
       where: atRiskReviewWhere,
@@ -211,6 +212,33 @@ export async function fetchDashboardCharts(
   const paymentStatusByAmount = Object.entries(paymentBuckets)
     .map(([key, v]) => ({ key, label: v.label, amount: Math.round(v.amount) }))
     .filter((p) => p.amount > 0);
+
+  const today = utcToday();
+  let invoicedAmt = 0;
+  let paidAmt = 0;
+  let outstandingAmt = 0;
+  let overdueAmt = 0;
+  let draftAmt = 0;
+  let rejectedAmt = 0;
+  for (const inv of invoicesInMonth) {
+    const amount = toNumber(inv.amount) ?? 0;
+    if (INVOICED_STATUSES.includes(inv.status)) invoicedAmt += amount;
+    if (inv.status === InvoiceStatus.PAID) paidAmt += amount;
+    if (inv.status === InvoiceStatus.SENT) {
+      outstandingAmt += amount;
+      if (inv.dueDate && inv.dueDate < today) overdueAmt += amount;
+    }
+    if (inv.status === InvoiceStatus.PENDING_REVIEW) draftAmt += amount;
+    if (inv.status === InvoiceStatus.REJECTED) rejectedAmt += amount;
+  }
+  const invoiceStatusBars = [
+    { key: 'invoiced', label: 'Invoiced', amount: Math.round(invoicedAmt) },
+    { key: 'outstanding', label: 'Outstanding', amount: Math.round(outstandingAmt) },
+    { key: 'paid', label: 'Paid', amount: Math.round(paidAmt) },
+    { key: 'overdue', label: 'Overdue', amount: Math.round(overdueAmt) },
+    { key: 'draft', label: 'Draft', amount: Math.round(draftAmt) },
+    { key: 'rejected', label: 'Rejected', amount: Math.round(rejectedAmt) },
+  ].filter((p) => p.amount > 0);
 
   const revenueMap = new Map(
     revenueByMonthRaw.map((r) => [
@@ -299,6 +327,7 @@ export async function fetchDashboardCharts(
   return {
     headcountByClient,
     paymentStatusByAmount,
+    invoiceStatusBars,
     revenueTrendByMonth,
     topClientsByRevenue,
     atRiskClients,

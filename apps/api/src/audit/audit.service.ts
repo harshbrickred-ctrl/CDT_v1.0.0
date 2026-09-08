@@ -77,6 +77,12 @@ export class AuditService {
       }),
     ]);
 
-    return { items, meta: paginationMeta(total, page, pageSize) };
+    const mapped = items.map((row) => ({
+      ...row,
+      actorName: row.actor?.fullName ?? null,
+      actorEmail: row.actor?.email ?? null,
+    }));
+
+    return { items: mapped, meta: paginationMeta(total, page, pageSize) };
   }
 }

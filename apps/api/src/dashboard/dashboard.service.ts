@@ -146,6 +146,7 @@ export class DashboardService {
         select: {
           attendancePct: true,
           candidateId: true,
+          approvalStatus: true,
           candidate: { select: { clientId: true } },
         },
       }),
@@ -293,6 +294,9 @@ export class DashboardService {
     const missingTimesheetsCount = activeCandidateIds.filter(
       (id) => !timesheetCandidateIds.has(id),
     ).length;
+    const approvedTimesheetsCount = timesheetsInMonth.filter(
+      (t) => t.approvalStatus === ApprovalStatus.APPROVED,
+    ).length;
     const charts = await fetchDashboardCharts(this.prisma, {
       organizationId: params.organizationId,
       month,
@@ -317,6 +321,7 @@ export class DashboardService {
       onLeaveToday,
       pendingLeaveApprovals,
       pendingTimesheetApprovals,
+      approvedTimesheetsCount,
       avgUtilizationPct,
       avgPaymentTatDays,
       goodClientFeedback,

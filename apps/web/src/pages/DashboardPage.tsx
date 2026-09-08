@@ -228,19 +228,19 @@ export default function DashboardPage() {
         icon: kpiIcons.invoice,
       },
       {
+        id: 'outstanding',
+        label: 'Outstanding (Sent)',
+        value: summary?.outstandingAmount ?? 0,
+        formatValue: formatInr,
+        icon: kpiIcons.money,
+      },
+      {
         id: 'paid',
         label: 'Paid',
         value: summary?.paidAmount ?? 0,
         formatValue: formatInr,
         icon: kpiIcons.money,
         accent: 'from-success/40 via-success to-success/40',
-      },
-      {
-        id: 'outstanding',
-        label: 'Outstanding (Sent)',
-        value: summary?.outstandingAmount ?? 0,
-        formatValue: formatInr,
-        icon: kpiIcons.money,
       },
       {
         id: 'rejected-inv',
@@ -268,16 +268,30 @@ export default function DashboardPage() {
   const operationsKpis = useMemo(
     () => [
       {
-        id: 'pending-leave',
-        label: 'Pending Leave Approvals',
-        value: summary?.pendingLeaveApprovals ?? 0,
-        icon: kpiIcons.pending,
+        id: 'missing-ts',
+        label: 'Missing Timesheets',
+        value: summary?.missingTimesheetsCount ?? 0,
+        icon: kpiIcons.invoice,
+        accent: 'from-destructive/40 via-destructive to-destructive/40',
       },
       {
         id: 'pending-ts',
         label: 'Pending Timesheet Approvals',
         value: summary?.pendingTimesheetApprovals ?? 0,
         icon: kpiIcons.invoice,
+      },
+      {
+        id: 'approved-ts',
+        label: 'Approved Timesheets',
+        value: summary?.approvedTimesheetsCount ?? 0,
+        icon: kpiIcons.track,
+        accent: 'from-success/40 via-success to-success/40',
+      },
+      {
+        id: 'pending-leave',
+        label: 'Pending Leave Approvals',
+        value: summary?.pendingLeaveApprovals ?? 0,
+        icon: kpiIcons.pending,
       },
       {
         id: 'on-leave',

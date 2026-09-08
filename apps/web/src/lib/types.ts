@@ -255,6 +255,7 @@ export interface DashboardAtRiskClientItem {
 export interface DashboardCharts {
   headcountByClient: DashboardHeadcountByClient[];
   paymentStatusByAmount: DashboardPaymentStatusItem[];
+  invoiceStatusBars: DashboardPaymentStatusItem[];
   revenueTrendByMonth: DashboardRevenueTrendItem[];
   topClientsByRevenue: DashboardClientRevenueItem[];
   atRiskClients: DashboardAtRiskClientItem[];
@@ -275,6 +276,8 @@ export type DashboardKpiId =
   | 'overdue-inv'
   | 'pending-leave'
   | 'pending-ts'
+  | 'missing-ts'
+  | 'approved-ts'
   | 'on-leave'
   | 'avg-util'
   | 'avg-tat'
@@ -317,6 +320,7 @@ export interface DashboardSummaryRaw {
   onLeaveToday?: number;
   pendingLeaveApprovals?: number;
   pendingTimesheetApprovals?: number;
+  approvedTimesheetsCount?: number;
   avgUtilizationPct?: number | null;
   avgPaymentTatDays?: number | null;
   releasedInMonth?: number;
@@ -349,6 +353,7 @@ export interface DashboardSummary {
   onLeaveToday: number;
   pendingLeaveApprovals: number;
   pendingTimesheetApprovals: number;
+  approvedTimesheetsCount: number;
   avgUtilizationPct: number | null;
   avgPaymentTatDays: number | null;
   releasedInMonth: number;

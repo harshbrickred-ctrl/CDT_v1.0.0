@@ -228,6 +228,7 @@ export class ImportService {
         continue;
       }
       let resolvedClientId = clientId;
+      const clientCode = str(row.clientCode);
       if (!resolvedClientId && clientName) {
         const client = await this.prisma.client.findFirst({
           where: {
@@ -246,11 +247,29 @@ export class ImportService {
         }
         resolvedClientId = client.id;
       }
+      if (!resolvedClientId && clientCode) {
+        const client = await this.prisma.client.findFirst({
+          where: {
+            organizationId,
+            deletedAt: null,
+            code: clientCode,
+          },
+        });
+        if (!client) {
+          errors.push({
+            row: i,
+            field: 'clientCode',
+            message: 'Client not found',
+          });
+          continue;
+        }
+        resolvedClientId = client.id;
+      }
       if (!resolvedClientId) {
         errors.push({
           row: i,
           field: 'clientId',
-          message: 'clientId or clientName is required',
+          message: 'clientId, clientName, or clientCode is required',
         });
         continue;
       }

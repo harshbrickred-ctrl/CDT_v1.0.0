@@ -70,6 +70,8 @@ export function normalizeDashboardSummary(
 
     pendingTimesheetApprovals: raw.pendingTimesheetApprovals ?? 0,
 
+    approvedTimesheetsCount: raw.approvedTimesheetsCount ?? 0,
+
     avgUtilizationPct: raw.avgUtilizationPct ?? null,
 
     avgPaymentTatDays: raw.avgPaymentTatDays ?? null,
@@ -102,6 +104,7 @@ export function normalizeDashboardSummary(
     charts: {
       headcountByClient: raw.charts?.headcountByClient ?? [],
       paymentStatusByAmount: raw.charts?.paymentStatusByAmount ?? [],
+      invoiceStatusBars: raw.charts?.invoiceStatusBars ?? [],
       revenueTrendByMonth: raw.charts?.revenueTrendByMonth ?? [],
       topClientsByRevenue: raw.charts?.topClientsByRevenue ?? [],
       atRiskClients: raw.charts?.atRiskClients ?? [],

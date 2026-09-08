@@ -32,6 +32,8 @@ export const DASHBOARD_KPI_IDS = [
   'overdue-inv',
   'pending-leave',
   'pending-ts',
+  'missing-ts',
+  'approved-ts',
   'on-leave',
   'avg-util',
   'avg-tat',
@@ -248,7 +250,8 @@ export async function fetchKpiDetail(
       const statusWhere = invoiceStatusWhere(kpi, today);
       const invoices = await prisma.invoice.findMany({
         where: {
-          yearMonth: month,
+          ...(kpi === 'overdue-inv' ? {} : { yearMonth: month }),
+          organizationId: params.organizationId,
           candidate: candidateBase,
           ...statusWhere,
         },
@@ -405,14 +408,18 @@ export async function fetchKpiDetail(
     }
 
     case 'pending-ts':
+    case 'approved-ts':
     case 'avg-util': {
       const timesheets = await prisma.timesheet.findMany({
         where: {
+          organizationId: params.organizationId,
           deletedAt: null,
           yearMonth: month,
           ...(kpi === 'pending-ts'
             ? { approvalStatus: ApprovalStatus.PENDING }
-            : {}),
+            : kpi === 'approved-ts'
+              ? { approvalStatus: ApprovalStatus.APPROVED }
+              : {}),
           candidate: candidateBase,
         },
         include: {
@@ -432,7 +439,9 @@ export async function fetchKpiDetail(
         title:
           kpi === 'pending-ts'
             ? 'Pending Timesheet Approvals'
-            : 'Utilization by Timesheet',
+            : kpi === 'approved-ts'
+              ? 'Approved Timesheets'
+              : 'Utilization by Timesheet',
         columns: [
           { key: 'publicId', label: 'Timesheet' },
           { key: 'candidate', label: 'Candidate' },
@@ -453,6 +462,29 @@ export async function fetchKpiDetail(
           status: fmtStatus(ts.approvalStatus),
         })),
       };
+    }
+
+    case 'missing-ts': {
+      const [activeCandidates, timesheets] = await Promise.all([
+        prisma.candidate.findMany({
+          where: { ...candidateBase, status: CandidateStatus.ACTIVE },
+          select: candidateSelect,
+          orderBy: { fullName: 'asc' },
+          take: 500,
+        }),
+        prisma.timesheet.findMany({
+          where: {
+            organizationId: params.organizationId,
+            deletedAt: null,
+            yearMonth: month,
+            candidate: candidateBase,
+          },
+          select: { candidateId: true },
+        }),
+      ]);
+      const hasTs = new Set(timesheets.map((t) => t.candidateId));
+      const missing = activeCandidates.filter((c) => !hasTs.has(c.id));
+      return candidateRows(kpi, 'Missing Timesheets', missing.slice(0, 200));
     }
 
     default:

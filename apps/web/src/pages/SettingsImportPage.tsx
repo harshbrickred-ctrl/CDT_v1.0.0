@@ -15,7 +15,7 @@ import {
 
 type EntityKind = 'clients' | 'candidates';
 
-function parseCsv(text: string, kind: EntityKind): Record<string, string>[] {
+function parseCsv(text: string): Record<string, string>[] {
   const lines = text
     .split(/\r?\n/)
     .map((l) => l.trim())
@@ -28,31 +28,56 @@ function parseCsv(text: string, kind: EntityKind): Record<string, string>[] {
     headers.forEach((h, i) => {
       row[h] = cols[i] ?? '';
     });
-    row.__kind = kind;
     return row;
   });
 }
 
-function parsePayload(
+/** Normalize UI JSON/CSV into API `{ entity, rows }` shape. */
+function toImportBody(
   raw: string,
   mode: 'json' | 'csv',
   kind: EntityKind,
-): unknown {
-  if (mode === 'json') {
-    return JSON.parse(raw);
+): { entity: EntityKind; rows: Record<string, unknown>[] } {
+  if (mode === 'csv') {
+    return { entity: kind, rows: parseCsv(raw) };
   }
-  return { [kind]: parseCsv(raw, kind) };
+  const parsed = JSON.parse(raw) as unknown;
+  if (Array.isArray(parsed)) {
+    return { entity: kind, rows: parsed as Record<string, unknown>[] };
+  }
+  if (parsed && typeof parsed === 'object') {
+    const obj = parsed as Record<string, unknown>;
+    if (Array.isArray(obj.rows)) {
+      return {
+        entity: (typeof obj.entity === 'string' ? obj.entity : kind) as EntityKind,
+        rows: obj.rows as Record<string, unknown>[],
+      };
+    }
+    if (Array.isArray(obj[kind])) {
+      return { entity: kind, rows: obj[kind] as Record<string, unknown>[] };
+    }
+    if (Array.isArray(obj.clients) && kind === 'clients') {
+      return { entity: 'clients', rows: obj.clients as Record<string, unknown>[] };
+    }
+    if (Array.isArray(obj.candidates) && kind === 'candidates') {
+      return {
+        entity: 'candidates',
+        rows: obj.candidates as Record<string, unknown>[],
+      };
+    }
+  }
+  throw new Error('Expected an array of rows or { entity, rows } / { clients|candidates }');
 }
 
 function samplePayload(mode: 'json' | 'csv', kind: EntityKind) {
   if (mode === 'json') {
     return kind === 'clients'
       ? '{\n  "clients": [{ "name": "Acme", "code": "ACME" }]\n}'
-      : '{\n  "candidates": [{ "fullName": "Alex", "clientCode": "ACME", "joinedOn": "2026-07-01" }]\n}';
+      : '{\n  "candidates": [{ "fullName": "Alex", "clientName": "Acme", "joinedOn": "2026-07-01" }]\n}';
   }
   return kind === 'clients'
     ? 'name,code\nAcme,ACME'
-    : 'fullName,clientCode,joinedOn\nAlex Candidate,ACME,2026-07-01';
+    : 'fullName,clientName,joinedOn\nAlex Candidate,Acme,2026-07-01';
 }
 
 export default function SettingsImportPage() {
@@ -67,7 +92,7 @@ export default function SettingsImportPage() {
   const placeholder = useMemo(() => samplePayload(mode, kind), [mode, kind]);
 
   const dryMut = useMutation({
-    mutationFn: () => importApi.dryRun(parsePayload(raw, mode, kind)),
+    mutationFn: () => importApi.dryRun(toImportBody(raw, mode, kind)),
     onSuccess: (data) => {
       setResult(data);
       setError(null);
@@ -79,7 +104,7 @@ export default function SettingsImportPage() {
   });
 
   const commitMut = useMutation({
-    mutationFn: () => importApi.commit(parsePayload(raw, mode, kind)),
+    mutationFn: () => importApi.commit(toImportBody(raw, mode, kind)),
     onSuccess: (data) => {
       setResult(data);
       setError(null);
@@ -97,7 +122,7 @@ export default function SettingsImportPage() {
   function onDryRun(e: FormEvent) {
     e.preventDefault();
     try {
-      parsePayload(raw, mode, kind);
+      toImportBody(raw, mode, kind);
       dryMut.mutate();
     } catch (err) {
       setError(apiErrorMessage(err, 'Invalid payload'));
@@ -124,6 +149,8 @@ export default function SettingsImportPage() {
                   const next = e.target.value as 'json' | 'csv';
                   setMode(next);
                   setRaw(samplePayload(next, kind));
+                  setResult(null);
+                  setError(null);
                 }}
               >
                 <option value="json">JSON</option>
@@ -139,6 +166,8 @@ export default function SettingsImportPage() {
                   const next = e.target.value as EntityKind;
                   setKind(next);
                   setRaw(samplePayload(mode, next));
+                  setResult(null);
+                  setError(null);
                 }}
               >
                 <option value="clients">Clients</option>
@@ -150,13 +179,19 @@ export default function SettingsImportPage() {
           <div>
             <label className={labelClass}>Payload</label>
             <textarea
-              className={`${fieldClass} font-mono text-xs`}
-              rows={12}
+              className={`${fieldClass} min-h-[220px] font-mono text-xs`}
               value={raw}
               placeholder={placeholder}
               onChange={(e) => setRaw(e.target.value)}
+              spellCheck={false}
             />
+            <p className="mt-1 text-xs text-muted-foreground">
+              Candidates: use <code>clientName</code>, <code>clientCode</code>, or{' '}
+              <code>clientId</code>.
+            </p>
           </div>
+
+          {error && <Alert tone="error">{error}</Alert>}
 
           <div className="flex flex-wrap gap-2">
             <button
@@ -164,32 +199,31 @@ export default function SettingsImportPage() {
               className={btnSecondary}
               disabled={dryMut.isPending}
             >
-              {dryMut.isPending ? 'Dry-running…' : 'Dry run'}
+              {dryMut.isPending ? 'Checking…' : 'Dry run'}
             </button>
             <button
               type="button"
               className={btnPrimary}
-              disabled={commitMut.isPending}
+              disabled={commitMut.isPending || dryMut.isPending}
               onClick={() => {
                 try {
-                  parsePayload(raw, mode, kind);
+                  toImportBody(raw, mode, kind);
                   commitMut.mutate();
                 } catch (err) {
                   setError(apiErrorMessage(err, 'Invalid payload'));
                 }
               }}
             >
-              {commitMut.isPending ? 'Committing…' : 'Commit'}
+              {commitMut.isPending ? 'Importing…' : 'Commit import'}
             </button>
           </div>
         </form>
       </Card>
 
-      {error && <Alert tone="error" className="mt-4">{error}</Alert>}
-
       {result != null && (
-        <Card className="mt-4 !p-0" padding={false}>
-          <pre className="overflow-x-auto p-4 font-mono text-xs leading-relaxed">
+        <Card className="mt-4">
+          <h2 className="mb-2 text-sm font-semibold text-slate-deep">Result</h2>
+          <pre className="overflow-auto rounded-lg bg-muted/50 p-3 text-xs">
             {JSON.stringify(result, null, 2)}
           </pre>
         </Card>
