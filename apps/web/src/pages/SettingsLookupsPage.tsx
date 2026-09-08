@@ -1,15 +1,13 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiErrorMessage, lookupsApi } from '../lib/api';
-import type { LookupValue } from '../lib/types';
+import type { LookupType, LookupValue } from '../lib/types';
 import { useAuth } from '../context/AuthContext';
 import PageHeader from '../components/ui/PageHeader';
 import EmptyState from '../components/ui/EmptyState';
 import Spinner from '../components/ui/Spinner';
-import StatusPill from '../components/ui/StatusPill';
 import Alert from '../components/ui/Alert';
-import Dialog from '../components/ui/Dialog';
 import Button from '../components/ui/Button';
 import {
   btnPrimary,
@@ -21,48 +19,55 @@ import {
   thClass,
 } from '../components/ui/styles';
 
-type EditForm = {
-  label: string;
-  sortOrder: string;
-  isActive: boolean;
-};
+function typeLabel(code: string) {
+  return code
+    .split('_')
+    .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
+    .join(' ');
+}
 
-type CreateForm = {
-  typeId: string;
-  code: string;
-  label: string;
-  sortOrder: string;
-  isActive: boolean;
-};
+type DraftMap = Record<
+  string,
+  { label: string; sortOrder: string; isActive: boolean }
+>;
 
-const emptyCreate = (): CreateForm => ({
-  typeId: '',
-  code: '',
-  label: '',
-  sortOrder: '0',
-  isActive: true,
-});
+function draftsFromType(type: LookupType | undefined): DraftMap {
+  const map: DraftMap = {};
+  for (const v of type?.values ?? []) {
+    map[v.id] = {
+      label: v.label,
+      sortOrder: String(v.sortOrder ?? 0),
+      isActive: v.isActive !== false,
+    };
+  }
+  return map;
+}
+
+function rowDirty(
+  value: LookupValue,
+  draft: { label: string; sortOrder: string; isActive: boolean } | undefined,
+) {
+  if (!draft) return false;
+  return (
+    draft.label.trim() !== value.label ||
+    Number(draft.sortOrder) !== (value.sortOrder ?? 0) ||
+    draft.isActive !== (value.isActive !== false)
+  );
+}
 
 export default function SettingsLookupsPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const isAdmin = user?.role === 'ADMIN';
 
-  const [createOpen, setCreateOpen] = useState(false);
-  const [editRow, setEditRow] = useState<LookupValue | null>(null);
-  const [createForm, setCreateForm] = useState<CreateForm>(emptyCreate);
-  const [editForm, setEditForm] = useState<EditForm>({
-    label: '',
-    sortOrder: '0',
-    isActive: true,
-  });
-  const [error, setError] = useState<string | null>(null);
-
-  const listQuery = useQuery({
-    queryKey: ['lookups', 'all'],
-    queryFn: () => lookupsApi.listAll(),
-    enabled: isAdmin,
-  });
+  const [selectedTypeId, setSelectedTypeId] = useState('');
+  const [drafts, setDrafts] = useState<DraftMap>({});
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [rowError, setRowError] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [addCode, setAddCode] = useState('');
+  const [addLabel, setAddLabel] = useState('');
+  const [addError, setAddError] = useState<string | null>(null);
 
   const typesQuery = useQuery({
     queryKey: ['lookups', 'types'],
@@ -70,362 +75,424 @@ export default function SettingsLookupsPage() {
     enabled: isAdmin,
   });
 
-  const createMut = useMutation({
-    mutationFn: () =>
-      lookupsApi.createValue({
-        typeId: createForm.typeId,
-        code: createForm.code.trim().toUpperCase(),
-        label: createForm.label.trim(),
-        sortOrder: Number(createForm.sortOrder) || 0,
-        isActive: createForm.isActive,
-      }),
-    onSuccess: async () => {
-      setCreateOpen(false);
-      setCreateForm(emptyCreate());
-      setError(null);
-      await qc.invalidateQueries({ queryKey: ['lookups'] });
-    },
-    onError: (err) => setError(apiErrorMessage(err)),
-  });
+  const types = typesQuery.data ?? [];
+  const selectedType =
+    types.find((t) => t.id === selectedTypeId) ?? types[0] ?? null;
+
+  useEffect(() => {
+    if (!types.length) return;
+    if (!selectedTypeId || !types.some((t) => t.id === selectedTypeId)) {
+      setSelectedTypeId(types[0].id);
+    }
+  }, [types, selectedTypeId]);
+
+  const valuesSignature = useMemo(() => {
+    if (!selectedType) return '';
+    return `${selectedType.id}:${(selectedType.values ?? [])
+      .map((v) => `${v.id}:${v.label}:${v.sortOrder}:${v.isActive}`)
+      .join('|')}`;
+  }, [selectedType]);
+
+  useEffect(() => {
+    if (!selectedType) return;
+    setDrafts((prev) => {
+      const fromServer = draftsFromType(selectedType);
+      const merged: DraftMap = { ...fromServer };
+      for (const [id, draft] of Object.entries(prev)) {
+        const server = selectedType.values?.find((v) => v.id === id);
+        if (server && rowDirty(server, draft)) {
+          merged[id] = draft;
+        }
+      }
+      return merged;
+    });
+    setRowError(null);
+    // Reset add form only when switching types (signature prefix is type id).
+  }, [valuesSignature, selectedType]);
+
+  useEffect(() => {
+    setAddOpen(false);
+    setAddCode('');
+    setAddLabel('');
+    setAddError(null);
+  }, [selectedTypeId]);
+
+  const values = useMemo(() => {
+    const list = [...(selectedType?.values ?? [])];
+    list.sort(
+      (a, b) =>
+        (a.sortOrder ?? 0) - (b.sortOrder ?? 0) ||
+        a.code.localeCompare(b.code),
+    );
+    return list;
+  }, [selectedType?.values]);
 
   const updateMut = useMutation({
+    mutationFn: (payload: {
+      id: string;
+      label: string;
+      sortOrder: number;
+      isActive: boolean;
+    }) =>
+      lookupsApi.updateValue(payload.id, {
+        label: payload.label,
+        sortOrder: payload.sortOrder,
+        isActive: payload.isActive,
+      }),
+    onSuccess: async () => {
+      setSavingId(null);
+      setRowError(null);
+      await qc.invalidateQueries({ queryKey: ['lookups'] });
+    },
+    onError: (err) => {
+      setSavingId(null);
+      setRowError(apiErrorMessage(err));
+    },
+  });
+
+  const createMut = useMutation({
     mutationFn: () => {
-      if (!editRow?.id) throw new Error('Missing lookup id');
-      return lookupsApi.updateValue(editRow.id, {
-        label: editForm.label.trim(),
-        sortOrder: Number(editForm.sortOrder) || 0,
-        isActive: editForm.isActive,
+      if (!selectedType) throw new Error('No type selected');
+      const nextSort =
+        values.reduce((max, v) => Math.max(max, v.sortOrder ?? 0), 0) + 1;
+      return lookupsApi.createValue({
+        typeId: selectedType.id,
+        code: addCode.trim().toUpperCase(),
+        label: addLabel.trim(),
+        sortOrder: nextSort,
+        isActive: true,
       });
     },
     onSuccess: async () => {
-      setEditRow(null);
-      setError(null);
+      setAddOpen(false);
+      setAddCode('');
+      setAddLabel('');
+      setAddError(null);
       await qc.invalidateQueries({ queryKey: ['lookups'] });
     },
-    onError: (err) => setError(apiErrorMessage(err)),
+    onError: (err) => setAddError(apiErrorMessage(err)),
   });
-
-  const typeOptions = useMemo(
-    () =>
-      (typesQuery.data ?? []).map((t) => ({
-        id: t.id,
-        code: t.code,
-      })),
-    [typesQuery.data],
-  );
 
   if (!isAdmin) {
     return <Navigate to="/dashboard" replace />;
   }
 
-  function openCreate() {
-    setError(null);
-    setCreateForm(emptyCreate());
-    setCreateOpen(true);
+  function patchDraft(
+    id: string,
+    patch: Partial<{ label: string; sortOrder: string; isActive: boolean }>,
+  ) {
+    setDrafts((prev) => ({
+      ...prev,
+      [id]: { ...prev[id], ...patch },
+    }));
   }
 
-  function openEdit(row: LookupValue) {
-    setError(null);
-    setEditRow(row);
-    setEditForm({
-      label: row.label,
-      sortOrder: String(row.sortOrder ?? 0),
-      isActive: row.isActive !== false,
+  function saveRow(value: LookupValue) {
+    const draft = drafts[value.id];
+    if (!draft || !rowDirty(value, draft)) return;
+    const label = draft.label.trim();
+    if (!label) {
+      setRowError('Label cannot be empty.');
+      return;
+    }
+    setRowError(null);
+    setSavingId(value.id);
+    updateMut.mutate({
+      id: value.id,
+      label,
+      sortOrder: Number(draft.sortOrder) || 0,
+      isActive: draft.isActive,
     });
   }
 
-  function onCreateSubmit(e: FormEvent) {
+  function toggleActive(value: LookupValue) {
+    const draft = drafts[value.id] ?? {
+      label: value.label,
+      sortOrder: String(value.sortOrder ?? 0),
+      isActive: value.isActive !== false,
+    };
+    const next = { ...draft, isActive: !draft.isActive };
+    setDrafts((prev) => ({ ...prev, [value.id]: next }));
+    setRowError(null);
+    setSavingId(value.id);
+    updateMut.mutate({
+      id: value.id,
+      label: next.label.trim() || value.label,
+      sortOrder: Number(next.sortOrder) || 0,
+      isActive: next.isActive,
+    });
+  }
+
+  function onAddSubmit(e: FormEvent) {
     e.preventDefault();
-    setError(null);
-    if (!createForm.typeId) {
-      setError('Select a lookup type.');
-      return;
-    }
-    if (!createForm.code.trim()) {
-      setError('Enter a code.');
-      return;
-    }
-    if (!createForm.label.trim()) {
-      setError('Enter a label.');
+    setAddError(null);
+    if (!addCode.trim() || !addLabel.trim()) {
+      setAddError('Code and label are required.');
       return;
     }
     createMut.mutate();
   }
-
-  function onEditSubmit(e: FormEvent) {
-    e.preventDefault();
-    setError(null);
-    if (!editForm.label.trim()) {
-      setError('Enter a label.');
-      return;
-    }
-    updateMut.mutate();
-  }
-
-  const rows = listQuery.data ?? [];
 
   return (
     <div>
       <PageHeader
         eyebrow="Settings"
         title="Lookups"
-        description="Reference values for employment status, locations, leave types, feedback, and more."
-        actions={
-          <button type="button" className={btnPrimary} onClick={openCreate}>
-            Add value
-          </button>
-        }
+        description="Pick a list, edit labels inline, and toggle whether values appear in forms."
       />
 
-      {listQuery.isLoading && <Spinner />}
-      {listQuery.isError && (
-        <Alert tone="error">{apiErrorMessage(listQuery.error)}</Alert>
+      {typesQuery.isLoading && <Spinner />}
+      {typesQuery.isError && (
+        <Alert tone="error">{apiErrorMessage(typesQuery.error)}</Alert>
       )}
 
-      {!listQuery.isLoading && rows.length === 0 ? (
+      {!typesQuery.isLoading && types.length === 0 ? (
         <EmptyState
-          title="No lookup values"
+          title="No lookup types"
           description="Run the database seed to populate master lists."
         />
       ) : (
-        !listQuery.isLoading && (
-          <div className={tableWrap}>
-            <table className="min-w-full">
-              <thead>
-                <tr>
-                  <th className={thClass}>Type</th>
-                  <th className={thClass}>Code</th>
-                  <th className={thClass}>Label</th>
-                  <th className={thClass}>Sort</th>
-                  <th className={thClass}>Active</th>
-                  <th className={thClass}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <tr key={`${row.type}-${row.id || row.code}`} className="group">
-                    <td className={`${tdClass} font-mono text-xs`}>
-                      {row.type ?? '—'}
-                    </td>
-                    <td className={`${tdClass} font-mono text-xs`}>{row.code}</td>
-                    <td className={tdClass}>{row.label}</td>
-                    <td className={tdClass}>{row.sortOrder ?? '—'}</td>
-                    <td className={tdClass}>
-                      <StatusPill
-                        status={row.isActive === false ? 'RELEASED' : 'ACTIVE'}
-                      />
-                    </td>
-                    <td className={tdClass}>
+        !typesQuery.isLoading &&
+        selectedType && (
+          <div className="grid gap-4 lg:grid-cols-[240px_1fr]">
+            <nav
+              className="h-fit rounded-2xl border border-border/80 bg-card p-2 shadow-[0_16px_48px_-28px_hsl(222_28%_16%_/_0.12)]"
+              aria-label="Lookup types"
+            >
+              <ul className="space-y-0.5">
+                {types.map((t) => {
+                  const active = t.id === selectedType.id;
+                  return (
+                    <li key={t.id}>
                       <button
                         type="button"
-                        className={btnSecondary}
-                        onClick={() => openEdit(row)}
+                        className={`w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${
+                          active
+                            ? 'bg-primary/15 font-semibold text-slate-deep'
+                            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                        }`}
+                        onClick={() => setSelectedTypeId(t.id)}
                       >
-                        Edit
+                        <span className="block">{typeLabel(t.code)}</span>
+                        <span className="block font-mono text-[10px] opacity-70">
+                          {t.code}
+                        </span>
                       </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </li>
+                  );
+                })}
+              </ul>
+            </nav>
+
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <h2 className="font-display text-lg font-semibold text-slate-deep">
+                    {typeLabel(selectedType.code)}
+                  </h2>
+                  <p className="text-sm text-muted-foreground">
+                    {values.length} value{values.length === 1 ? '' : 's'} · edit
+                    and save per row
+                  </p>
+                </div>
+                {!addOpen && (
+                  <button
+                    type="button"
+                    className={btnPrimary}
+                    onClick={() => {
+                      setAddOpen(true);
+                      setAddError(null);
+                    }}
+                  >
+                    Add value
+                  </button>
+                )}
+              </div>
+
+              {rowError && <Alert tone="error">{rowError}</Alert>}
+
+              {values.length === 0 && !addOpen ? (
+                <EmptyState
+                  title="No values in this list"
+                  description="Add a value to use it in forms."
+                />
+              ) : (
+                <div className={tableWrap}>
+                  <table className="min-w-full">
+                    <thead>
+                      <tr>
+                        <th className={thClass}>Code</th>
+                        <th className={thClass}>Label</th>
+                        <th className={`${thClass} w-24`}>Sort</th>
+                        <th className={`${thClass} w-28`}>Active</th>
+                        <th className={`${thClass} w-28`} />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {values.map((value) => {
+                        const draft = drafts[value.id] ?? {
+                          label: value.label,
+                          sortOrder: String(value.sortOrder ?? 0),
+                          isActive: value.isActive !== false,
+                        };
+                        const dirty = rowDirty(value, draft);
+                        const busy = savingId === value.id && updateMut.isPending;
+                        return (
+                          <tr key={value.id} className="group">
+                            <td
+                              className={`${tdClass} font-mono text-xs text-muted-foreground`}
+                            >
+                              {value.code}
+                            </td>
+                            <td className={tdClass}>
+                              <input
+                                className={`${fieldClass} !py-1.5`}
+                                value={draft.label}
+                                disabled={busy}
+                                aria-label={`Label for ${value.code}`}
+                                onChange={(e) =>
+                                  patchDraft(value.id, {
+                                    label: e.target.value,
+                                  })
+                                }
+                                onBlur={() => saveRow(value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    (e.target as HTMLInputElement).blur();
+                                  }
+                                }}
+                              />
+                            </td>
+                            <td className={tdClass}>
+                              <input
+                                type="number"
+                                min={0}
+                                className={`${fieldClass} !py-1.5`}
+                                value={draft.sortOrder}
+                                disabled={busy}
+                                aria-label={`Sort for ${value.code}`}
+                                onChange={(e) =>
+                                  patchDraft(value.id, {
+                                    sortOrder: e.target.value,
+                                  })
+                                }
+                                onBlur={() => saveRow(value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    (e.target as HTMLInputElement).blur();
+                                  }
+                                }}
+                              />
+                            </td>
+                            <td className={tdClass}>
+                              <button
+                                type="button"
+                                disabled={busy}
+                                className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                                  draft.isActive
+                                    ? 'bg-success/15 text-success'
+                                    : 'bg-muted text-muted-foreground'
+                                }`}
+                                onClick={() => toggleActive(value)}
+                              >
+                                {draft.isActive ? 'Active' : 'Off'}
+                              </button>
+                            </td>
+                            <td className={tdClass}>
+                              {busy ? (
+                                <span className="text-xs text-muted-foreground">
+                                  Saving…
+                                </span>
+                              ) : dirty ? (
+                                <button
+                                  type="button"
+                                  className={`${btnSecondary} !px-2.5 !py-1.5 text-xs`}
+                                  onClick={() => saveRow(value)}
+                                >
+                                  Save
+                                </button>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">
+                                  —
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {addOpen && (
+                <form
+                  onSubmit={onAddSubmit}
+                  className="rounded-2xl border border-border/80 bg-card p-4 shadow-[0_16px_48px_-28px_hsl(222_28%_16%_/_0.12)]"
+                >
+                  <p className="mb-3 text-sm font-medium text-slate-deep">
+                    New value in {typeLabel(selectedType.code)}
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className={labelClass} htmlFor="add-code">
+                        Code *
+                      </label>
+                      <input
+                        id="add-code"
+                        className={fieldClass}
+                        required
+                        autoFocus
+                        placeholder="e.g. COMPASSIONATE"
+                        value={addCode}
+                        onChange={(e) => setAddCode(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className={labelClass} htmlFor="add-label">
+                        Label *
+                      </label>
+                      <input
+                        id="add-label"
+                        className={fieldClass}
+                        required
+                        placeholder="Display name"
+                        value={addLabel}
+                        onChange={(e) => setAddLabel(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  {addError && (
+                    <Alert tone="error" className="mt-3 !mb-0">
+                      {addError}
+                    </Alert>
+                  )}
+                  <div className="mt-4 flex justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={createMut.isPending}
+                      onClick={() => {
+                        setAddOpen(false);
+                        setAddCode('');
+                        setAddLabel('');
+                        setAddError(null);
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={createMut.isPending}>
+                      {createMut.isPending ? 'Adding…' : 'Add'}
+                    </Button>
+                  </div>
+                </form>
+              )}
+            </div>
           </div>
         )
       )}
-
-      <Dialog
-        open={createOpen}
-        title="Add lookup value"
-        onClose={() => {
-          if (createMut.isPending) return;
-          setCreateOpen(false);
-          setError(null);
-        }}
-      >
-        <form onSubmit={onCreateSubmit} className="space-y-3">
-          <div>
-            <label className={labelClass} htmlFor="lookup-type">
-              Type *
-            </label>
-            <select
-              id="lookup-type"
-              className={fieldClass}
-              required
-              value={createForm.typeId}
-              onChange={(e) =>
-                setCreateForm((f) => ({ ...f, typeId: e.target.value }))
-              }
-            >
-              <option value="">Select type</option>
-              {typeOptions.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.code}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className={labelClass} htmlFor="lookup-code">
-              Code *
-            </label>
-            <input
-              id="lookup-code"
-              className={fieldClass}
-              required
-              value={createForm.code}
-              onChange={(e) =>
-                setCreateForm((f) => ({ ...f, code: e.target.value }))
-              }
-              placeholder="e.g. COMPASSIONATE"
-            />
-          </div>
-          <div>
-            <label className={labelClass} htmlFor="lookup-label">
-              Label *
-            </label>
-            <input
-              id="lookup-label"
-              className={fieldClass}
-              required
-              value={createForm.label}
-              onChange={(e) =>
-                setCreateForm((f) => ({ ...f, label: e.target.value }))
-              }
-            />
-          </div>
-          <div>
-            <label className={labelClass} htmlFor="lookup-sort">
-              Sort order
-            </label>
-            <input
-              id="lookup-sort"
-              type="number"
-              min={0}
-              className={fieldClass}
-              value={createForm.sortOrder}
-              onChange={(e) =>
-                setCreateForm((f) => ({ ...f, sortOrder: e.target.value }))
-              }
-            />
-          </div>
-          <label className="flex items-center gap-2 text-sm text-slate-deep">
-            <input
-              type="checkbox"
-              checked={createForm.isActive}
-              onChange={(e) =>
-                setCreateForm((f) => ({ ...f, isActive: e.target.checked }))
-              }
-            />
-            Active (shown in forms)
-          </label>
-
-          {error && <Alert tone="error" className="!mb-0">{error}</Alert>}
-
-          <div className="flex justify-end gap-2 border-t border-border/70 pt-4">
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={createMut.isPending}
-              onClick={() => {
-                setCreateOpen(false);
-                setError(null);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={createMut.isPending}>
-              {createMut.isPending ? 'Saving…' : 'Add value'}
-            </Button>
-          </div>
-        </form>
-      </Dialog>
-
-      <Dialog
-        open={Boolean(editRow)}
-        title={editRow ? `Edit ${editRow.code}` : 'Edit lookup value'}
-        onClose={() => {
-          if (updateMut.isPending) return;
-          setEditRow(null);
-          setError(null);
-        }}
-      >
-        {editRow && (
-          <form onSubmit={onEditSubmit} className="space-y-3">
-            <div>
-              <p className={labelClass}>Type</p>
-              <p className="font-mono text-sm text-muted-foreground">
-                {editRow.type ?? '—'}
-              </p>
-            </div>
-            <div>
-              <p className={labelClass}>Code</p>
-              <p className="font-mono text-sm text-muted-foreground">
-                {editRow.code}
-              </p>
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                Code cannot be changed after create.
-              </p>
-            </div>
-            <div>
-              <label className={labelClass} htmlFor="edit-lookup-label">
-                Label *
-              </label>
-              <input
-                id="edit-lookup-label"
-                className={fieldClass}
-                required
-                value={editForm.label}
-                onChange={(e) =>
-                  setEditForm((f) => ({ ...f, label: e.target.value }))
-                }
-              />
-            </div>
-            <div>
-              <label className={labelClass} htmlFor="edit-lookup-sort">
-                Sort order
-              </label>
-              <input
-                id="edit-lookup-sort"
-                type="number"
-                min={0}
-                className={fieldClass}
-                value={editForm.sortOrder}
-                onChange={(e) =>
-                  setEditForm((f) => ({ ...f, sortOrder: e.target.value }))
-                }
-              />
-            </div>
-            <label className="flex items-center gap-2 text-sm text-slate-deep">
-              <input
-                type="checkbox"
-                checked={editForm.isActive}
-                onChange={(e) =>
-                  setEditForm((f) => ({ ...f, isActive: e.target.checked }))
-                }
-              />
-              Active (shown in forms)
-            </label>
-
-            {error && <Alert tone="error" className="!mb-0">{error}</Alert>}
-
-            <div className="flex justify-end gap-2 border-t border-border/70 pt-4">
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={updateMut.isPending}
-                onClick={() => {
-                  setEditRow(null);
-                  setError(null);
-                }}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={updateMut.isPending}>
-                {updateMut.isPending ? 'Saving…' : 'Save changes'}
-              </Button>
-            </div>
-          </form>
-        )}
-      </Dialog>
     </div>
   );
 }
