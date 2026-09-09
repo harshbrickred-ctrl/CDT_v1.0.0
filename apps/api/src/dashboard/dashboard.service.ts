@@ -8,7 +8,7 @@ import {
   LeaveStatus,
   Prisma,
 } from '@prisma/client';
-import { periodFromYearMonth, previousYearMonth, utcToday } from '../common/dates';
+import { periodFromYearMonth, previousYearMonth, utcToday, candidateEmployedInPeriodWhere } from '../common/dates';
 import { toNumber } from '../common/prisma-error';
 import { PrismaService } from '../prisma/prisma.service';
 import { fetchKpiDetail } from './kpi-detail';
@@ -285,14 +285,25 @@ export class DashboardService {
       },
     ];
 
-    const activeCandidateIds = clients.flatMap((c) =>
-      c.candidates.map((candidate) => candidate.id),
-    );
     const timesheetCandidateIds = new Set(
       timesheetsInMonth.map((t) => t.candidateId),
     );
-    const missingTimesheetsCount = activeCandidateIds.filter(
-      (id) => !timesheetCandidateIds.has(id),
+
+    const employedForTimesheets = await this.prisma.candidate.findMany({
+      where: {
+        organizationId: params.organizationId,
+        deletedAt: null,
+        ...(params.clientId ? { clientId: params.clientId } : {}),
+        status: { in: [CandidateStatus.ACTIVE, CandidateStatus.RELEASED] },
+        ...(candidateEmployedInPeriodWhere(
+          periodStart,
+          periodEnd,
+        ) as Prisma.CandidateWhereInput),
+      },
+      select: { id: true },
+    });
+    const missingTimesheetsCount = employedForTimesheets.filter(
+      (c) => !timesheetCandidateIds.has(c.id),
     ).length;
     const approvedTimesheetsCount = timesheetsInMonth.filter(
       (t) => t.approvalStatus === ApprovalStatus.APPROVED,

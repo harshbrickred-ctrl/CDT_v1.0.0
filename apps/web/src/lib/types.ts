@@ -58,6 +58,9 @@ export interface Candidate {
   sstReference?: string | null;
   endDate?: string | null;
   releasedOn?: string | null;
+  releasedAt?: string | null;
+  releaseReason?: string | null;
+  missingTimesheetMonths?: string[];
   health?: EngagementHealth | string | null;
 }
 

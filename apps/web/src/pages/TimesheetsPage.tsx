@@ -178,7 +178,7 @@ export default function TimesheetsPage() {
     queryFn: () =>
       candidatesApi.list({
         clientId: bulkClientId,
-        status: 'ACTIVE',
+        statuses: 'ACTIVE,RELEASED',
         pageSize: 200,
       }),
     enabled: bulkOpen && Boolean(bulkClientId),
@@ -251,7 +251,8 @@ export default function TimesheetsPage() {
         const suggested = Math.max(0, Number(workingDays) - leaveDays);
         return {
           candidateId: c.id,
-          candidateName: c.fullName,
+          candidateName:
+            c.status === 'RELEASED' ? `${c.fullName} (Released)` : c.fullName,
           workingDays: String(workingDays),
           leaveDays,
           daysWorked:
@@ -839,6 +840,8 @@ export default function TimesheetsPage() {
         <form onSubmit={onSubmit} className="space-y-4">
           <CandidateCombobox
             required
+            statuses={['ACTIVE', 'RELEASED']}
+            placeholder="Search active or released candidates…"
             value={form.candidateId}
             selected={selectedCandidate}
             onChange={(c) => {

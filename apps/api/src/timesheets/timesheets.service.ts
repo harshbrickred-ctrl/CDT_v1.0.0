@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import {
   ApprovalStatus,
+  CandidateStatus,
   LeaveStatus,
   Prisma,
 } from '@prisma/client';
@@ -17,7 +18,10 @@ import { paginationMeta, paginationSkip } from '@cdt/shared-types';
 import { PrismaService } from '../prisma/prisma.service';
 import { IdSequenceService } from '../common/id-sequence.service';
 import { AuditService } from '../audit/audit.service';
-import { periodFromYearMonth } from '../common/dates';
+import {
+  isCandidateEmployedInPeriod,
+  periodFromYearMonth,
+} from '../common/dates';
 import { throwConflictIfUnique, toNumber } from '../common/prisma-error';
 import {
   RejectTimesheetDto,
@@ -160,12 +164,33 @@ export class TimesheetsService {
     });
     if (!candidate) throw new NotFoundException('Candidate not found');
 
+    if (
+      candidate.status !== CandidateStatus.ACTIVE &&
+      candidate.status !== CandidateStatus.RELEASED
+    ) {
+      throw new BadRequestException(
+        'Timesheets can only be filled for active or released candidates',
+      );
+    }
+
     let periodStart: Date;
     let periodEnd: Date;
     try {
       ({ periodStart, periodEnd } = periodFromYearMonth(dto.yearMonth));
     } catch {
       throw new BadRequestException('Invalid yearMonth; expected YYYY-MM');
+    }
+
+    if (
+      !isCandidateEmployedInPeriod(
+        candidate,
+        periodStart,
+        periodEnd,
+      )
+    ) {
+      throw new BadRequestException(
+        'Timesheet month is outside the candidate employment period',
+      );
     }
 
     const { leaveDays, lopDays } = await this.computeLeaveDays(

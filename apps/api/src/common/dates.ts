@@ -35,6 +35,69 @@ export function previousYearMonth(yearMonth: string): string {
   return `${prev.getUTCFullYear()}-${mm}`;
 }
 
+/** Format a UTC date as YYYY-MM. */
+export function yearMonthFromDate(d: Date): string {
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  return `${d.getUTCFullYear()}-${mm}`;
+}
+
+/** Inclusive list of YYYY-MM from start..end (UTC month boundaries). */
+export function yearMonthsBetween(from: Date, to: Date): string[] {
+  const start = new Date(
+    Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), 1),
+  );
+  const end = new Date(Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), 1));
+  if (end < start) return [];
+  const out: string[] = [];
+  const cursor = new Date(start);
+  while (cursor <= end) {
+    out.push(yearMonthFromDate(cursor));
+    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+  }
+  return out;
+}
+
+/**
+ * Candidate was employed some day in [periodStart, periodEnd]:
+ * joinedOn <= periodEnd (or joinedOn null), and end date null or >= periodStart.
+ * Caller should also set deletedAt / status / org filters.
+ */
+export function candidateEmployedInPeriodWhere(
+  periodStart: Date,
+  periodEnd: Date,
+): Record<string, unknown> {
+  return {
+    OR: [{ joinedOn: null }, { joinedOn: { lte: periodEnd } }],
+    AND: [
+      {
+        OR: [
+          { contractEndDate: null, releasedAt: null },
+          { contractEndDate: { gte: periodStart } },
+          {
+            contractEndDate: null,
+            releasedAt: { gte: periodStart },
+          },
+        ],
+      },
+    ],
+  };
+}
+
+export function isCandidateEmployedInPeriod(
+  candidate: {
+    joinedOn?: Date | null;
+    contractEndDate?: Date | null;
+    releasedAt?: Date | null;
+  },
+  periodStart: Date,
+  periodEnd: Date,
+): boolean {
+  if (candidate.joinedOn && candidate.joinedOn > periodEnd) return false;
+  const end = candidate.contractEndDate ?? candidate.releasedAt ?? null;
+  if (end && end < periodStart) return false;
+  return true;
+}
+
 export function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
     value,

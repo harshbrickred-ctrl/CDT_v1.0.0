@@ -35,14 +35,22 @@ export class CandidatesController {
     @Query('pageSize') pageSize?: string,
     @Query('clientId') clientId?: string,
     @Query('status') status?: CandidateStatus,
+    @Query('statuses') statuses?: string,
     @Query('q') q?: string,
   ) {
+    const statusList = statuses
+      ? (statuses
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean) as CandidateStatus[])
+      : undefined;
     return this.candidates.findAll({
       organizationId: user.organizationId,
       page: page ? Number(page) : 1,
       pageSize: pageSize ? Number(pageSize) : 20,
       clientId,
       status,
+      statuses: statusList,
       q,
     });
   }

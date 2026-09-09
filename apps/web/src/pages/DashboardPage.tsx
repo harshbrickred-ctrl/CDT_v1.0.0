@@ -18,8 +18,14 @@ import DashboardKpiGrid, {
 } from '../components/dashboard/DashboardKpiGrid';
 import HealthDonutChart from '../components/dashboard/HealthDonutChart';
 import TopClientsBarChart from '../components/dashboard/TopClientsBarChart';
-import DashboardExtendedCharts, {
+import {
+  AtRiskClientsChart,
   DashboardExtendedChartsSkeleton,
+  HeadcountByClientChart,
+  InvoiceStatusBarsChart,
+  PaymentStatusChart,
+  RevenueTrendChart,
+  TopClientsByRevenueChart,
 } from '../components/dashboard/DashboardExtendedCharts';
 import OverdueReviewsAlert from '../components/dashboard/OverdueReviewsAlert';
 import DashboardKpiDetailModal from '../components/dashboard/DashboardKpiDetailModal';
@@ -420,34 +426,13 @@ export default function DashboardPage() {
           <DashboardExtendedChartsSkeleton />
         </>
       ) : (
-        <>
-          <div className={isFetching ? 'opacity-70 transition-opacity' : ''}>
-            <PageSection title="Candidates & engagements">
-              <DashboardKpiGrid
-                items={candidateKpis}
-                onItemClick={handleKpiClick}
-              />
-            </PageSection>
-            <PageSection title="Invoicing">
-              <DashboardKpiGrid
-                items={invoiceKpis}
-                onItemClick={handleKpiClick}
-              />
-            </PageSection>
-            <PageSection title="Approvals & attendance">
-              <DashboardKpiGrid
-                items={operationsKpis}
-                onItemClick={handleKpiClick}
-              />
-            </PageSection>
-            <PageSection title="Feedback">
-              <DashboardKpiGrid
-                items={feedbackKpis}
-                onItemClick={handleKpiClick}
-              />
-            </PageSection>
-          </div>
-
+        <div className={isFetching ? 'opacity-70 transition-opacity' : ''}>
+          <PageSection title="Candidates & engagements">
+            <DashboardKpiGrid
+              items={candidateKpis}
+              onItemClick={handleKpiClick}
+            />
+          </PageSection>
           <motion.div
             className="mb-8 grid gap-4 lg:grid-cols-2"
             variants={fadeUp}
@@ -455,56 +440,96 @@ export default function DashboardPage() {
             animate="visible"
           >
             <HealthDonutChart data={summary?.healthChart ?? []} />
-            <TopClientsBarChart clients={topClients} />
+            <AtRiskClientsChart
+              data={summary?.charts?.atRiskClients ?? []}
+            />
           </motion.div>
+          <div className="mb-8">
+            <HeadcountByClientChart
+              data={summary?.charts?.headcountByClient ?? []}
+            />
+          </div>
 
-          {summary?.charts && (
-            <DashboardExtendedCharts charts={summary.charts} />
-          )}
-        </>
+          <PageSection title="Invoicing">
+            <DashboardKpiGrid
+              items={invoiceKpis}
+              onItemClick={handleKpiClick}
+            />
+          </PageSection>
+          <div className="mb-8 grid gap-4 lg:grid-cols-2">
+            <PaymentStatusChart
+              data={summary?.charts?.paymentStatusByAmount ?? []}
+            />
+            <InvoiceStatusBarsChart
+              data={summary?.charts?.invoiceStatusBars ?? []}
+            />
+          </div>
+          <div className="mb-8 grid gap-4 lg:grid-cols-2">
+            <RevenueTrendChart
+              data={summary?.charts?.revenueTrendByMonth ?? []}
+            />
+            <TopClientsByRevenueChart
+              data={summary?.charts?.topClientsByRevenue ?? []}
+            />
+          </div>
+
+          <PageSection title="Approvals & attendance">
+            <DashboardKpiGrid
+              items={operationsKpis}
+              onItemClick={handleKpiClick}
+            />
+          </PageSection>
+          <div className="mb-8 grid gap-4 lg:grid-cols-2">
+            <TopClientsBarChart clients={topClients} />
+            <PageSection title="Top 3 clients">
+              {topClients.length === 0 ? (
+                <EmptyState
+                  title="No client rollup yet"
+                  description="Once candidates and reviews exist for this month, client headcount will appear here."
+                />
+              ) : (
+                <div className={tableWrap}>
+                  <table className="min-w-full">
+                    <thead>
+                      <tr>
+                        <th className={thClass}>Client</th>
+                        <th className={thClass}>Headcount</th>
+                        <th className={thClass}>Avg utilization</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {topClients.map((row, i) => (
+                        <tr
+                          key={row.clientId ?? `${row.name}-${i}`}
+                          className="group transition-colors hover:bg-muted/40"
+                        >
+                          <td className={tdClass}>{row.name}</td>
+                          <td className={tdClass}>{row.activeHeadcount}</td>
+                          <td className={tdClass}>
+                            {formatPct(row.avgUtilization)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </PageSection>
+          </div>
+
+          <PageSection title="Feedback">
+            <DashboardKpiGrid
+              items={feedbackKpis}
+              onItemClick={handleKpiClick}
+            />
+          </PageSection>
+        </div>
       )}
 
       <OverdueReviewsAlert
         count={overdueQuery.data?.count ?? 0}
         month={overdueQuery.data?.month}
       />
-
-      <PageSection title="Top 3 clients">
-        {isLoading ? (
-          <div className="h-48 animate-pulse rounded-2xl border border-border/60 bg-muted/40" />
-        ) : topClients.length === 0 ? (
-          <EmptyState
-            title="No client rollup yet"
-            description="Once candidates and reviews exist for this month, client headcount will appear here."
-          />
-        ) : (
-          <div className={tableWrap}>
-            <table className="min-w-full">
-              <thead>
-                <tr>
-                  <th className={thClass}>Client</th>
-                  <th className={thClass}>Headcount</th>
-                  <th className={thClass}>Avg utilization</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topClients.map((row, i) => (
-                  <tr
-                    key={row.clientId ?? `${row.name}-${i}`}
-                    className="group transition-colors hover:bg-muted/40"
-                  >
-                    <td className={tdClass}>{row.name}</td>
-                    <td className={tdClass}>{row.activeHeadcount}</td>
-                    <td className={tdClass}>
-                      {formatPct(row.avgUtilization)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </PageSection>
 
       <DashboardKpiDetailModal
         open={selectedKpi != null}

@@ -9,7 +9,11 @@ import {
   PrismaClient,
 } from '@prisma/client';
 import { toNumber } from '../common/prisma-error';
-import { periodFromYearMonth, utcToday } from '../common/dates';
+import {
+  candidateEmployedInPeriodWhere,
+  periodFromYearMonth,
+  utcToday,
+} from '../common/dates';
 
 const INVOICED_STATUSES: InvoiceStatus[] = [
   InvoiceStatus.APPROVED,
@@ -465,10 +469,23 @@ export async function fetchKpiDetail(
     }
 
     case 'missing-ts': {
-      const [activeCandidates, timesheets] = await Promise.all([
+      const { periodStart, periodEnd } = periodFromYearMonth(month);
+      const [eligibleCandidates, timesheets] = await Promise.all([
         prisma.candidate.findMany({
-          where: { ...candidateBase, status: CandidateStatus.ACTIVE },
-          select: candidateSelect,
+          where: {
+            ...candidateBase,
+            status: {
+              in: [CandidateStatus.ACTIVE, CandidateStatus.RELEASED],
+            },
+            ...(candidateEmployedInPeriodWhere(
+              periodStart,
+              periodEnd,
+            ) as Prisma.CandidateWhereInput),
+          },
+          select: {
+            ...candidateSelect,
+            contractEndDate: true,
+          },
           orderBy: { fullName: 'asc' },
           take: 500,
         }),
@@ -483,8 +500,31 @@ export async function fetchKpiDetail(
         }),
       ]);
       const hasTs = new Set(timesheets.map((t) => t.candidateId));
-      const missing = activeCandidates.filter((c) => !hasTs.has(c.id));
-      return candidateRows(kpi, 'Missing Timesheets', missing.slice(0, 200));
+      const missing = eligibleCandidates.filter((c) => !hasTs.has(c.id));
+      return {
+        kpi,
+        title: 'Missing Timesheets',
+        columns: [
+          { key: 'publicId', label: 'ID' },
+          { key: 'name', label: 'Candidate' },
+          { key: 'client', label: 'Client' },
+          { key: 'role', label: 'Role' },
+          { key: 'status', label: 'Status' },
+          { key: 'releasedAt', label: 'Released / end' },
+        ],
+        rows: missing.slice(0, 200).map((c) => ({
+          id: c.id,
+          entityType: 'candidate' as const,
+          entityId: c.id,
+          publicId: c.publicId,
+          name: c.fullName,
+          client: c.client?.name ?? null,
+          role: c.roleTitle,
+          status: fmtStatus(c.status),
+          releasedAt:
+            fmtDate(c.contractEndDate) ?? fmtDate(c.releasedAt) ?? null,
+        })),
+      };
     }
 
     default:

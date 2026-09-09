@@ -40,6 +40,7 @@ export default function CandidateDetailPage() {
   const [effectiveDate, setEffectiveDate] = useState('');
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const detailQuery = useQuery({
     queryKey: ['candidates', id],
@@ -79,12 +80,20 @@ export default function CandidateDetailPage() {
   const releaseMut = useMutation({
     mutationFn: () =>
       candidatesApi.release(candidateKey, {
-        effectiveDate,
-        reason: reason || undefined,
+        contractEndDate: effectiveDate,
+        releaseReason: reason || undefined,
       }),
-    onSuccess: async () => {
+    onSuccess: async (released) => {
       setReleaseOpen(false);
       setError(null);
+      const missing = released.missingTimesheetMonths ?? [];
+      if (missing.length) {
+        setNotice(
+          `Released. Missing timesheets for ${missing.join(', ')}. Open Timesheets to fill them for invoicing.`,
+        );
+      } else {
+        setNotice('Candidate released successfully.');
+      }
       await qc.invalidateQueries({ queryKey: ['candidates'] });
     },
     onError: (err) => setError(apiErrorMessage(err)),
@@ -122,6 +131,8 @@ export default function CandidateDetailPage() {
     { id: 'timeline', label: 'Timeline' },
   ];
 
+  const missingMonths = candidate.missingTimesheetMonths ?? [];
+
   return (
     <div>
       <div className="mb-4">
@@ -149,6 +160,26 @@ export default function CandidateDetailPage() {
           ) : null
         }
       />
+
+      {notice && (
+        <Alert tone="warning" className="mb-4">
+          {notice}
+        </Alert>
+      )}
+
+      {missingMonths.length > 0 && (
+        <Alert tone="warning" className="mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span>
+              Missing timesheets for: <strong>{missingMonths.join(', ')}</strong>
+              . Fill them so invoices can be generated.
+            </span>
+            <Link to="/timesheets" className={btnSecondary}>
+              Open Timesheets
+            </Link>
+          </div>
+        </Alert>
+      )}
 
       <div className="mb-6 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
         <PublicId value={candidate.publicId} />
@@ -311,19 +342,40 @@ export default function CandidateDetailPage() {
       )}
 
       {tab === 'timesheets' && (
-        <TabTable
-          loading={tsQuery.isLoading}
-          empty="No timesheets yet."
-          headers={['ID', 'Month', 'Worked', 'Leave', 'Attendance', 'Status']}
-          rows={(tsQuery.data?.items ?? []).map((t) => [
-            <PublicId key="id" value={t.publicId} />,
-            t.yearMonth,
-            t.daysWorked ?? '—',
-            t.leaveDays ?? t.approvedLeaveDays ?? '—',
-            formatPct(t.attendancePct),
-            <StatusPill key="st" status={t.status} />,
-          ])}
-        />
+        <>
+          {missingMonths.length > 0 && (
+            <div className="mb-4 rounded-xl border border-border/80 bg-card p-4">
+              <p className="mb-2 text-sm font-medium text-slate-deep">
+                Months without a timesheet
+              </p>
+              <ul className="flex flex-wrap gap-2">
+                {missingMonths.map((ym) => (
+                  <li key={ym}>
+                    <Link
+                      to="/timesheets"
+                      className={`${btnSecondary} !px-2.5 !py-1.5 text-xs`}
+                    >
+                      Fill {ym}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <TabTable
+            loading={tsQuery.isLoading}
+            empty="No timesheets yet."
+            headers={['ID', 'Month', 'Worked', 'Leave', 'Attendance', 'Status']}
+            rows={(tsQuery.data?.items ?? []).map((t) => [
+              <PublicId key="id" value={t.publicId} />,
+              t.yearMonth,
+              t.daysWorked ?? '—',
+              t.leaveDays ?? t.approvedLeaveDays ?? '—',
+              formatPct(t.attendancePct),
+              <StatusPill key="st" status={t.status} />,
+            ])}
+          />
+        </>
       )}
 
       {tab === 'reviews' && (

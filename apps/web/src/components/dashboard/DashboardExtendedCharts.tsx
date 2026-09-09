@@ -44,7 +44,7 @@ function ChartEmpty({ message }: { message: string }) {
   );
 }
 
-function HeadcountByClientChart({
+export function HeadcountByClientChart({
   data,
 }: {
   data: DashboardCharts['headcountByClient'];
@@ -102,7 +102,7 @@ function HeadcountByClientChart({
   );
 }
 
-function PaymentStatusChart({
+export function PaymentStatusChart({
   data,
 }: {
   data: DashboardCharts['paymentStatusByAmount'];
@@ -172,7 +172,7 @@ function PaymentStatusChart({
   );
 }
 
-function RevenueTrendChart({
+export function RevenueTrendChart({
   data,
 }: {
   data: DashboardCharts['revenueTrendByMonth'];
@@ -222,7 +222,7 @@ function RevenueTrendChart({
   );
 }
 
-function TopClientsByRevenueChart({
+export function TopClientsByRevenueChart({
   data,
 }: {
   data: DashboardCharts['topClientsByRevenue'];
@@ -284,7 +284,7 @@ function TopClientsByRevenueChart({
   );
 }
 
-function AtRiskClientsChart({
+export function AtRiskClientsChart({
   data,
 }: {
   data: DashboardCharts['atRiskClients'];
@@ -359,7 +359,7 @@ const INVOICE_BAR_COLORS: Record<string, string> = {
   rejected: 'hsl(0 55% 42%)',
 };
 
-function InvoiceStatusBarsChart({
+export function InvoiceStatusBarsChart({
   data,
 }: {
   data: DashboardCharts['invoiceStatusBars'];

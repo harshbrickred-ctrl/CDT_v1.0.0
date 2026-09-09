@@ -8,7 +8,7 @@ import { paginationMeta, paginationSkip } from '@cdt/shared-types';
 import { PrismaService } from '../prisma/prisma.service';
 import { IdSequenceService } from '../common/id-sequence.service';
 import { AuditService } from '../audit/audit.service';
-import { isUuid } from '../common/dates';
+import { isUuid, yearMonthsBetween, utcToday } from '../common/dates';
 import { toNumber } from '../common/prisma-error';
 import {
   CreateCandidateDto,
@@ -38,6 +38,29 @@ export class CandidatesService {
     private readonly audit: AuditService,
   ) {}
 
+  private async missingTimesheetMonthsForCandidate(
+    organizationId: string,
+    candidateId: string,
+    joinedOn: Date | null,
+    endDate: Date | null,
+  ): Promise<string[]> {
+    if (!endDate) return [];
+    const start = joinedOn ?? endDate;
+    const months = yearMonthsBetween(start, endDate);
+    if (!months.length) return [];
+    const existing = await this.prisma.timesheet.findMany({
+      where: {
+        organizationId,
+        candidateId,
+        deletedAt: null,
+        yearMonth: { in: months },
+      },
+      select: { yearMonth: true },
+    });
+    const have = new Set(existing.map((t) => t.yearMonth));
+    return months.filter((m) => !have.has(m));
+  }
+
   private serialize<
     T extends {
       hourlyRate?: Prisma.Decimal | number | null;
@@ -45,13 +68,14 @@ export class CandidatesService {
       monthlyFixedAmount?: Prisma.Decimal | number | null;
       maxBillableHours?: Prisma.Decimal | number | null;
     },
-  >(row: T) {
+  >(row: T, extra?: Record<string, unknown>) {
     return {
       ...row,
       hourlyRate: toNumber(row.hourlyRate ?? null),
       hoursPerDay: toNumber(row.hoursPerDay ?? null),
       monthlyFixedAmount: toNumber(row.monthlyFixedAmount ?? null),
       maxBillableHours: toNumber(row.maxBillableHours ?? null),
+      ...extra,
     };
   }
 
@@ -78,6 +102,7 @@ export class CandidatesService {
     pageSize?: number;
     clientId?: string;
     status?: CandidateStatus;
+    statuses?: CandidateStatus[];
     q?: string;
   }) {
     const page = params.page ?? 1;
@@ -86,7 +111,11 @@ export class CandidatesService {
       organizationId: params.organizationId,
       deletedAt: null,
       ...(params.clientId ? { clientId: params.clientId } : {}),
-      ...(params.status ? { status: params.status } : {}),
+      ...(params.statuses?.length
+        ? { status: { in: params.statuses } }
+        : params.status
+          ? { status: params.status }
+          : {}),
       ...(params.q
         ? {
             OR: [
@@ -119,7 +148,18 @@ export class CandidatesService {
       include: candidateInclude,
     });
     if (!candidate) throw new NotFoundException('Candidate not found');
-    return this.serialize(candidate);
+    const end =
+      candidate.contractEndDate ??
+      candidate.releasedAt ??
+      (candidate.status === CandidateStatus.ACTIVE ? utcToday() : null);
+    const missingTimesheetMonths =
+      await this.missingTimesheetMonthsForCandidate(
+        organizationId,
+        candidate.id,
+        candidate.joinedOn,
+        end,
+      );
+    return this.serialize(candidate, { missingTimesheetMonths });
   }
 
   async create(
@@ -287,7 +327,14 @@ export class CandidatesService {
       before,
       after: candidate,
     });
-    return this.serialize(candidate);
+    const missingTimesheetMonths =
+      await this.missingTimesheetMonthsForCandidate(
+        organizationId,
+        candidate.id,
+        candidate.joinedOn,
+        candidate.contractEndDate,
+      );
+    return this.serialize(candidate, { missingTimesheetMonths });
   }
 
   async timeline(organizationId: string, idOrPublicId: string) {

@@ -10,10 +10,12 @@ export type CandidateComboboxProps = {
   value: string;
   selected?: Pick<
     Candidate,
-    'id' | 'publicId' | 'fullName' | 'client' | 'clientName'
+    'id' | 'publicId' | 'fullName' | 'client' | 'clientName' | 'status'
   > | null;
   onChange: (candidate: Candidate | null) => void;
   status?: string;
+  /** Comma-separated or array; when set, overrides status. */
+  statuses?: string | string[];
   required?: boolean;
   placeholder?: string;
   disabled?: boolean;
@@ -31,6 +33,7 @@ export default function CandidateCombobox({
   selected,
   onChange,
   status = 'ACTIVE',
+  statuses,
   required,
   placeholder = 'Search by name or public ID…',
   disabled,
@@ -42,6 +45,10 @@ export default function CandidateCombobox({
   const [debounced, setDebounced] = useState('');
   const [open, setOpen] = useState(false);
   const [focused, setFocused] = useState(false);
+
+  const statusesParam = Array.isArray(statuses)
+    ? statuses.join(',')
+    : statuses;
 
   useEffect(() => {
     const t = window.setTimeout(() => setDebounced(query.trim()), 200);
@@ -62,10 +69,12 @@ export default function CandidateCombobox({
   }, [value]);
 
   const { data, isFetching } = useQuery({
-    queryKey: ['candidates', 'combobox', status, debounced],
+    queryKey: ['candidates', 'combobox', status, statusesParam, debounced],
     queryFn: () =>
       candidatesApi.list({
-        status,
+        ...(statusesParam
+          ? { statuses: statusesParam }
+          : { status }),
         q: debounced || undefined,
         pageSize: 12,
       }),
@@ -186,8 +195,8 @@ export default function CandidateCombobox({
           {!isFetching && items.length === 0 && (
             <li className="px-3 py-2.5 text-xs text-muted-foreground">
               {debounced
-                ? `No active candidates match “${debounced}”.`
-                : 'No active candidates found.'}
+                ? `No candidates match “${debounced}”.`
+                : 'No candidates found.'}
             </li>
           )}
           {!isFetching &&
@@ -201,6 +210,11 @@ export default function CandidateCombobox({
                 >
                   <span className="text-sm font-medium text-slate-deep">
                     {c.fullName}
+                    {c.status === 'RELEASED' ? (
+                      <span className="ml-2 text-xs font-normal text-muted-foreground">
+                        (Released)
+                      </span>
+                    ) : null}
                   </span>
                   <span className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
                     <PublicId value={c.publicId} />

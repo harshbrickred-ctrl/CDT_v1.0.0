@@ -139,8 +139,10 @@ export const candidatesApi = {
     postOne<Candidate>('/candidates', body),
   update: (id: string, body: Record<string, unknown>) =>
     patchOne<Candidate>(`/candidates/${id}`, body),
-  release: (id: string, body: { effectiveDate: string; reason?: string }) =>
-    postOne<Candidate>(`/candidates/${id}/release`, body),
+  release: (
+    id: string,
+    body: { contractEndDate: string; releaseReason?: string },
+  ) => postOne<Candidate>(`/candidates/${id}/release`, body),
   timeline: (id: string) =>
     getList<TimelineEvent>(`/candidates/${id}/timeline`).catch(() => ({
       items: [] as TimelineEvent[],
