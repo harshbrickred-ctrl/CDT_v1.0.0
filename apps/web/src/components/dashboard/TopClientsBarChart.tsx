@@ -26,28 +26,29 @@ export default function TopClientsBarChart({
   return (
     <ChartPanel title="Top 3 clients by headcount">
       {top.length === 0 ? (
-        <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
+        <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
           No client headcount for this scope yet.
         </div>
       ) : (
-        <div className="h-64 w-full">
+        <div className="h-40 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={top}
               layout="vertical"
-              margin={{ top: 4, right: 16, left: 8, bottom: 4 }}
+              margin={{ top: 2, right: 12, left: 4, bottom: 2 }}
+              barCategoryGap="28%"
             >
               <CartesianGrid
                 strokeDasharray="3 3"
                 horizontal={false}
-                stroke="hsl(214 18% 84% / 0.6)"
+                stroke="hsl(214 18% 84% / 0.5)"
               />
-              <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
+              <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
               <YAxis
                 type="category"
                 dataKey="name"
-                width={100}
-                tick={{ fontSize: 11 }}
+                width={88}
+                tick={{ fontSize: 10 }}
               />
               <Tooltip
                 formatter={(value, key) => {
@@ -59,16 +60,17 @@ export default function TopClientsBarChart({
                   payload?.[0]?.payload?.fullName ?? ''
                 }
                 contentStyle={{
-                  borderRadius: '0.75rem',
+                  borderRadius: '0.5rem',
                   border: '1px solid hsl(214 18% 84%)',
-                  fontSize: '0.8125rem',
+                  fontSize: '0.75rem',
                 }}
               />
               <Bar
                 dataKey="headcount"
                 fill="hsl(210 40% 42%)"
-                radius={[0, 6, 6, 0]}
-                animationDuration={600}
+                maxBarSize={14}
+                radius={[0, 3, 3, 0]}
+                animationDuration={400}
               />
             </BarChart>
           </ResponsiveContainer>

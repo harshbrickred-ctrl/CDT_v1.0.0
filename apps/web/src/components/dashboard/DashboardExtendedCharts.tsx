@@ -26,9 +26,9 @@ const PAYMENT_COLORS: Record<string, string> = {
 };
 
 const tooltipStyle = {
-  borderRadius: '0.75rem',
+  borderRadius: '0.5rem',
   border: '1px solid hsl(214 18% 84%)',
-  fontSize: '0.8125rem',
+  fontSize: '0.75rem',
 };
 
 function truncateName(name: string, max = 16) {
@@ -37,11 +37,15 @@ function truncateName(name: string, max = 16) {
 
 function ChartEmpty({ message }: { message: string }) {
   return (
-    <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
+    <div className="flex h-40 items-center justify-center text-xs text-muted-foreground">
       {message}
     </div>
   );
 }
+
+const BAR_RADIUS_H = [0, 3, 3, 0] as [number, number, number, number];
+const BAR_RADIUS_V = [3, 3, 0, 0] as [number, number, number, number];
+const MAX_BAR = 16;
 
 export function HeadcountByClientChart({
   data,
@@ -59,24 +63,25 @@ export function HeadcountByClientChart({
         {rows.length === 0 ? (
           <ChartEmpty message="No active headcount for this scope." />
         ) : (
-          <div className="h-72 w-full">
+          <div className="h-44 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={rows}
                 layout="vertical"
-                margin={{ top: 4, right: 16, left: 8, bottom: 4 }}
+                margin={{ top: 2, right: 12, left: 4, bottom: 2 }}
+                barCategoryGap="32%"
               >
                 <CartesianGrid
                   strokeDasharray="3 3"
                   horizontal={false}
-                  stroke="hsl(214 18% 84% / 0.6)"
+                  stroke="hsl(214 18% 84% / 0.5)"
                 />
-                <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
+                <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
                 <YAxis
                   type="category"
                   dataKey="name"
-                  width={104}
-                  tick={{ fontSize: 11 }}
+                  width={96}
+                  tick={{ fontSize: 10 }}
                 />
                 <Tooltip
                   formatter={(value) => [value ?? 0, 'Headcount']}
@@ -88,8 +93,9 @@ export function HeadcountByClientChart({
                 <Bar
                   dataKey="headcount"
                   fill="hsl(210 80% 48%)"
-                  radius={[0, 6, 6, 0]}
-                  animationDuration={600}
+                  maxBarSize={MAX_BAR}
+                  radius={BAR_RADIUS_H}
+                  animationDuration={400}
                 />
               </BarChart>
             </ResponsiveContainer>
@@ -109,8 +115,8 @@ export function PaymentStatusChart({
         {data.length === 0 ? (
           <ChartEmpty message="No invoice amounts for this month." />
         ) : (
-          <div className="grid gap-6 lg:grid-cols-[1fr_200px] lg:items-center">
-            <div className="h-64 w-full">
+          <div className="grid gap-3 lg:grid-cols-[1fr_140px] lg:items-center">
+            <div className="h-40 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -119,10 +125,10 @@ export function PaymentStatusChart({
                     nameKey="label"
                     cx="50%"
                     cy="50%"
-                    innerRadius="55%"
-                    outerRadius="80%"
+                    innerRadius="62%"
+                    outerRadius="78%"
                     paddingAngle={2}
-                    animationDuration={600}
+                    animationDuration={400}
                   >
                     {data.map((entry) => (
                       <Cell
@@ -139,15 +145,15 @@ export function PaymentStatusChart({
                 </PieChart>
               </ResponsiveContainer>
             </div>
-            <ul className="space-y-2.5">
+            <ul className="space-y-1.5">
               {data.map((item) => (
                 <li
                   key={item.key}
-                  className="flex items-center justify-between gap-3 text-sm"
+                  className="flex items-center justify-between gap-2 text-xs"
                 >
-                  <span className="flex items-center gap-2">
+                  <span className="flex items-center gap-1.5">
                     <span
-                      className="h-2.5 w-2.5 rounded-full"
+                      className="h-2 w-2 rounded-full"
                       style={{
                         backgroundColor:
                           PAYMENT_COLORS[item.key] ?? 'hsl(215 16% 70%)',
@@ -177,22 +183,23 @@ export function RevenueTrendChart({
         {data.every((d) => d.revenue === 0) ? (
           <ChartEmpty message="No invoiced revenue in the last 6 months." />
         ) : (
-          <div className="h-72 w-full">
+          <div className="h-44 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
                 data={data}
-                margin={{ top: 8, right: 16, left: 8, bottom: 4 }}
+                margin={{ top: 4, right: 12, left: 4, bottom: 2 }}
               >
                 <CartesianGrid
                   strokeDasharray="3 3"
-                  stroke="hsl(214 18% 84% / 0.6)"
+                  stroke="hsl(214 18% 84% / 0.5)"
                 />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                <XAxis dataKey="label" tick={{ fontSize: 10 }} />
                 <YAxis
-                  tick={{ fontSize: 11 }}
+                  tick={{ fontSize: 10 }}
                   tickFormatter={(v) =>
                     v >= 100000 ? `${Math.round(v / 100000)}L` : String(v)
                   }
+                  width={40}
                 />
                 <Tooltip
                   formatter={(value) => [formatInr(Number(value ?? 0)), 'Revenue']}
@@ -202,10 +209,10 @@ export function RevenueTrendChart({
                   type="monotone"
                   dataKey="revenue"
                   stroke="hsl(152 45% 36%)"
-                  strokeWidth={2.5}
-                  dot={{ r: 4, fill: 'hsl(152 45% 36%)' }}
-                  activeDot={{ r: 6 }}
-                  animationDuration={600}
+                  strokeWidth={1.75}
+                  dot={{ r: 2.5, fill: 'hsl(152 45% 36%)' }}
+                  activeDot={{ r: 4 }}
+                  animationDuration={400}
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -231,25 +238,27 @@ export function TopClientsByRevenueChart({
         {rows.length === 0 ? (
           <ChartEmpty message="No client revenue for this month." />
         ) : (
-          <div className="h-72 w-full">
+          <div className="h-44 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={rows}
-                margin={{ top: 8, right: 8, left: 8, bottom: 48 }}
+                margin={{ top: 4, right: 6, left: 4, bottom: 36 }}
+                barCategoryGap="28%"
               >
                 <CartesianGrid
                   strokeDasharray="3 3"
-                  stroke="hsl(214 18% 84% / 0.6)"
+                  stroke="hsl(214 18% 84% / 0.5)"
                 />
                 <XAxis
                   dataKey="name"
-                  tick={{ fontSize: 10 }}
+                  tick={{ fontSize: 9 }}
                   angle={-28}
                   textAnchor="end"
-                  height={56}
+                  height={42}
                 />
                 <YAxis
-                  tick={{ fontSize: 11 }}
+                  tick={{ fontSize: 10 }}
+                  width={40}
                   tickFormatter={(v) =>
                     v >= 100000 ? `${Math.round(v / 100000)}L` : String(v)
                   }
@@ -264,8 +273,9 @@ export function TopClientsByRevenueChart({
                 <Bar
                   dataKey="revenue"
                   fill="hsl(38 92% 46%)"
-                  radius={[6, 6, 0, 0]}
-                  animationDuration={600}
+                  maxBarSize={MAX_BAR}
+                  radius={BAR_RADIUS_V}
+                  animationDuration={400}
                 />
               </BarChart>
             </ResponsiveContainer>
@@ -292,44 +302,46 @@ export function AtRiskClientsChart({
         {rows.length === 0 ? (
           <ChartEmpty message="No at-risk or escalated clients this month." />
         ) : (
-          <div className="h-72 w-full">
+          <div className="h-44 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={rows}
-                margin={{ top: 8, right: 8, left: 8, bottom: 48 }}
+                margin={{ top: 4, right: 6, left: 4, bottom: 36 }}
+                barCategoryGap="28%"
               >
                 <CartesianGrid
                   strokeDasharray="3 3"
-                  stroke="hsl(214 18% 84% / 0.6)"
+                  stroke="hsl(214 18% 84% / 0.5)"
                 />
                 <XAxis
                   dataKey="name"
-                  tick={{ fontSize: 10 }}
+                  tick={{ fontSize: 9 }}
                   angle={-28}
                   textAnchor="end"
-                  height={56}
+                  height={42}
                 />
-                <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 10 }} width={28} />
                 <Tooltip
                   labelFormatter={(_, payload) =>
                     payload?.[0]?.payload?.fullName ?? ''
                   }
                   contentStyle={tooltipStyle}
                 />
-                <Legend wrapperStyle={{ fontSize: '0.75rem' }} />
+                <Legend wrapperStyle={{ fontSize: '0.7rem' }} />
                 <Bar
                   dataKey="atRisk"
                   name="At risk"
                   stackId="risk"
                   fill="hsl(38 92% 46%)"
-                  radius={[0, 0, 0, 0]}
+                  maxBarSize={MAX_BAR}
                 />
                 <Bar
                   dataKey="escalated"
                   name="Escalated"
                   stackId="risk"
                   fill="hsl(0 72% 48%)"
-                  radius={[6, 6, 0, 0]}
+                  maxBarSize={MAX_BAR}
+                  radius={BAR_RADIUS_V}
                 />
               </BarChart>
             </ResponsiveContainer>
@@ -363,19 +375,21 @@ export function InvoiceStatusBarsChart({
         {rows.length === 0 ? (
           <ChartEmpty message="No invoice amounts for this month." />
         ) : (
-          <div className="h-72 w-full">
+          <div className="h-44 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={rows}
-                margin={{ top: 8, right: 8, left: 8, bottom: 8 }}
+                margin={{ top: 4, right: 6, left: 4, bottom: 4 }}
+                barCategoryGap="30%"
               >
                 <CartesianGrid
                   strokeDasharray="3 3"
-                  stroke="hsl(214 18% 84% / 0.6)"
+                  stroke="hsl(214 18% 84% / 0.5)"
                 />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                <XAxis dataKey="label" tick={{ fontSize: 10 }} />
                 <YAxis
-                  tick={{ fontSize: 11 }}
+                  tick={{ fontSize: 10 }}
+                  width={40}
                   tickFormatter={(v) =>
                     v >= 100000 ? `${Math.round(v / 100000)}L` : String(v)
                   }
@@ -389,8 +403,9 @@ export function InvoiceStatusBarsChart({
                 />
                 <Bar
                   dataKey="amount"
-                  radius={[6, 6, 0, 0]}
-                  animationDuration={600}
+                  maxBarSize={MAX_BAR}
+                  radius={BAR_RADIUS_V}
+                  animationDuration={400}
                 >
                   {rows.map((row) => (
                     <Cell key={row.key} fill={row.fill} />

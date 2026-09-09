@@ -24,8 +24,8 @@ export default function HealthDonutChart({
 
   return (
     <ChartPanel title="Engagement health">
-      <div className="grid gap-6 lg:grid-cols-[1fr_200px] lg:items-center">
-        <div className="h-64 w-full">
+      <div className="grid gap-3 lg:grid-cols-[1fr_132px] lg:items-center">
+        <div className="h-40 w-full">
           {chartData.length === 0 ? (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
               No reviews for this scope yet.
@@ -39,10 +39,10 @@ export default function HealthDonutChart({
                   nameKey="label"
                   cx="50%"
                   cy="50%"
-                  innerRadius="58%"
-                  outerRadius="82%"
-                  paddingAngle={3}
-                  animationDuration={600}
+                  innerRadius="62%"
+                  outerRadius="78%"
+                  paddingAngle={2}
+                  animationDuration={400}
                 >
                   {chartData.map((entry) => (
                     <Cell
@@ -55,24 +55,24 @@ export default function HealthDonutChart({
                 <Tooltip
                   formatter={(value, name) => [value ?? 0, String(name)]}
                   contentStyle={{
-                    borderRadius: '0.75rem',
+                    borderRadius: '0.5rem',
                     border: '1px solid hsl(214 18% 84%)',
-                    fontSize: '0.8125rem',
+                    fontSize: '0.75rem',
                   }}
                 />
               </PieChart>
             </ResponsiveContainer>
           )}
         </div>
-        <ul className="space-y-3">
+        <ul className="space-y-1.5">
           {data.map((item) => (
             <li
               key={item.key}
-              className="flex items-center justify-between gap-3 text-sm"
+              className="flex items-center justify-between gap-2 text-xs"
             >
-              <span className="flex items-center gap-2">
+              <span className="flex items-center gap-1.5">
                 <span
-                  className="h-2.5 w-2.5 rounded-full"
+                  className="h-2 w-2 rounded-full"
                   style={{
                     backgroundColor: COLORS[item.key] ?? 'hsl(215 16% 70%)',
                   }}
@@ -84,7 +84,7 @@ export default function HealthDonutChart({
               </span>
             </li>
           ))}
-          <li className="flex items-center justify-between border-t border-slate-200 pt-3 text-sm font-semibold">
+          <li className="flex items-center justify-between border-t border-slate-200 pt-1.5 text-xs font-semibold">
             <span>Total</span>
             <span className="tabular-nums text-slate-deep">{total}</span>
           </li>
