@@ -13,7 +13,7 @@ export default function DashboardKpiGrid({
 
   return (
     <motion.div
-      className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
+      className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
       variants={stagger}
       initial={prefersReducedMotion ? false : 'hidden'}
       animate="visible"
@@ -36,17 +36,34 @@ export default function DashboardKpiGrid({
 
 export function DashboardSkeletonGrid() {
   return (
-    <div className="mb-8 space-y-6">
+    <div className="mb-8 space-y-8">
       {['Candidates', 'Invoicing', 'Operations', 'Feedback'].map((section) => (
-        <div key={section}>
-          <div className="mb-3 h-5 w-40 animate-pulse rounded bg-muted/60" />
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-            {Array.from({ length: section === 'Invoicing' ? 6 : section === 'Candidates' ? 6 : section === 'Operations' ? 5 : 1 }).map((_, i) => (
-              <div
-                key={i}
-                className="h-36 animate-pulse rounded-2xl border border-border/60 bg-muted/40"
-              />
-            ))}
+        <div
+          key={section}
+          className="overflow-hidden rounded-3xl border border-border/70"
+        >
+          <div className="border-b border-border/60 bg-muted/40 px-5 py-4">
+            <div className="h-6 w-48 animate-pulse rounded bg-muted/80" />
+          </div>
+          <div className="space-y-4 p-5">
+            <div className="h-3 w-20 animate-pulse rounded bg-muted/60" />
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+              {Array.from({
+                length:
+                  section === 'Invoicing'
+                    ? 6
+                    : section === 'Candidates'
+                      ? 6
+                      : section === 'Operations'
+                        ? 5
+                        : 1,
+              }).map((_, i) => (
+                <div
+                  key={i}
+                  className="h-36 animate-pulse rounded-2xl border border-border/60 bg-muted/40"
+                />
+              ))}
+            </div>
           </div>
         </div>
       ))}

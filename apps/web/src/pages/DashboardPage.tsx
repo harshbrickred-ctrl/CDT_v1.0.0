@@ -10,12 +10,15 @@ import FilterBar from '../components/ui/FilterBar';
 import Select from '../components/ui/Select';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
-import PageSection from '../components/ui/PageSection';
 import Alert from '../components/ui/Alert';
 import DashboardKpiGrid, {
   DashboardChartSkeleton,
   DashboardSkeletonGrid,
 } from '../components/dashboard/DashboardKpiGrid';
+import DashboardSection, {
+  DashboardBlockLabel,
+} from '../components/dashboard/DashboardSection';
+import ChartPanel from '../components/dashboard/ChartPanel';
 import HealthDonutChart from '../components/dashboard/HealthDonutChart';
 import TopClientsBarChart from '../components/dashboard/TopClientsBarChart';
 import {
@@ -29,7 +32,7 @@ import {
 } from '../components/dashboard/DashboardExtendedCharts';
 import OverdueReviewsAlert from '../components/dashboard/OverdueReviewsAlert';
 import DashboardKpiDetailModal from '../components/dashboard/DashboardKpiDetailModal';
-import { tableWrap, tdClass, thClass } from '../components/ui/styles';
+import { tdClass, thClass } from '../components/ui/styles';
 import type { DashboardKpiId } from '../lib/types';
 
 function Icon({ children }: { children: ReactNode }) {
@@ -427,102 +430,135 @@ export default function DashboardPage() {
         </>
       ) : (
         <div className={isFetching ? 'opacity-70 transition-opacity' : ''}>
-          <PageSection title="Candidates & engagements">
-            <DashboardKpiGrid
-              items={candidateKpis}
-              onItemClick={handleKpiClick}
-            />
-          </PageSection>
-          <motion.div
-            className="mb-8 grid gap-4 lg:grid-cols-2"
-            variants={fadeUp}
-            initial={prefersReducedMotion ? false : 'hidden'}
-            animate="visible"
+          <DashboardSection
+            title="Candidates & engagements"
+            description="Headcount, health, and risk signals for the selected month."
           >
-            <HealthDonutChart data={summary?.healthChart ?? []} />
-            <AtRiskClientsChart
-              data={summary?.charts?.atRiskClients ?? []}
-            />
-          </motion.div>
-          <div className="mb-8">
-            <HeadcountByClientChart
-              data={summary?.charts?.headcountByClient ?? []}
-            />
-          </div>
-
-          <PageSection title="Invoicing">
-            <DashboardKpiGrid
-              items={invoiceKpis}
-              onItemClick={handleKpiClick}
-            />
-          </PageSection>
-          <div className="mb-8 grid gap-4 lg:grid-cols-2">
-            <PaymentStatusChart
-              data={summary?.charts?.paymentStatusByAmount ?? []}
-            />
-            <InvoiceStatusBarsChart
-              data={summary?.charts?.invoiceStatusBars ?? []}
-            />
-          </div>
-          <div className="mb-8 grid gap-4 lg:grid-cols-2">
-            <RevenueTrendChart
-              data={summary?.charts?.revenueTrendByMonth ?? []}
-            />
-            <TopClientsByRevenueChart
-              data={summary?.charts?.topClientsByRevenue ?? []}
-            />
-          </div>
-
-          <PageSection title="Approvals & attendance">
-            <DashboardKpiGrid
-              items={operationsKpis}
-              onItemClick={handleKpiClick}
-            />
-          </PageSection>
-          <div className="mb-8 grid gap-4 lg:grid-cols-2">
-            <TopClientsBarChart clients={topClients} />
-            <PageSection title="Top 3 clients">
-              {topClients.length === 0 ? (
-                <EmptyState
-                  title="No client rollup yet"
-                  description="Once candidates and reviews exist for this month, client headcount will appear here."
+            <div>
+              <DashboardBlockLabel>KPI cards</DashboardBlockLabel>
+              <DashboardKpiGrid
+                items={candidateKpis}
+                onItemClick={handleKpiClick}
+              />
+            </div>
+            <div>
+              <DashboardBlockLabel>Charts</DashboardBlockLabel>
+              <motion.div
+                className="grid gap-4 lg:grid-cols-2"
+                variants={fadeUp}
+                initial={prefersReducedMotion ? false : 'hidden'}
+                animate="visible"
+              >
+                <HealthDonutChart data={summary?.healthChart ?? []} />
+                <AtRiskClientsChart
+                  data={summary?.charts?.atRiskClients ?? []}
                 />
-              ) : (
-                <div className={tableWrap}>
-                  <table className="min-w-full">
-                    <thead>
-                      <tr>
-                        <th className={thClass}>Client</th>
-                        <th className={thClass}>Headcount</th>
-                        <th className={thClass}>Avg utilization</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {topClients.map((row, i) => (
-                        <tr
-                          key={row.clientId ?? `${row.name}-${i}`}
-                          className="group transition-colors hover:bg-muted/40"
-                        >
-                          <td className={tdClass}>{row.name}</td>
-                          <td className={tdClass}>{row.activeHeadcount}</td>
-                          <td className={tdClass}>
-                            {formatPct(row.avgUtilization)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </PageSection>
-          </div>
+              </motion.div>
+              <div className="mt-4">
+                <HeadcountByClientChart
+                  data={summary?.charts?.headcountByClient ?? []}
+                />
+              </div>
+            </div>
+          </DashboardSection>
 
-          <PageSection title="Feedback">
-            <DashboardKpiGrid
-              items={feedbackKpis}
-              onItemClick={handleKpiClick}
-            />
-          </PageSection>
+          <DashboardSection
+            title="Invoicing"
+            description="Billing amounts, payment status, and revenue trends."
+          >
+            <div>
+              <DashboardBlockLabel>KPI cards</DashboardBlockLabel>
+              <DashboardKpiGrid
+                items={invoiceKpis}
+                onItemClick={handleKpiClick}
+              />
+            </div>
+            <div>
+              <DashboardBlockLabel>Charts</DashboardBlockLabel>
+              <div className="grid gap-4 lg:grid-cols-2">
+                <PaymentStatusChart
+                  data={summary?.charts?.paymentStatusByAmount ?? []}
+                />
+                <InvoiceStatusBarsChart
+                  data={summary?.charts?.invoiceStatusBars ?? []}
+                />
+              </div>
+              <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                <RevenueTrendChart
+                  data={summary?.charts?.revenueTrendByMonth ?? []}
+                />
+                <TopClientsByRevenueChart
+                  data={summary?.charts?.topClientsByRevenue ?? []}
+                />
+              </div>
+            </div>
+          </DashboardSection>
+
+          <DashboardSection
+            title="Approvals & attendance"
+            description="Timesheet and leave workflow plus utilization by client."
+          >
+            <div>
+              <DashboardBlockLabel>KPI cards</DashboardBlockLabel>
+              <DashboardKpiGrid
+                items={operationsKpis}
+                onItemClick={handleKpiClick}
+              />
+            </div>
+            <div>
+              <DashboardBlockLabel>Charts & tables</DashboardBlockLabel>
+              <div className="grid gap-4 lg:grid-cols-2">
+                <TopClientsBarChart clients={topClients} />
+                <ChartPanel title="Top 3 clients" kind="table">
+                  {topClients.length === 0 ? (
+                    <EmptyState
+                      title="No client rollup yet"
+                      description="Once candidates and reviews exist for this month, client headcount will appear here."
+                    />
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full">
+                        <thead>
+                          <tr>
+                            <th className={thClass}>Client</th>
+                            <th className={thClass}>Headcount</th>
+                            <th className={thClass}>Avg utilization</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {topClients.map((row, i) => (
+                            <tr
+                              key={row.clientId ?? `${row.name}-${i}`}
+                              className="group transition-colors hover:bg-white/60"
+                            >
+                              <td className={tdClass}>{row.name}</td>
+                              <td className={tdClass}>{row.activeHeadcount}</td>
+                              <td className={tdClass}>
+                                {formatPct(row.avgUtilization)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </ChartPanel>
+              </div>
+            </div>
+          </DashboardSection>
+
+          <DashboardSection
+            title="Feedback"
+            description="Client feedback signals from delivery reviews."
+          >
+            <div>
+              <DashboardBlockLabel>KPI cards</DashboardBlockLabel>
+              <DashboardKpiGrid
+                items={feedbackKpis}
+                onItemClick={handleKpiClick}
+              />
+            </div>
+          </DashboardSection>
         </div>
       )}
 

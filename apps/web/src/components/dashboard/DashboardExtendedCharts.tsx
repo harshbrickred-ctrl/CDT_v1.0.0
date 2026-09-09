@@ -15,8 +15,7 @@ import {
 } from 'recharts';
 import type { DashboardCharts } from '../../lib/types';
 import { formatInr } from '../../lib/format';
-import Card from '../ui/Card';
-import PageSection from '../ui/PageSection';
+import ChartPanel from './ChartPanel';
 
 const PAYMENT_COLORS: Record<string, string> = {
   PAID: 'hsl(152 45% 36%)',
@@ -56,8 +55,7 @@ export function HeadcountByClientChart({
   }));
 
   return (
-    <PageSection title="Active headcount by client">
-      <Card accent className="!p-4 sm:!p-6">
+    <ChartPanel title="Active headcount by client">
         {rows.length === 0 ? (
           <ChartEmpty message="No active headcount for this scope." />
         ) : (
@@ -97,8 +95,7 @@ export function HeadcountByClientChart({
             </ResponsiveContainer>
           </div>
         )}
-      </Card>
-    </PageSection>
+      </ChartPanel>
   );
 }
 
@@ -108,8 +105,7 @@ export function PaymentStatusChart({
   data: DashboardCharts['paymentStatusByAmount'];
 }) {
   return (
-    <PageSection title="Payment status (by amount)">
-      <Card accent className="!p-4 sm:!p-6">
+    <ChartPanel title="Payment status (by amount)">
         {data.length === 0 ? (
           <ChartEmpty message="No invoice amounts for this month." />
         ) : (
@@ -167,8 +163,7 @@ export function PaymentStatusChart({
             </ul>
           </div>
         )}
-      </Card>
-    </PageSection>
+      </ChartPanel>
   );
 }
 
@@ -178,8 +173,7 @@ export function RevenueTrendChart({
   data: DashboardCharts['revenueTrendByMonth'];
 }) {
   return (
-    <PageSection title="Revenue trend by month">
-      <Card accent className="!p-4 sm:!p-6">
+    <ChartPanel title="Revenue trend by month">
         {data.every((d) => d.revenue === 0) ? (
           <ChartEmpty message="No invoiced revenue in the last 6 months." />
         ) : (
@@ -217,8 +211,7 @@ export function RevenueTrendChart({
             </ResponsiveContainer>
           </div>
         )}
-      </Card>
-    </PageSection>
+      </ChartPanel>
   );
 }
 
@@ -234,8 +227,7 @@ export function TopClientsByRevenueChart({
   }));
 
   return (
-    <PageSection title="Top 5 clients by revenue">
-      <Card accent className="!p-4 sm:!p-6">
+    <ChartPanel title="Top 5 clients by revenue">
         {rows.length === 0 ? (
           <ChartEmpty message="No client revenue for this month." />
         ) : (
@@ -279,8 +271,7 @@ export function TopClientsByRevenueChart({
             </ResponsiveContainer>
           </div>
         )}
-      </Card>
-    </PageSection>
+      </ChartPanel>
   );
 }
 
@@ -297,8 +288,7 @@ export function AtRiskClientsChart({
   }));
 
   return (
-    <PageSection title="At-risk clients">
-      <Card accent className="!p-4 sm:!p-6">
+    <ChartPanel title="At-risk clients">
         {rows.length === 0 ? (
           <ChartEmpty message="No at-risk or escalated clients this month." />
         ) : (
@@ -345,8 +335,7 @@ export function AtRiskClientsChart({
             </ResponsiveContainer>
           </div>
         )}
-      </Card>
-    </PageSection>
+      </ChartPanel>
   );
 }
 
@@ -370,8 +359,7 @@ export function InvoiceStatusBarsChart({
   }));
 
   return (
-    <PageSection title="Invoicing status (by amount)">
-      <Card accent className="!p-4 sm:!p-6">
+    <ChartPanel title="Invoicing status (by amount)">
         {rows.length === 0 ? (
           <ChartEmpty message="No invoice amounts for this month." />
         ) : (
@@ -412,8 +400,7 @@ export function InvoiceStatusBarsChart({
             </ResponsiveContainer>
           </div>
         )}
-      </Card>
-    </PageSection>
+      </ChartPanel>
   );
 }
 
