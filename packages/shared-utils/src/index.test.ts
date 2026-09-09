@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   attendancePct,
   computeInvoiceBilling,
+  computeLeaveAndLopDays,
   formatPublicId,
   inclusiveCalendarDays,
   invoiceAmount,
@@ -73,6 +74,50 @@ describe('sumApprovedLeaveDays', () => {
       },
     ];
     expect(sumApprovedLeaveDays(leaves, periodStart, periodEnd)).toBe(2);
+  });
+});
+
+describe('computeLeaveAndLopDays', () => {
+  const periodStart = new Date(Date.UTC(2025, 6, 1));
+  const periodEnd = new Date(Date.UTC(2025, 6, 31));
+
+  it('treats approved leave as leaveDays and unapproved as lopDays', () => {
+    const leaves = [
+      {
+        status: 'APPROVED',
+        from: new Date(Date.UTC(2025, 6, 1)),
+        to: new Date(Date.UTC(2025, 6, 2)),
+      },
+      {
+        status: 'PENDING',
+        from: new Date(Date.UTC(2025, 6, 5)),
+        to: new Date(Date.UTC(2025, 6, 6)),
+      },
+      {
+        status: 'REJECTED',
+        from: new Date(Date.UTC(2025, 6, 10)),
+        to: new Date(Date.UTC(2025, 6, 10)),
+      },
+    ];
+    expect(computeLeaveAndLopDays(leaves, periodStart, periodEnd)).toEqual({
+      leaveDays: 2,
+      lopDays: 3,
+    });
+  });
+
+  it('does not treat approved unpaid leave as LOP', () => {
+    const leaves = [
+      {
+        status: 'APPROVED',
+        from: new Date(Date.UTC(2025, 6, 1)),
+        to: new Date(Date.UTC(2025, 6, 3)),
+        leaveTypeCode: 'UNPAID',
+      },
+    ];
+    expect(computeLeaveAndLopDays(leaves, periodStart, periodEnd)).toEqual({
+      leaveDays: 3,
+      lopDays: 0,
+    });
   });
 });
 

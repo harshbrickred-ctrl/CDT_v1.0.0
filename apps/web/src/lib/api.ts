@@ -234,16 +234,55 @@ export const importApi = {
 };
 
 export const searchApi = {
-  query: (q: string) =>
-    getList<SearchHit>('/search', { q }).catch(async () => {
-      const data = await getOne<SearchHit[] | { results?: SearchHit[] }>(
-        '/search',
-        { q },
-      );
-      if (Array.isArray(data)) return { items: data };
-      if (data && typeof data === 'object' && Array.isArray(data.results)) {
-        return { items: data.results };
-      }
-      return { items: [] as SearchHit[] };
-    }),
+  query: async (q: string) => {
+    const raw = await getOne<{
+      candidates?: Array<{
+        id: string;
+        publicId?: string;
+        fullName: string;
+        status?: string;
+        client?: { id: string; name: string } | null;
+      }>;
+      clients?: Array<{
+        id: string;
+        name: string;
+        code?: string | null;
+        isActive?: boolean;
+      }>;
+      items?: SearchHit[];
+      results?: SearchHit[];
+    }>('/search', { q });
+
+    if (Array.isArray(raw)) {
+      return { items: raw as SearchHit[] };
+    }
+    if (raw && typeof raw === 'object' && Array.isArray(raw.items)) {
+      return { items: raw.items };
+    }
+    if (raw && typeof raw === 'object' && Array.isArray(raw.results)) {
+      return { items: raw.results };
+    }
+
+    const candidates = (raw?.candidates ?? []).map(
+      (c): SearchHit => ({
+        type: 'candidate',
+        id: c.id,
+        publicId: c.publicId,
+        label: c.fullName,
+        subtitle: [c.status, c.client?.name].filter(Boolean).join(' · ') || null,
+        href: `/candidates/${c.publicId || c.id}`,
+      }),
+    );
+    const clients = (raw?.clients ?? []).map(
+      (c): SearchHit => ({
+        type: 'client',
+        id: c.id,
+        label: c.name,
+        subtitle: c.code ?? null,
+        href: '/clients',
+      }),
+    );
+
+    return { items: [...candidates, ...clients] };
+  },
 };

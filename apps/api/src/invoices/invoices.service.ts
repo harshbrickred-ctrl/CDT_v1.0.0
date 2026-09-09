@@ -8,9 +8,10 @@ import {
   ApprovalStatus,
   BillingType,
   InvoiceStatus,
+  LeaveStatus,
   Prisma,
 } from '@prisma/client';
-import { computeInvoiceBilling } from '@cdt/shared-utils';
+import { computeInvoiceBilling, computeLeaveAndLopDays } from '@cdt/shared-utils';
 import { paginationMeta, paginationSkip } from '@cdt/shared-types';
 import { PrismaService } from '../prisma/prisma.service';
 import { IdSequenceService } from '../common/id-sequence.service';
@@ -179,7 +180,52 @@ export class InvoicesService {
     const hoursPerDay = toNumber(timesheet.candidate.hoursPerDay) ?? 8;
     const daysWorked = toNumber(timesheet.daysWorked) ?? 0;
     const workingDays = toNumber(timesheet.workingDays) ?? 0;
-    const lopDays = toNumber(timesheet.lopDays) ?? 0;
+
+    // Recompute leave/LOP at generate time from current leave statuses:
+    // approved leave is not LOP; pending/rejected leave is LOP.
+    const periodStart = timesheet.periodStart;
+    const periodEnd = timesheet.periodEnd;
+    const leaves = await this.prisma.leave.findMany({
+      where: {
+        organizationId,
+        candidateId: timesheet.candidateId,
+        deletedAt: null,
+        status: {
+          in: [
+            LeaveStatus.APPROVED,
+            LeaveStatus.PENDING,
+            LeaveStatus.REJECTED,
+          ],
+        },
+        startDate: { lte: periodEnd },
+        endDate: { gte: periodStart },
+      },
+      select: {
+        status: true,
+        startDate: true,
+        endDate: true,
+      },
+    });
+    const { leaveDays, lopDays } = computeLeaveAndLopDays(
+      leaves.map((l) => ({
+        status: l.status,
+        from: l.startDate,
+        to: l.endDate,
+      })),
+      periodStart,
+      periodEnd,
+    );
+
+    // Keep timesheet leave/LOP in sync with latest leave approvals.
+    if (
+      (toNumber(timesheet.leaveDays) ?? 0) !== leaveDays ||
+      (toNumber(timesheet.lopDays) ?? 0) !== lopDays
+    ) {
+      await this.prisma.timesheet.update({
+        where: { id: timesheet.id },
+        data: { leaveDays, lopDays },
+      });
+    }
 
     if (billingType === BillingType.HOURLY) {
       if (hourlyRate == null || hourlyRate <= 0) {

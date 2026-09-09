@@ -352,12 +352,13 @@ export function AtRiskClientsChart({
 }
 
 const INVOICE_BAR_COLORS: Record<string, string> = {
-  invoiced: 'hsl(210 80% 48%)',
+  draft: 'hsl(215 16% 62%)',
+  approved: 'hsl(210 80% 48%)',
   outstanding: 'hsl(38 92% 46%)',
   paid: 'hsl(152 45% 36%)',
   overdue: 'hsl(0 72% 48%)',
-  draft: 'hsl(215 16% 62%)',
   rejected: 'hsl(0 55% 42%)',
+  invoiced: 'hsl(222 28% 28%)',
 };
 
 export function InvoiceStatusBarsChart({

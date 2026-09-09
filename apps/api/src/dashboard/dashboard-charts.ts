@@ -220,6 +220,7 @@ export async function fetchDashboardCharts(
   let overdueAmt = 0;
   let draftAmt = 0;
   let rejectedAmt = 0;
+  let approvedAmt = 0;
   for (const inv of invoicesInMonth) {
     const amount = toNumber(inv.amount) ?? 0;
     if (INVOICED_STATUSES.includes(inv.status)) invoicedAmt += amount;
@@ -229,16 +230,18 @@ export async function fetchDashboardCharts(
       if (inv.dueDate && inv.dueDate < today) overdueAmt += amount;
     }
     if (inv.status === InvoiceStatus.PENDING_REVIEW) draftAmt += amount;
+    if (inv.status === InvoiceStatus.APPROVED) approvedAmt += amount;
     if (inv.status === InvoiceStatus.REJECTED) rejectedAmt += amount;
   }
   const invoiceStatusBars = [
-    { key: 'invoiced', label: 'Invoiced', amount: Math.round(invoicedAmt) },
+    { key: 'draft', label: 'Draft', amount: Math.round(draftAmt) },
+    { key: 'approved', label: 'Approved', amount: Math.round(approvedAmt) },
     { key: 'outstanding', label: 'Outstanding', amount: Math.round(outstandingAmt) },
     { key: 'paid', label: 'Paid', amount: Math.round(paidAmt) },
     { key: 'overdue', label: 'Overdue', amount: Math.round(overdueAmt) },
-    { key: 'draft', label: 'Draft', amount: Math.round(draftAmt) },
     { key: 'rejected', label: 'Rejected', amount: Math.round(rejectedAmt) },
-  ].filter((p) => p.amount > 0);
+    { key: 'invoiced', label: 'Total invoiced', amount: Math.round(invoicedAmt) },
+  ];
 
   const revenueMap = new Map(
     revenueByMonthRaw.map((r) => [

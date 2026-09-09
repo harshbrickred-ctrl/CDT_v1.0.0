@@ -11,17 +11,13 @@ import {
 } from '@prisma/client';
 import {
   attendancePct,
-  isLopLeaveType,
-  sumApprovedLeaveDays,
+  computeLeaveAndLopDays,
 } from '@cdt/shared-utils';
 import { paginationMeta, paginationSkip } from '@cdt/shared-types';
 import { PrismaService } from '../prisma/prisma.service';
 import { IdSequenceService } from '../common/id-sequence.service';
 import { AuditService } from '../audit/audit.service';
-import {
-  isCandidateEmployedInPeriod,
-  periodFromYearMonth,
-} from '../common/dates';
+import { periodFromYearMonth, isCandidateEmployedInPeriod } from '../common/dates';
 import { throwConflictIfUnique, toNumber } from '../common/prisma-error';
 import {
   RejectTimesheetDto,
@@ -80,7 +76,13 @@ export class TimesheetsService {
         organizationId,
         candidateId,
         deletedAt: null,
-        status: LeaveStatus.APPROVED,
+        status: {
+          in: [
+            LeaveStatus.APPROVED,
+            LeaveStatus.PENDING,
+            LeaveStatus.REJECTED,
+          ],
+        },
         startDate: { lte: periodEnd },
         endDate: { gte: periodStart },
       },
@@ -97,13 +99,7 @@ export class TimesheetsService {
       to: l.endDate,
       leaveTypeCode: l.leaveTypeCode,
     }));
-    const leaveDays = sumApprovedLeaveDays(mapped, periodStart, periodEnd);
-    const lopDays = sumApprovedLeaveDays(
-      mapped.filter((l) => isLopLeaveType(l.leaveTypeCode)),
-      periodStart,
-      periodEnd,
-    );
-    return { leaveDays, lopDays };
+    return computeLeaveAndLopDays(mapped, periodStart, periodEnd);
   }
 
   async findAll(params: {

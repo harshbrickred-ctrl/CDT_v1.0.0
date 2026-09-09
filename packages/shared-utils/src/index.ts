@@ -38,19 +38,50 @@ export type LeaveLike = {
   to: Date;
 };
 
+/** Sum leave days overlapping the period (inclusive), optionally filtered by status. */
+export function sumOverlappingLeaveDays(
+  leaves: LeaveLike[],
+  periodStart: Date,
+  periodEnd: Date,
+  statuses?: readonly string[],
+): number {
+  return leaves
+    .filter((l) => !statuses || statuses.includes(l.status))
+    .reduce(
+      (sum, l) =>
+        sum + overlapInclusiveDays(l.from, l.to, periodStart, periodEnd),
+      0,
+    );
+}
+
 /** Sum approved leave days overlapping the period (inclusive). */
 export function sumApprovedLeaveDays(
   leaves: LeaveLike[],
   periodStart: Date,
   periodEnd: Date,
 ): number {
-  return leaves
-    .filter((l) => l.status === 'APPROVED')
-    .reduce(
-      (sum, l) =>
-        sum + overlapInclusiveDays(l.from, l.to, periodStart, periodEnd),
-      0,
-    );
+  return sumOverlappingLeaveDays(leaves, periodStart, periodEnd, ['APPROVED']);
+}
+
+/**
+ * Timesheet leave vs LOP for a period:
+ * - leaveDays: APPROVED leave (paid/approved time off; not LOP)
+ * - lopDays: PENDING or REJECTED leave (unapproved → loss of pay)
+ */
+export function computeLeaveAndLopDays(
+  leaves: LeaveLike[],
+  periodStart: Date,
+  periodEnd: Date,
+): { leaveDays: number; lopDays: number } {
+  return {
+    leaveDays: sumOverlappingLeaveDays(leaves, periodStart, periodEnd, [
+      'APPROVED',
+    ]),
+    lopDays: sumOverlappingLeaveDays(leaves, periodStart, periodEnd, [
+      'PENDING',
+      'REJECTED',
+    ]),
+  };
 }
 
 /**
