@@ -43,6 +43,7 @@ export class DashboardController {
     @Query('clientId') clientId?: string,
     @Query('health') health?: EngagementHealth,
     @Query('month') month?: string,
+    @Query('detailMonth') detailMonth?: string,
   ) {
     return this.dashboard.kpiDetail({
       organizationId: user.organizationId,
@@ -50,6 +51,7 @@ export class DashboardController {
       clientId,
       health,
       month,
+      detailMonth,
     });
   }
 }

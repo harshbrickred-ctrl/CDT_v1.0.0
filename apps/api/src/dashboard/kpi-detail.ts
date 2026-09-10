@@ -64,6 +64,9 @@ export type KpiDetailResult = {
   title: string;
   columns: KpiDetailColumn[];
   rows: KpiDetailRow[];
+  /** Present for Missing Timesheets: months list vs candidates for one month. */
+  view?: 'months' | 'candidates';
+  detailMonth?: string | null;
 };
 
 function fmtDate(d: Date | null | undefined) {
@@ -90,6 +93,29 @@ function fmtStatus(status: string) {
   return status.replace(/_/g, ' ');
 }
 
+const MONTH_LABELS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+] as const;
+
+function formatYearMonthLabel(yearMonth: string): string {
+  const match = /^(\d{4})-(\d{2})$/.exec(yearMonth);
+  if (!match) return yearMonth;
+  const monthIndex = Number(match[2]) - 1;
+  if (monthIndex < 0 || monthIndex > 11) return yearMonth;
+  return `${MONTH_LABELS[monthIndex]} ${match[1]}`;
+}
+
 function candidateBaseWhere(
   organizationId: string,
   clientId?: string,
@@ -109,6 +135,8 @@ export async function fetchKpiDetail(
     clientId?: string;
     health?: EngagementHealth;
     month?: string;
+    /** For missing-ts: YYYY-MM of the month to list candidates for. */
+    detailMonth?: string;
   },
 ): Promise<KpiDetailResult> {
   const kpi = params.kpi as DashboardKpiId;
@@ -470,6 +498,15 @@ export async function fetchKpiDetail(
 
     case 'missing-ts': {
       const asOf = utcToday();
+      let detailMonth: string | undefined;
+      if (params.detailMonth) {
+        try {
+          periodFromYearMonth(params.detailMonth);
+          detailMonth = params.detailMonth;
+        } catch {
+          throw new Error('Invalid detailMonth; expected YYYY-MM');
+        }
+      }
       const [eligibleCandidates, timesheets] = await Promise.all([
         prisma.candidate.findMany({
           where: {
@@ -484,7 +521,7 @@ export async function fetchKpiDetail(
             contractEndDate: true,
           },
           orderBy: { fullName: 'asc' },
-          take: 500,
+          take: 2000,
         }),
         prisma.timesheet.findMany({
           where: {
@@ -519,19 +556,52 @@ export async function fetchKpiDetail(
           return { candidate: c, months };
         })
         .filter((row) => row.months.length > 0);
+
+      if (!detailMonth) {
+        const countByMonth = new Map<string, number>();
+        for (const row of missing) {
+          for (const m of row.months) {
+            countByMonth.set(m, (countByMonth.get(m) ?? 0) + 1);
+          }
+        }
+        const monthRows = [...countByMonth.entries()]
+          .sort((a, b) => b[0].localeCompare(a[0]))
+          .map(([yearMonth, candidateCount]) => ({
+            id: yearMonth,
+            yearMonth,
+            month: formatYearMonthLabel(yearMonth),
+            candidateCount,
+          }));
+        return {
+          kpi,
+          title: 'Missing Timesheets',
+          view: 'months',
+          detailMonth: null,
+          columns: [
+            { key: 'month', label: 'Month' },
+            { key: 'candidateCount', label: 'Candidates', align: 'right' },
+          ],
+          rows: monthRows,
+        };
+      }
+
+      const forMonth = missing.filter((row) =>
+        row.months.includes(detailMonth),
+      );
       return {
         kpi,
-        title: 'Missing Timesheets',
+        title: `Missing Timesheets — ${formatYearMonthLabel(detailMonth)}`,
+        view: 'candidates',
+        detailMonth,
         columns: [
           { key: 'publicId', label: 'ID' },
           { key: 'name', label: 'Candidate' },
           { key: 'client', label: 'Client' },
           { key: 'role', label: 'Role' },
           { key: 'status', label: 'Status' },
-          { key: 'missingMonths', label: 'Missing months' },
           { key: 'releasedAt', label: 'Released / end' },
         ],
-        rows: missing.slice(0, 200).map(({ candidate: c, months }) => ({
+        rows: forMonth.slice(0, 200).map(({ candidate: c }) => ({
           id: c.id,
           entityType: 'candidate' as const,
           entityId: c.id,
@@ -540,7 +610,6 @@ export async function fetchKpiDetail(
           client: c.client?.name ?? null,
           role: c.roleTitle,
           status: fmtStatus(c.status),
-          missingMonths: months.join(', '),
           releasedAt:
             fmtDate(c.contractEndDate) ?? fmtDate(c.releasedAt) ?? null,
         })),

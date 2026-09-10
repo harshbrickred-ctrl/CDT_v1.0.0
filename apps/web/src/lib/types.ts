@@ -311,6 +311,8 @@ export interface DashboardKpiDetail {
   title: string;
   columns: DashboardKpiDetailColumn[];
   rows: DashboardKpiDetailRow[];
+  view?: 'months' | 'candidates';
+  detailMonth?: string | null;
 }
 
 export interface DashboardSummaryRaw {

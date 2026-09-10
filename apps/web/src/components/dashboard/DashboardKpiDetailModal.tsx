@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import Dialog from '../ui/Dialog';
@@ -41,17 +42,53 @@ export default function DashboardKpiDetailModal({
   open: boolean;
   onClose: () => void;
 }) {
+  const [detailMonth, setDetailMonth] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) setDetailMonth(null);
+  }, [open]);
+
+  useEffect(() => {
+    setDetailMonth(null);
+  }, [kpiId]);
+
+  const isMissingTs = kpiId === 'missing-ts';
+
+  const queryParams = useMemo(() => {
+    const next = { ...params };
+    if (isMissingTs && detailMonth) next.detailMonth = detailMonth;
+    return next;
+  }, [params, isMissingTs, detailMonth]);
+
   const detailQuery = useQuery({
-    queryKey: ['dashboard', 'kpi-detail', kpiId, params],
-    queryFn: () =>
-      dashboardApi.kpiDetail({ kpi: kpiId!, ...params }),
+    queryKey: ['dashboard', 'kpi-detail', kpiId, queryParams],
+    queryFn: () => dashboardApi.kpiDetail({ kpi: kpiId!, ...queryParams }),
     enabled: open && kpiId != null,
   });
 
   const detail = detailQuery.data;
+  const showingMonths = isMissingTs && detail?.view === 'months';
+  const dialogTitle = detail?.title ?? title;
+
+  function handleClose() {
+    setDetailMonth(null);
+    onClose();
+  }
 
   return (
-    <Dialog open={open} title={title} onClose={onClose} wide>
+    <Dialog open={open} title={dialogTitle} onClose={handleClose} wide>
+      {isMissingTs && detailMonth && (
+        <div className="mb-4">
+          <button
+            type="button"
+            onClick={() => setDetailMonth(null)}
+            className="text-sm font-medium text-primary hover:underline"
+          >
+            ← Back to months
+          </button>
+        </div>
+      )}
+
       {detailQuery.isLoading && (
         <div className="space-y-2">
           {Array.from({ length: 5 }).map((_, i) => (
@@ -94,16 +131,40 @@ export default function DashboardKpiDetailModal({
             <tbody>
               {detail.rows.map((row) => {
                 const href = entityHref(row);
+                const monthKey =
+                  typeof row.yearMonth === 'string' ? row.yearMonth : null;
+                const isMonthRow = showingMonths && monthKey != null;
+
                 return (
                   <tr
                     key={row.id}
-                    className="group transition-colors hover:bg-muted/40"
+                    className={`group transition-colors hover:bg-muted/40 ${
+                      isMonthRow ? 'cursor-pointer' : ''
+                    }`}
+                    onClick={
+                      isMonthRow
+                        ? () => setDetailMonth(monthKey)
+                        : undefined
+                    }
+                    onKeyDown={
+                      isMonthRow
+                        ? (e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              setDetailMonth(monthKey);
+                            }
+                          }
+                        : undefined
+                    }
+                    tabIndex={isMonthRow ? 0 : undefined}
+                    role={isMonthRow ? 'button' : undefined}
                   >
                     {detail.columns.map((col) => {
                       const value = row[col.key];
                       const display =
                         value == null || value === '' ? '—' : String(value);
-                      const isLink = href && linkableColumnKey(col.key);
+                      const isLink =
+                        !isMonthRow && href && linkableColumnKey(col.key);
                       return (
                         <td
                           key={col.key}
@@ -113,10 +174,14 @@ export default function DashboardKpiDetailModal({
                             <Link
                               to={href}
                               className="font-medium text-primary hover:underline"
-                              onClick={onClose}
+                              onClick={handleClose}
                             >
                               {display}
                             </Link>
+                          ) : isMonthRow && col.key === 'month' ? (
+                            <span className="font-medium text-primary">
+                              {display}
+                            </span>
                           ) : (
                             display
                           )}
@@ -128,9 +193,14 @@ export default function DashboardKpiDetailModal({
               })}
             </tbody>
           </table>
-          {detail.rows.length >= 200 && (
+          {detail.rows.length >= 200 && detail.view !== 'months' && (
             <p className="mt-3 text-xs text-muted-foreground">
               Showing up to 200 records. Refine filters to narrow results.
+            </p>
+          )}
+          {showingMonths && (
+            <p className="mt-3 text-xs text-muted-foreground">
+              Select a month to see candidates missing that timesheet.
             </p>
           )}
         </div>

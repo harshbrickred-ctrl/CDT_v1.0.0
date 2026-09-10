@@ -432,12 +432,17 @@ export class DashboardService {
     clientId?: string;
     health?: EngagementHealth;
     month?: string;
+    detailMonth?: string;
   }) {
     const month = this.resolveMonth(params.month);
     try {
       return await fetchKpiDetail(this.prisma, { ...params, month });
     } catch (e) {
-      if (e instanceof Error && e.message.startsWith('Unknown KPI')) {
+      if (
+        e instanceof Error &&
+        (e.message.startsWith('Unknown KPI') ||
+          e.message.startsWith('Invalid detailMonth'))
+      ) {
         throw new BadRequestException(e.message);
       }
       throw e;
