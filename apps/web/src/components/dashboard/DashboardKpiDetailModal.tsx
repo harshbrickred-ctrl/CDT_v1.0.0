@@ -147,7 +147,7 @@ export default function DashboardKpiDetailModal({
   }
 
   return (
-    <Dialog open={open} title={display.title} onClose={handleClose} wide>
+    <Dialog open={open} title={display.title} onClose={handleClose} size="xl">
       {isMissingTs && detailMonth && (
         <div className="mb-4">
           <button
