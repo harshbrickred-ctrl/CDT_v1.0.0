@@ -569,6 +569,7 @@ export async function fetchKpiDetail(
             entityId: row.candidate.id,
             publicId: row.candidate.publicId,
             name: row.candidate.fullName,
+            clientId: row.candidate.clientId,
             client: row.candidate.client?.name ?? null,
             role: row.candidate.roleTitle,
             status: fmtStatus(row.candidate.status),
@@ -629,6 +630,7 @@ export async function fetchKpiDetail(
           entityId: c.id,
           publicId: c.publicId,
           name: c.fullName,
+          clientId: c.clientId,
           client: c.client?.name ?? null,
           role: c.roleTitle,
           status: fmtStatus(c.status),
@@ -650,6 +652,7 @@ const candidateSelect = {
   roleTitle: true,
   status: true,
   releasedAt: true,
+  clientId: true,
   client: { select: { name: true } },
 } as const;
 

@@ -2,7 +2,6 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   apiErrorMessage,
-  candidatesApi,
   clientsApi,
   invoicesApi,
   leavesApi,
@@ -24,6 +23,7 @@ import Input from '../components/ui/Input';
 import Select from '../components/ui/Select';
 import CandidateCombobox from '../components/ui/CandidateCombobox';
 import { DetailField, DetailGrid, clickableRowClass } from '../components/ui/DetailGrid';
+import BulkFillTimesheetsDialog from '../components/timesheets/BulkFillTimesheetsDialog';
 import {
   btnPrimary,
   btnSecondary,
@@ -117,17 +117,6 @@ function timesheetPeriodDates(t: Timesheet) {
   };
 }
 
-type BulkRow = {
-  candidateId: string;
-  candidateName: string;
-  workingDays: string;
-  leaveDays: number;
-  daysWorked: string;
-  remarks: string;
-  error?: string | null;
-  saved?: boolean;
-};
-
 export default function TimesheetsPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -136,11 +125,8 @@ export default function TimesheetsPage() {
   const [clientId, setClientId] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
-  const [bulkClientId, setBulkClientId] = useState('');
-  const [bulkMonth, setBulkMonth] = useState(currentYearMonth());
-  const [bulkRows, setBulkRows] = useState<BulkRow[]>([]);
-  const [bulkSaving, setBulkSaving] = useState(false);
-  const [bulkError, setBulkError] = useState<string | null>(null);
+  const [bulkInitialClientId, setBulkInitialClientId] = useState('');
+  const [bulkInitialMonth, setBulkInitialMonth] = useState(currentYearMonth());
   const [selectedTimesheet, setSelectedTimesheet] = useState<Timesheet | null>(
     null,
   );
@@ -151,7 +137,6 @@ export default function TimesheetsPage() {
   const [daysWorkedTouched, setDaysWorkedTouched] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const prefillKeyRef = useRef('');
-  const bulkPrefillKeyRef = useRef('');
 
   const listQuery = useQuery({
     queryKey: [
@@ -172,110 +157,6 @@ export default function TimesheetsPage() {
     queryKey: ['clients', 'all'],
     queryFn: () => clientsApi.list({ pageSize: 200 }),
   });
-
-  const bulkCandidatesQuery = useQuery({
-    queryKey: ['candidates', 'bulk-ts', bulkClientId],
-    queryFn: () =>
-      candidatesApi.list({
-        clientId: bulkClientId,
-        statuses: 'ACTIVE,RELEASED',
-        pageSize: 200,
-      }),
-    enabled: bulkOpen && Boolean(bulkClientId),
-  });
-
-  const bulkTimesheetsQuery = useQuery({
-    queryKey: ['timesheets', 'bulk', bulkClientId, bulkMonth],
-    queryFn: () =>
-      timesheetsApi.list({
-        clientId: bulkClientId,
-        yearMonth: bulkMonth,
-        pageSize: 200,
-      }),
-    enabled: bulkOpen && Boolean(bulkClientId && bulkMonth),
-  });
-
-  const bulkLeavesQuery = useQuery({
-    queryKey: ['leaves', 'bulk-ts', bulkClientId],
-    queryFn: () =>
-      leavesApi.list({
-        clientId: bulkClientId,
-        status: 'APPROVED',
-        pageSize: 500,
-      }),
-    enabled: bulkOpen && Boolean(bulkClientId),
-  });
-
-  useEffect(() => {
-    if (!bulkOpen || !bulkClientId || !bulkMonth) {
-      setBulkRows([]);
-      bulkPrefillKeyRef.current = '';
-      return;
-    }
-    if (
-      bulkCandidatesQuery.isFetching ||
-      bulkTimesheetsQuery.isFetching ||
-      bulkLeavesQuery.isFetching
-    ) {
-      return;
-    }
-    const candidates = bulkCandidatesQuery.data?.items ?? [];
-    const period = periodFromYearMonth(bulkMonth);
-    if (!period) return;
-
-    const existingByCandidate = new Map(
-      (bulkTimesheetsQuery.data?.items ?? []).map((t) => [t.candidateId, t]),
-    );
-    const leaves = bulkLeavesQuery.data?.items ?? [];
-    const key = `${bulkClientId}|${bulkMonth}|${candidates.length}|${existingByCandidate.size}|${leaves.length}`;
-    if (bulkPrefillKeyRef.current === key) return;
-    bulkPrefillKeyRef.current = key;
-
-    setBulkRows(
-      candidates.map((c) => {
-        const existing = existingByCandidate.get(c.id);
-        const leaveDays = leaves
-          .filter((lv) => lv.candidateId === c.id && lv.status === 'APPROVED')
-          .reduce(
-            (sum, leave) =>
-              sum +
-              overlapInclusiveDays(
-                new Date(leave.startDate),
-                new Date(leave.endDate),
-                period.periodStart,
-                period.periodEnd,
-              ),
-            0,
-          );
-        const workingDays = existing?.workingDays ?? 22;
-        const suggested = Math.max(0, Number(workingDays) - leaveDays);
-        return {
-          candidateId: c.id,
-          candidateName:
-            c.status === 'RELEASED' ? `${c.fullName} (Released)` : c.fullName,
-          workingDays: String(workingDays),
-          leaveDays,
-          daysWorked:
-            existing?.daysWorked != null
-              ? String(existing.daysWorked)
-              : String(suggested),
-          remarks: existing?.remarks ?? '',
-          error: null,
-          saved: false,
-        };
-      }),
-    );
-  }, [
-    bulkOpen,
-    bulkClientId,
-    bulkMonth,
-    bulkCandidatesQuery.data,
-    bulkCandidatesQuery.isFetching,
-    bulkTimesheetsQuery.data,
-    bulkTimesheetsQuery.isFetching,
-    bulkLeavesQuery.data,
-    bulkLeavesQuery.isFetching,
-  ]);
 
   const invoicesQuery = useQuery({
     queryKey: ['invoices', 'for-timesheets', yearMonthFilter],
@@ -442,91 +323,9 @@ export default function TimesheetsPage() {
   }
 
   function openBulk() {
-    setBulkError(null);
-    setBulkRows([]);
-    bulkPrefillKeyRef.current = '';
-    setBulkClientId(clientId);
-    setBulkMonth(yearMonthFilter || currentYearMonth());
+    setBulkInitialClientId(clientId);
+    setBulkInitialMonth(yearMonthFilter || currentYearMonth());
     setBulkOpen(true);
-  }
-
-  function updateBulkRow(candidateId: string, patch: Partial<BulkRow>) {
-    setBulkRows((rows) =>
-      rows.map((r) =>
-        r.candidateId === candidateId
-          ? { ...r, ...patch, saved: false, error: null }
-          : r,
-      ),
-    );
-  }
-
-  async function saveBulk() {
-    setBulkError(null);
-    if (!bulkClientId) {
-      setBulkError('Select a client.');
-      return;
-    }
-    if (!bulkMonth) {
-      setBulkError('Select a month.');
-      return;
-    }
-    if (bulkRows.length === 0) {
-      setBulkError('No active candidates for this client.');
-      return;
-    }
-
-    setBulkSaving(true);
-    let failCount = 0;
-    const next = [...bulkRows];
-    for (let i = 0; i < next.length; i += 1) {
-      const row = next[i];
-      const workingDays = Number(row.workingDays);
-      const daysWorked = Number(row.daysWorked);
-      if (!Number.isFinite(workingDays) || workingDays < 0) {
-        next[i] = { ...row, error: 'Invalid working days', saved: false };
-        failCount += 1;
-        continue;
-      }
-      if (!Number.isFinite(daysWorked) || daysWorked < 0) {
-        next[i] = { ...row, error: 'Invalid days worked', saved: false };
-        failCount += 1;
-        continue;
-      }
-      if (daysWorked > workingDays) {
-        next[i] = {
-          ...row,
-          error: 'Days worked cannot exceed working days',
-          saved: false,
-        };
-        failCount += 1;
-        continue;
-      }
-      try {
-        await timesheetsApi.upsert({
-          candidateId: row.candidateId,
-          yearMonth: bulkMonth,
-          workingDays,
-          daysWorked,
-          remarks: row.remarks || undefined,
-        });
-        next[i] = { ...row, error: null, saved: true };
-      } catch (err) {
-        next[i] = {
-          ...row,
-          error: apiErrorMessage(err, 'Save failed'),
-          saved: false,
-        };
-        failCount += 1;
-      }
-      setBulkRows([...next]);
-    }
-    setBulkSaving(false);
-    await qc.invalidateQueries({ queryKey: ['timesheets'] });
-    if (failCount === 0) {
-      setBulkOpen(false);
-    } else {
-      setBulkError(`${failCount} row(s) failed to save. Fix and retry.`);
-    }
   }
 
   function openEdit(row: Timesheet) {
@@ -1018,165 +817,16 @@ export default function TimesheetsPage() {
         </form>
       </Dialog>
 
-      <Dialog
+      <BulkFillTimesheetsDialog
         open={bulkOpen}
-        title="Bulk fill by client"
-        wide
-        onClose={() => {
-          if (bulkSaving) return;
-          setBulkOpen(false);
+        mode="by-client"
+        initialClientId={bulkInitialClientId}
+        initialYearMonth={bulkInitialMonth}
+        onClose={() => setBulkOpen(false)}
+        onSaved={async () => {
+          await qc.invalidateQueries({ queryKey: ['timesheets'] });
         }}
-      >
-        <div className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Select
-              id="bulk-ts-client"
-              label="Client *"
-              value={bulkClientId}
-              onChange={(e) => {
-                bulkPrefillKeyRef.current = '';
-                setBulkClientId(e.target.value);
-              }}
-            >
-              <option value="">Select client</option>
-              {(clientsQuery.data?.items ?? []).map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </Select>
-            <Input
-              id="bulk-ts-month"
-              label="Month *"
-              type="month"
-              value={bulkMonth}
-              onChange={(e) => {
-                bulkPrefillKeyRef.current = '';
-                setBulkMonth(e.target.value);
-              }}
-            />
-          </div>
-
-          {!bulkClientId ? (
-            <EmptyState
-              title="Select a client"
-              description="Choose a client and month to load active candidates."
-            />
-          ) : bulkCandidatesQuery.isLoading ||
-            bulkTimesheetsQuery.isLoading ||
-            bulkLeavesQuery.isLoading ? (
-            <Spinner />
-          ) : bulkRows.length === 0 ? (
-            <EmptyState
-              title="No active candidates"
-              description="This client has no active candidates to fill."
-            />
-          ) : (
-            <div className={`max-h-[50vh] overflow-auto ${tableWrap}`}>
-              <table className="min-w-full">
-                <thead>
-                  <tr>
-                    <th className={thClass}>Candidate</th>
-                    <th className={thClass}>Working days</th>
-                    <th className={thClass}>Leave / LOP</th>
-                    <th className={thClass}>Days worked</th>
-                    <th className={thClass}>Remarks</th>
-                    <th className={thClass}>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {bulkRows.map((row) => (
-                    <tr key={row.candidateId}>
-                      <td className={tdClass}>{row.candidateName}</td>
-                      <td className={tdClass}>
-                        <input
-                          type="number"
-                          min={0}
-                          step={0.5}
-                          className={`${fieldClass} !py-1.5`}
-                          value={row.workingDays}
-                          disabled={bulkSaving}
-                          onChange={(e) =>
-                            updateBulkRow(row.candidateId, {
-                              workingDays: e.target.value,
-                            })
-                          }
-                        />
-                      </td>
-                      <td className={`${tdClass} tabular-nums`}>
-                        {row.leaveDays}
-                      </td>
-                      <td className={tdClass}>
-                        <input
-                          type="number"
-                          min={0}
-                          step={0.5}
-                          className={`${fieldClass} !py-1.5`}
-                          value={row.daysWorked}
-                          disabled={bulkSaving}
-                          onChange={(e) =>
-                            updateBulkRow(row.candidateId, {
-                              daysWorked: e.target.value,
-                            })
-                          }
-                        />
-                      </td>
-                      <td className={tdClass}>
-                        <input
-                          type="text"
-                          className={`${fieldClass} !py-1.5`}
-                          value={row.remarks}
-                          disabled={bulkSaving}
-                          onChange={(e) =>
-                            updateBulkRow(row.candidateId, {
-                              remarks: e.target.value,
-                            })
-                          }
-                        />
-                      </td>
-                      <td className={tdClass}>
-                        {row.error ? (
-                          <span className="text-xs text-destructive">
-                            {row.error}
-                          </span>
-                        ) : row.saved ? (
-                          <span className="text-xs text-success">Saved</span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {bulkError && (
-            <Alert tone="error" className="!mb-0">
-              {bulkError}
-            </Alert>
-          )}
-
-          <div className="flex justify-end gap-2 border-t border-border/70 pt-4">
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={bulkSaving}
-              onClick={() => setBulkOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              disabled={bulkSaving || !bulkClientId || bulkRows.length === 0}
-              onClick={() => void saveBulk()}
-            >
-              {bulkSaving ? 'Saving…' : `Save ${bulkRows.length || ''} timesheets`}
-            </Button>
-          </div>
-        </div>
-      </Dialog>
+      />
     </div>
   );
 }
