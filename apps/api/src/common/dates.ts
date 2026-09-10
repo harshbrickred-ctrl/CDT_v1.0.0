@@ -35,6 +35,11 @@ export function previousYearMonth(yearMonth: string): string {
   return `${prev.getUTCFullYear()}-${mm}`;
 }
 
+/** Last calendar day of the previous UTC month relative to `asOf`. */
+export function previousMonthEndDate(asOf: Date = utcToday()): Date {
+  return new Date(Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth(), 0));
+}
+
 /** Format a UTC date as YYYY-MM. */
 export function yearMonthFromDate(d: Date): string {
   const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
@@ -55,6 +60,68 @@ export function yearMonthsBetween(from: Date, to: Date): string[] {
     cursor.setUTCMonth(cursor.getUTCMonth() + 1);
   }
   return out;
+}
+
+/**
+ * End date through which timesheet months are considered due.
+ *
+ * Timesheets are filled for the previous month (e.g. August is filled in
+ * September), so ACTIVE candidates are only due through the prior month.
+ * RELEASED candidates include their release/contract-end month immediately,
+ * even when that month is the current calendar month.
+ */
+export function timesheetDueEndDate(
+  candidate: {
+    status: string;
+    contractEndDate?: Date | null;
+    releasedAt?: Date | null;
+  },
+  asOf: Date = utcToday(),
+): Date | null {
+  const employmentEnd = candidate.contractEndDate ?? candidate.releasedAt ?? null;
+
+  if (candidate.status === 'RELEASED') {
+    return employmentEnd;
+  }
+
+  const prevMonthEnd = previousMonthEndDate(asOf);
+  if (employmentEnd && employmentEnd < prevMonthEnd) {
+    return employmentEnd;
+  }
+  return prevMonthEnd;
+}
+
+/** Due timesheet months (join → due end) for a candidate as of `asOf`. */
+export function dueTimesheetMonths(
+  candidate: {
+    status: string;
+    joinedOn?: Date | null;
+    contractEndDate?: Date | null;
+    releasedAt?: Date | null;
+  },
+  asOf: Date = utcToday(),
+): string[] {
+  const end = timesheetDueEndDate(candidate, asOf);
+  if (!end) return [];
+  const start = candidate.joinedOn ?? end;
+  return yearMonthsBetween(start, end);
+}
+
+/** Due months that have no timesheet row. */
+export function missingDueTimesheetMonths(
+  candidate: {
+    status: string;
+    joinedOn?: Date | null;
+    contractEndDate?: Date | null;
+    releasedAt?: Date | null;
+  },
+  existingYearMonths: Iterable<string>,
+  asOf: Date = utcToday(),
+): string[] {
+  const have = existingYearMonths instanceof Set
+    ? existingYearMonths
+    : new Set(existingYearMonths);
+  return dueTimesheetMonths(candidate, asOf).filter((m) => !have.has(m));
 }
 
 /**

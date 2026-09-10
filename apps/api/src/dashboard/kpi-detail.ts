@@ -10,7 +10,7 @@ import {
 } from '@prisma/client';
 import { toNumber } from '../common/prisma-error';
 import {
-  candidateEmployedInPeriodWhere,
+  missingDueTimesheetMonths,
   periodFromYearMonth,
   utcToday,
 } from '../common/dates';
@@ -22,8 +22,8 @@ const INVOICED_STATUSES: InvoiceStatus[] = [
 ];
 
 export const DASHBOARD_KPI_IDS = [
-  'active',
   'total',
+  'active',
   'on-track',
   'at-risk',
   'escalations',
@@ -469,7 +469,7 @@ export async function fetchKpiDetail(
     }
 
     case 'missing-ts': {
-      const { periodStart, periodEnd } = periodFromYearMonth(month);
+      const asOf = utcToday();
       const [eligibleCandidates, timesheets] = await Promise.all([
         prisma.candidate.findMany({
           where: {
@@ -477,13 +477,10 @@ export async function fetchKpiDetail(
             status: {
               in: [CandidateStatus.ACTIVE, CandidateStatus.RELEASED],
             },
-            ...(candidateEmployedInPeriodWhere(
-              periodStart,
-              periodEnd,
-            ) as Prisma.CandidateWhereInput),
           },
           select: {
             ...candidateSelect,
+            joinedOn: true,
             contractEndDate: true,
           },
           orderBy: { fullName: 'asc' },
@@ -493,14 +490,35 @@ export async function fetchKpiDetail(
           where: {
             organizationId: params.organizationId,
             deletedAt: null,
-            yearMonth: month,
-            candidate: candidateBase,
+            candidate: {
+              ...candidateBase,
+              status: {
+                in: [CandidateStatus.ACTIVE, CandidateStatus.RELEASED],
+              },
+            },
           },
-          select: { candidateId: true },
+          select: { candidateId: true, yearMonth: true },
         }),
       ]);
-      const hasTs = new Set(timesheets.map((t) => t.candidateId));
-      const missing = eligibleCandidates.filter((c) => !hasTs.has(c.id));
+      const timesheetsByCandidate = new Map<string, Set<string>>();
+      for (const t of timesheets) {
+        let set = timesheetsByCandidate.get(t.candidateId);
+        if (!set) {
+          set = new Set();
+          timesheetsByCandidate.set(t.candidateId, set);
+        }
+        set.add(t.yearMonth);
+      }
+      const missing = eligibleCandidates
+        .map((c) => {
+          const months = missingDueTimesheetMonths(
+            c,
+            timesheetsByCandidate.get(c.id) ?? new Set(),
+            asOf,
+          );
+          return { candidate: c, months };
+        })
+        .filter((row) => row.months.length > 0);
       return {
         kpi,
         title: 'Missing Timesheets',
@@ -510,9 +528,10 @@ export async function fetchKpiDetail(
           { key: 'client', label: 'Client' },
           { key: 'role', label: 'Role' },
           { key: 'status', label: 'Status' },
+          { key: 'missingMonths', label: 'Missing months' },
           { key: 'releasedAt', label: 'Released / end' },
         ],
-        rows: missing.slice(0, 200).map((c) => ({
+        rows: missing.slice(0, 200).map(({ candidate: c, months }) => ({
           id: c.id,
           entityType: 'candidate' as const,
           entityId: c.id,
@@ -521,6 +540,7 @@ export async function fetchKpiDetail(
           client: c.client?.name ?? null,
           role: c.roleTitle,
           status: fmtStatus(c.status),
+          missingMonths: months.join(', '),
           releasedAt:
             fmtDate(c.contractEndDate) ?? fmtDate(c.releasedAt) ?? null,
         })),

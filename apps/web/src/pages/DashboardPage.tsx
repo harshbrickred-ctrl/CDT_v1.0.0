@@ -185,15 +185,15 @@ export default function DashboardPage() {
   const candidateKpis = useMemo(
     () => [
       {
-        id: 'active',
-        label: 'Active Candidates',
-        value: summary?.activeCandidates ?? 0,
-        icon: kpiIcons.users,
-      },
-      {
         id: 'total',
         label: 'Total Candidates (All Statuses)',
         value: summary?.totalCandidates ?? 0,
+        icon: kpiIcons.users,
+      },
+      {
+        id: 'active',
+        label: 'Active Candidates',
+        value: summary?.activeCandidates ?? 0,
         icon: kpiIcons.users,
       },
       {

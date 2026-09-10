@@ -8,7 +8,7 @@ import {
   LeaveStatus,
   Prisma,
 } from '@prisma/client';
-import { periodFromYearMonth, previousYearMonth, utcToday, candidateEmployedInPeriodWhere } from '../common/dates';
+import { periodFromYearMonth, previousYearMonth, utcToday, missingDueTimesheetMonths } from '../common/dates';
 import { toNumber } from '../common/prisma-error';
 import { PrismaService } from '../prisma/prisma.service';
 import { fetchKpiDetail } from './kpi-detail';
@@ -285,25 +285,48 @@ export class DashboardService {
       },
     ];
 
-    const timesheetCandidateIds = new Set(
-      timesheetsInMonth.map((t) => t.candidateId),
-    );
-
-    const employedForTimesheets = await this.prisma.candidate.findMany({
+    const timesheetsByCandidate = new Map<string, Set<string>>();
+    for (const t of await this.prisma.timesheet.findMany({
       where: {
         organizationId: params.organizationId,
         deletedAt: null,
-        ...(params.clientId ? { clientId: params.clientId } : {}),
-        status: { in: [CandidateStatus.ACTIVE, CandidateStatus.RELEASED] },
-        ...(candidateEmployedInPeriodWhere(
-          periodStart,
-          periodEnd,
-        ) as Prisma.CandidateWhereInput),
+        candidate: {
+          ...candidateBase,
+          status: { in: [CandidateStatus.ACTIVE, CandidateStatus.RELEASED] },
+        },
       },
-      select: { id: true },
+      select: { candidateId: true, yearMonth: true },
+    })) {
+      let set = timesheetsByCandidate.get(t.candidateId);
+      if (!set) {
+        set = new Set();
+        timesheetsByCandidate.set(t.candidateId, set);
+      }
+      set.add(t.yearMonth);
+    }
+
+    const timesheetEligible = await this.prisma.candidate.findMany({
+      where: {
+        ...candidateBase,
+        status: { in: [CandidateStatus.ACTIVE, CandidateStatus.RELEASED] },
+      },
+      select: {
+        id: true,
+        status: true,
+        joinedOn: true,
+        contractEndDate: true,
+        releasedAt: true,
+      },
     });
-    const missingTimesheetsCount = employedForTimesheets.filter(
-      (c) => !timesheetCandidateIds.has(c.id),
+    // Count people with any overdue (due-but-missing) timesheet month.
+    // ACTIVE: due through previous month only. RELEASED: include release month.
+    const missingTimesheetsCount = timesheetEligible.filter(
+      (c) =>
+        missingDueTimesheetMonths(
+          c,
+          timesheetsByCandidate.get(c.id) ?? new Set(),
+          today,
+        ).length > 0,
     ).length;
     const approvedTimesheetsCount = timesheetsInMonth.filter(
       (t) => t.approvalStatus === ApprovalStatus.APPROVED,

@@ -8,7 +8,12 @@ import { paginationMeta, paginationSkip } from '@cdt/shared-types';
 import { PrismaService } from '../prisma/prisma.service';
 import { IdSequenceService } from '../common/id-sequence.service';
 import { AuditService } from '../audit/audit.service';
-import { isUuid, yearMonthsBetween, utcToday } from '../common/dates';
+import {
+  dueTimesheetMonths,
+  isUuid,
+  missingDueTimesheetMonths,
+  utcToday,
+} from '../common/dates';
 import { toNumber } from '../common/prisma-error';
 import {
   CreateCandidateDto,
@@ -38,27 +43,30 @@ export class CandidatesService {
     private readonly audit: AuditService,
   ) {}
 
-  private async missingTimesheetMonthsForCandidate(
-    organizationId: string,
-    candidateId: string,
-    joinedOn: Date | null,
-    endDate: Date | null,
-  ): Promise<string[]> {
-    if (!endDate) return [];
-    const start = joinedOn ?? endDate;
-    const months = yearMonthsBetween(start, endDate);
-    if (!months.length) return [];
+  private async missingTimesheetMonthsForCandidate(candidate: {
+    organizationId: string;
+    id: string;
+    status: CandidateStatus;
+    joinedOn: Date | null;
+    contractEndDate: Date | null;
+    releasedAt: Date | null;
+  }): Promise<string[]> {
+    const due = dueTimesheetMonths(candidate, utcToday());
+    if (!due.length) return [];
     const existing = await this.prisma.timesheet.findMany({
       where: {
-        organizationId,
-        candidateId,
+        organizationId: candidate.organizationId,
+        candidateId: candidate.id,
         deletedAt: null,
-        yearMonth: { in: months },
+        yearMonth: { in: due },
       },
       select: { yearMonth: true },
     });
-    const have = new Set(existing.map((t) => t.yearMonth));
-    return months.filter((m) => !have.has(m));
+    return missingDueTimesheetMonths(
+      candidate,
+      existing.map((t) => t.yearMonth),
+      utcToday(),
+    );
   }
 
   private serialize<
@@ -148,17 +156,8 @@ export class CandidatesService {
       include: candidateInclude,
     });
     if (!candidate) throw new NotFoundException('Candidate not found');
-    const end =
-      candidate.contractEndDate ??
-      candidate.releasedAt ??
-      (candidate.status === CandidateStatus.ACTIVE ? utcToday() : null);
     const missingTimesheetMonths =
-      await this.missingTimesheetMonthsForCandidate(
-        organizationId,
-        candidate.id,
-        candidate.joinedOn,
-        end,
-      );
+      await this.missingTimesheetMonthsForCandidate(candidate);
     return this.serialize(candidate, { missingTimesheetMonths });
   }
 
@@ -328,12 +327,7 @@ export class CandidatesService {
       after: candidate,
     });
     const missingTimesheetMonths =
-      await this.missingTimesheetMonthsForCandidate(
-        organizationId,
-        candidate.id,
-        candidate.joinedOn,
-        candidate.contractEndDate,
-      );
+      await this.missingTimesheetMonthsForCandidate(candidate);
     return this.serialize(candidate, { missingTimesheetMonths });
   }
 

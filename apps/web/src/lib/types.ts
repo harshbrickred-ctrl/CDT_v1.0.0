@@ -272,8 +272,8 @@ export interface DashboardCharts {
 }
 
 export type DashboardKpiId =
-  | 'active'
   | 'total'
+  | 'active'
   | 'on-track'
   | 'at-risk'
   | 'escalations'
