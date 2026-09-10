@@ -313,6 +313,7 @@ export interface DashboardKpiDetail {
   rows: DashboardKpiDetailRow[];
   view?: 'months' | 'candidates';
   detailMonth?: string | null;
+  candidatesByMonth?: Record<string, DashboardKpiDetailRow[]>;
 }
 
 export interface DashboardSummaryRaw {

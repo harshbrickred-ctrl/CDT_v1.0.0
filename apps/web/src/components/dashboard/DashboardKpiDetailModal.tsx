@@ -5,10 +5,46 @@ import Dialog from '../ui/Dialog';
 import EmptyState from '../ui/EmptyState';
 import Alert from '../ui/Alert';
 import { apiErrorMessage, dashboardApi } from '../../lib/api';
-import type { DashboardKpiDetail, DashboardKpiId } from '../../lib/types';
+import type {
+  DashboardKpiDetailColumn,
+  DashboardKpiDetailRow,
+  DashboardKpiId,
+} from '../../lib/types';
 import { tableWrap, tdClass, thClass } from '../ui/styles';
 
-function entityHref(row: DashboardKpiDetail['rows'][number]) {
+const CANDIDATE_COLUMNS: DashboardKpiDetailColumn[] = [
+  { key: 'publicId', label: 'ID' },
+  { key: 'name', label: 'Candidate' },
+  { key: 'client', label: 'Client' },
+  { key: 'role', label: 'Role' },
+  { key: 'status', label: 'Status' },
+  { key: 'releasedAt', label: 'Released / end' },
+];
+
+const MONTH_LABELS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+] as const;
+
+function formatYearMonthLabel(yearMonth: string): string {
+  const match = /^(\d{4})-(\d{2})$/.exec(yearMonth);
+  if (!match) return yearMonth;
+  const monthIndex = Number(match[2]) - 1;
+  if (monthIndex < 0 || monthIndex > 11) return yearMonth;
+  return `${MONTH_LABELS[monthIndex]} ${match[1]}`;
+}
+
+function entityHref(row: DashboardKpiDetailRow) {
   if (!row.entityType || !row.entityId) return null;
   switch (row.entityType) {
     case 'candidate':
@@ -27,6 +63,12 @@ function entityHref(row: DashboardKpiDetail['rows'][number]) {
 
 function linkableColumnKey(key: string) {
   return key === 'name' || key === 'candidate' || key === 'publicId';
+}
+
+function resolveMonthKey(row: DashboardKpiDetailRow): string | null {
+  if (typeof row.yearMonth === 'string' && row.yearMonth) return row.yearMonth;
+  if (typeof row.id === 'string' && /^\d{4}-\d{2}$/.test(row.id)) return row.id;
+  return null;
 }
 
 export default function DashboardKpiDetailModal({
@@ -54,29 +96,58 @@ export default function DashboardKpiDetailModal({
 
   const isMissingTs = kpiId === 'missing-ts';
 
-  const queryParams = useMemo(() => {
-    const next = { ...params };
-    if (isMissingTs && detailMonth) next.detailMonth = detailMonth;
-    return next;
-  }, [params, isMissingTs, detailMonth]);
-
   const detailQuery = useQuery({
-    queryKey: ['dashboard', 'kpi-detail', kpiId, queryParams],
-    queryFn: () => dashboardApi.kpiDetail({ kpi: kpiId!, ...queryParams }),
+    queryKey: ['dashboard', 'kpi-detail', kpiId, params],
+    queryFn: () => dashboardApi.kpiDetail({ kpi: kpiId!, ...params }),
     enabled: open && kpiId != null,
   });
 
   const detail = detailQuery.data;
-  const showingMonths = isMissingTs && detail?.view === 'months';
-  const dialogTitle = detail?.title ?? title;
+
+  const display = useMemo(() => {
+    if (!detail) {
+      return {
+        title,
+        columns: [] as DashboardKpiDetailColumn[],
+        rows: [] as DashboardKpiDetailRow[],
+        showingMonths: false,
+      };
+    }
+
+    if (isMissingTs && detailMonth) {
+      const fromMap = detail.candidatesByMonth?.[detailMonth] ?? null;
+      const rows =
+        fromMap ??
+        (detail.view === 'candidates' && detail.detailMonth === detailMonth
+          ? detail.rows
+          : []);
+      return {
+        title: `Missing Timesheets — ${formatYearMonthLabel(detailMonth)}`,
+        columns: CANDIDATE_COLUMNS,
+        rows,
+        showingMonths: false,
+      };
+    }
+
+    return {
+      title: detail.title || title,
+      columns: detail.columns,
+      rows: detail.rows,
+      showingMonths: isMissingTs && detail.view === 'months',
+    };
+  }, [detail, detailMonth, isMissingTs, title]);
 
   function handleClose() {
     setDetailMonth(null);
     onClose();
   }
 
+  function openMonth(monthKey: string) {
+    setDetailMonth(monthKey);
+  }
+
   return (
-    <Dialog open={open} title={dialogTitle} onClose={handleClose} wide>
+    <Dialog open={open} title={display.title} onClose={handleClose} wide>
       {isMissingTs && detailMonth && (
         <div className="mb-4">
           <button
@@ -106,19 +177,19 @@ export default function DashboardKpiDetailModal({
         </Alert>
       )}
 
-      {detail && detail.rows.length === 0 && (
+      {detail && display.rows.length === 0 && (
         <EmptyState
           title="No records"
           description="Nothing matches this KPI for the current filters."
         />
       )}
 
-      {detail && detail.rows.length > 0 && (
+      {detail && display.rows.length > 0 && (
         <div className={tableWrap}>
           <table className="min-w-full">
             <thead>
               <tr>
-                {detail.columns.map((col) => (
+                {display.columns.map((col) => (
                   <th
                     key={col.key}
                     className={`${thClass} ${col.align === 'right' ? 'text-right' : ''}`}
@@ -129,11 +200,10 @@ export default function DashboardKpiDetailModal({
               </tr>
             </thead>
             <tbody>
-              {detail.rows.map((row) => {
+              {display.rows.map((row) => {
                 const href = entityHref(row);
-                const monthKey =
-                  typeof row.yearMonth === 'string' ? row.yearMonth : null;
-                const isMonthRow = showingMonths && monthKey != null;
+                const monthKey = resolveMonthKey(row);
+                const isMonthRow = display.showingMonths && monthKey != null;
 
                 return (
                   <tr
@@ -142,16 +212,14 @@ export default function DashboardKpiDetailModal({
                       isMonthRow ? 'cursor-pointer' : ''
                     }`}
                     onClick={
-                      isMonthRow
-                        ? () => setDetailMonth(monthKey)
-                        : undefined
+                      isMonthRow ? () => openMonth(monthKey) : undefined
                     }
                     onKeyDown={
                       isMonthRow
                         ? (e) => {
                             if (e.key === 'Enter' || e.key === ' ') {
                               e.preventDefault();
-                              setDetailMonth(monthKey);
+                              openMonth(monthKey);
                             }
                           }
                         : undefined
@@ -159,9 +227,9 @@ export default function DashboardKpiDetailModal({
                     tabIndex={isMonthRow ? 0 : undefined}
                     role={isMonthRow ? 'button' : undefined}
                   >
-                    {detail.columns.map((col) => {
+                    {display.columns.map((col) => {
                       const value = row[col.key];
-                      const display =
+                      const displayValue =
                         value == null || value === '' ? '—' : String(value);
                       const isLink =
                         !isMonthRow && href && linkableColumnKey(col.key);
@@ -176,14 +244,21 @@ export default function DashboardKpiDetailModal({
                               className="font-medium text-primary hover:underline"
                               onClick={handleClose}
                             >
-                              {display}
+                              {displayValue}
                             </Link>
                           ) : isMonthRow && col.key === 'month' ? (
-                            <span className="font-medium text-primary">
-                              {display}
-                            </span>
+                            <button
+                              type="button"
+                              className="font-medium text-primary hover:underline"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openMonth(monthKey);
+                              }}
+                            >
+                              {displayValue}
+                            </button>
                           ) : (
-                            display
+                            displayValue
                           )}
                         </td>
                       );
@@ -193,12 +268,12 @@ export default function DashboardKpiDetailModal({
               })}
             </tbody>
           </table>
-          {detail.rows.length >= 200 && detail.view !== 'months' && (
+          {display.rows.length >= 200 && !display.showingMonths && (
             <p className="mt-3 text-xs text-muted-foreground">
               Showing up to 200 records. Refine filters to narrow results.
             </p>
           )}
-          {showingMonths && (
+          {display.showingMonths && (
             <p className="mt-3 text-xs text-muted-foreground">
               Select a month to see candidates missing that timesheet.
             </p>

@@ -67,6 +67,8 @@ export type KpiDetailResult = {
   /** Present for Missing Timesheets: months list vs candidates for one month. */
   view?: 'months' | 'candidates';
   detailMonth?: string | null;
+  /** When view=months, candidates missing each YYYY-MM (for client drill-down). */
+  candidatesByMonth?: Record<string, KpiDetailRow[]>;
 };
 
 function fmtDate(d: Date | null | undefined) {
@@ -559,9 +561,28 @@ export async function fetchKpiDetail(
 
       if (!detailMonth) {
         const countByMonth = new Map<string, number>();
+        const candidatesByMonth: Record<string, KpiDetailRow[]> = {};
         for (const row of missing) {
+          const candidateRow: KpiDetailRow = {
+            id: row.candidate.id,
+            entityType: 'candidate',
+            entityId: row.candidate.id,
+            publicId: row.candidate.publicId,
+            name: row.candidate.fullName,
+            client: row.candidate.client?.name ?? null,
+            role: row.candidate.roleTitle,
+            status: fmtStatus(row.candidate.status),
+            releasedAt:
+              fmtDate(row.candidate.contractEndDate) ??
+              fmtDate(row.candidate.releasedAt) ??
+              null,
+          };
           for (const m of row.months) {
             countByMonth.set(m, (countByMonth.get(m) ?? 0) + 1);
+            if (!candidatesByMonth[m]) candidatesByMonth[m] = [];
+            if (candidatesByMonth[m].length < 200) {
+              candidatesByMonth[m].push(candidateRow);
+            }
           }
         }
         const monthRows = [...countByMonth.entries()]
@@ -582,6 +603,7 @@ export async function fetchKpiDetail(
             { key: 'candidateCount', label: 'Candidates', align: 'right' },
           ],
           rows: monthRows,
+          candidatesByMonth,
         };
       }
 
