@@ -463,38 +463,6 @@ export default function DashboardPage() {
           </DashboardSection>
 
           <DashboardSection
-            title="Invoicing"
-            description="Billing amounts, payment status, and revenue trends."
-          >
-            <div>
-              <DashboardBlockLabel>KPI cards</DashboardBlockLabel>
-              <DashboardKpiGrid
-                items={invoiceKpis}
-                onItemClick={handleKpiClick}
-              />
-            </div>
-            <div>
-              <DashboardBlockLabel>Charts</DashboardBlockLabel>
-              <div className="grid gap-4 lg:grid-cols-2">
-                <PaymentStatusChart
-                  data={summary?.charts?.paymentStatusByAmount ?? []}
-                />
-                <InvoiceStatusBarsChart
-                  data={summary?.charts?.invoiceStatusBars ?? []}
-                />
-              </div>
-              <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                <RevenueTrendChart
-                  data={summary?.charts?.revenueTrendByMonth ?? []}
-                />
-                <TopClientsByRevenueChart
-                  data={summary?.charts?.topClientsByRevenue ?? []}
-                />
-              </div>
-            </div>
-          </DashboardSection>
-
-          <DashboardSection
             title="Approvals & attendance"
             description="Timesheet and leave workflow plus utilization by client."
           >
@@ -543,6 +511,38 @@ export default function DashboardPage() {
                     </div>
                   )}
                 </ChartPanel>
+              </div>
+            </div>
+          </DashboardSection>
+
+          <DashboardSection
+            title="Invoicing"
+            description="Billing amounts, payment status, and revenue trends."
+          >
+            <div>
+              <DashboardBlockLabel>KPI cards</DashboardBlockLabel>
+              <DashboardKpiGrid
+                items={invoiceKpis}
+                onItemClick={handleKpiClick}
+              />
+            </div>
+            <div>
+              <DashboardBlockLabel>Charts</DashboardBlockLabel>
+              <div className="grid gap-4 lg:grid-cols-2">
+                <PaymentStatusChart
+                  data={summary?.charts?.paymentStatusByAmount ?? []}
+                />
+                <InvoiceStatusBarsChart
+                  data={summary?.charts?.invoiceStatusBars ?? []}
+                />
+              </div>
+              <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                <RevenueTrendChart
+                  data={summary?.charts?.revenueTrendByMonth ?? []}
+                />
+                <TopClientsByRevenueChart
+                  data={summary?.charts?.topClientsByRevenue ?? []}
+                />
               </div>
             </div>
           </DashboardSection>
