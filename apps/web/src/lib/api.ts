@@ -192,6 +192,8 @@ export const deliveryReviewsApi = {
 export const usersApi = {
   list: (params?: Record<string, unknown>) => getList<UserRow>('/users', params),
   create: (body: Record<string, unknown>) => postOne<UserRow>('/users', body),
+  update: (id: string, body: Record<string, unknown>) =>
+    patchOne<UserRow>(`/users/${id}`, body),
   remove: (id: string) => deleteOne(`/users/${id}`),
 };
 

@@ -2,6 +2,7 @@ import { FormEvent, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiErrorMessage, usersApi } from '../lib/api';
+import type { UserRow } from '../lib/types';
 import { useAuth } from '../context/AuthContext';
 import PageHeader from '../components/ui/PageHeader';
 import EmptyState from '../components/ui/EmptyState';
@@ -19,6 +20,8 @@ import {
   tdClass,
   thClass,
 } from '../components/ui/styles';
+
+const ROLES = ['ADMIN', 'DELIVERY_MANAGER', 'ACCOUNT_MANAGER'] as const;
 
 const emptyForm = {
   email: '',
@@ -78,6 +81,9 @@ export default function SettingsUsersPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [editingUser, setEditingUser] = useState<UserRow | null>(null);
+  const [editRole, setEditRole] = useState('DELIVERY_MANAGER');
+  const [editError, setEditError] = useState<string | null>(null);
   const isAdmin = user?.role === 'ADMIN';
 
   const listQuery = useQuery({
@@ -96,6 +102,19 @@ export default function SettingsUsersPage() {
       await qc.invalidateQueries({ queryKey: ['users'] });
     },
     onError: (err) => setError(apiErrorMessage(err)),
+  });
+
+  const updateMut = useMutation({
+    mutationFn: () => {
+      if (!editingUser) throw new Error('No user selected');
+      return usersApi.update(editingUser.id, { role: editRole });
+    },
+    onSuccess: async () => {
+      setEditingUser(null);
+      setEditError(null);
+      await qc.invalidateQueries({ queryKey: ['users'] });
+    },
+    onError: (err) => setEditError(apiErrorMessage(err)),
   });
 
   const deleteMut = useMutation({
@@ -117,9 +136,25 @@ export default function SettingsUsersPage() {
     setError(null);
   }
 
+  function openEdit(u: UserRow) {
+    setEditError(null);
+    setEditingUser(u);
+    setEditRole(u.role);
+  }
+
+  function closeEditDialog() {
+    setEditingUser(null);
+    setEditError(null);
+  }
+
   function onSubmit(e: FormEvent) {
     e.preventDefault();
     createMut.mutate();
+  }
+
+  function onEditSubmit(e: FormEvent) {
+    e.preventDefault();
+    updateMut.mutate();
   }
 
   const rows = listQuery.data?.items ?? [];
@@ -179,27 +214,36 @@ export default function SettingsUsersPage() {
                       />
                     </td>
                     <td className={tdClass}>
-                      <button
-                        type="button"
-                        className={btnDanger}
-                        disabled={isSelf || deleteMut.isPending}
-                        title={
-                          isSelf
-                            ? 'You cannot remove your own account'
-                            : undefined
-                        }
-                        onClick={() => {
-                          if (
-                            window.confirm(
-                              `Remove user “${u.fullName}” (${u.email})?`,
-                            )
-                          ) {
-                            deleteMut.mutate(u.id);
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          className={btnSecondary}
+                          onClick={() => openEdit(u)}
+                        >
+                          Edit role
+                        </button>
+                        <button
+                          type="button"
+                          className={btnDanger}
+                          disabled={isSelf || deleteMut.isPending}
+                          title={
+                            isSelf
+                              ? 'You cannot remove your own account'
+                              : undefined
                           }
-                        }}
-                      >
-                        Remove
-                      </button>
+                          onClick={() => {
+                            if (
+                              window.confirm(
+                                `Remove user “${u.fullName}” (${u.email})?`,
+                              )
+                            ) {
+                              deleteMut.mutate(u.id);
+                            }
+                          }}
+                        >
+                          Remove
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -237,9 +281,11 @@ export default function SettingsUsersPage() {
               value={form.role}
               onChange={(e) => setForm({ ...form, role: e.target.value })}
             >
-              <option value="ADMIN">ADMIN</option>
-              <option value="DELIVERY_MANAGER">DELIVERY_MANAGER</option>
-              <option value="ACCOUNT_MANAGER">ACCOUNT_MANAGER</option>
+              {ROLES.map((role) => (
+                <option key={role} value={role}>
+                  {role}
+                </option>
+              ))}
             </select>
           </div>
           <div>
@@ -285,6 +331,75 @@ export default function SettingsUsersPage() {
             </button>
           </div>
         </form>
+      </Dialog>
+
+      <Dialog
+        open={editingUser != null}
+        title="Edit user role"
+        onClose={closeEditDialog}
+      >
+        {editingUser && (
+          <form onSubmit={onEditSubmit} className="space-y-3">
+            <div>
+              <label className={labelClass}>Name</label>
+              <input
+                className={fieldClass}
+                value={editingUser.fullName}
+                disabled
+                readOnly
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Email</label>
+              <input
+                className={fieldClass}
+                value={editingUser.email}
+                disabled
+                readOnly
+              />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="edit-user-role">
+                Role
+              </label>
+              <select
+                id="edit-user-role"
+                className={fieldClass}
+                value={editRole}
+                onChange={(e) => setEditRole(e.target.value)}
+              >
+                {ROLES.map((role) => (
+                  <option key={role} value={role}>
+                    {role}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {editError && (
+              <Alert tone="error" className="!mb-0">
+                {editError}
+              </Alert>
+            )}
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                className={btnSecondary}
+                onClick={closeEditDialog}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className={btnPrimary}
+                disabled={
+                  updateMut.isPending || editRole === editingUser.role
+                }
+              >
+                {updateMut.isPending ? 'Saving…' : 'Save role'}
+              </button>
+            </div>
+          </form>
+        )}
       </Dialog>
     </div>
   );
