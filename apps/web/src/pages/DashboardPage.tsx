@@ -39,7 +39,7 @@ import {
 } from '../components/dashboard/DashboardExtendedCharts';
 import OverdueReviewsAlert from '../components/dashboard/OverdueReviewsAlert';
 import DashboardKpiDetailModal from '../components/dashboard/DashboardKpiDetailModal';
-import { tdClass, thClass } from '../components/ui/styles';
+import { labelClass, tdClass, thClass } from '../components/ui/styles';
 import type { DashboardKpiId } from '../lib/types';
 
 function Icon({ children }: { children: ReactNode }) {
@@ -466,19 +466,7 @@ export default function DashboardPage() {
         }
       />
 
-      <FilterBar
-        columns={isAdmin ? 5 : 3}
-        actions={
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={resetFilters}
-            disabled={!hasFilters}
-          >
-            Reset
-          </Button>
-        }
-      >
+      <FilterBar columns={isAdmin ? 3 : 2}>
         {isAdmin && (
           <Select
             id="dash-delivery-owner"
@@ -544,6 +532,20 @@ export default function DashboardPage() {
           <p className="mt-1 text-[11px] text-muted-foreground">
             {month ? 'Scoped to selected month' : 'All months (overall)'}
           </p>
+        </div>
+        <div>
+          <span className={labelClass} aria-hidden>
+            &nbsp;
+          </span>
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-full"
+            onClick={resetFilters}
+            disabled={!hasFilters}
+          >
+            Reset
+          </Button>
         </div>
       </FilterBar>
 
