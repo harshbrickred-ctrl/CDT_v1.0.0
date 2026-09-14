@@ -9,6 +9,13 @@ import { PrismaService } from '../prisma/prisma.service';
 import { IdSequenceService } from '../common/id-sequence.service';
 import { AuditService } from '../audit/audit.service';
 import {
+  assertClientAccess,
+  emptyIfNoAccess,
+  resolveOwnedClientIds,
+  withClientIdScope,
+} from '../common/client-scope';
+import type { AuthUser } from '../common/decorators/current-user.decorator';
+import {
   dueTimesheetMonths,
   isUuid,
   missingDueTimesheetMonths,
@@ -105,7 +112,7 @@ export class CandidatesService {
   }
 
   async findAll(params: {
-    organizationId: string;
+    user: Pick<AuthUser, 'id' | 'role' | 'organizationId'>;
     page?: number;
     pageSize?: number;
     clientId?: string;
@@ -115,10 +122,15 @@ export class CandidatesService {
   }) {
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 20;
+    const ownedClientIds = await resolveOwnedClientIds(this.prisma, params.user);
+    if (emptyIfNoAccess(ownedClientIds)) {
+      return { items: [], meta: paginationMeta(0, page, pageSize) };
+    }
+    const clientFilter = withClientIdScope(ownedClientIds, params.clientId);
     const where: Prisma.CandidateWhereInput = {
-      organizationId: params.organizationId,
+      organizationId: params.user.organizationId,
       deletedAt: null,
-      ...(params.clientId ? { clientId: params.clientId } : {}),
+      ...(clientFilter ? { clientId: clientFilter } : {}),
       ...(params.statuses?.length
         ? { status: { in: params.statuses } }
         : params.status
@@ -150,9 +162,20 @@ export class CandidatesService {
     };
   }
 
-  async findOne(organizationId: string, idOrPublicId: string) {
+  async findOne(
+    user: Pick<AuthUser, 'id' | 'role' | 'organizationId'>,
+    idOrPublicId: string,
+  ) {
+    const ownedClientIds = await resolveOwnedClientIds(this.prisma, user);
+    if (emptyIfNoAccess(ownedClientIds)) {
+      throw new NotFoundException('Candidate not found');
+    }
+    const clientFilter = withClientIdScope(ownedClientIds);
     const candidate = await this.prisma.candidate.findFirst({
-      where: this.resolveWhere(organizationId, idOrPublicId),
+      where: {
+        ...this.resolveWhere(user.organizationId, idOrPublicId),
+        ...(clientFilter ? { clientId: clientFilter } : {}),
+      },
       include: candidateInclude,
     });
     if (!candidate) throw new NotFoundException('Candidate not found');
@@ -161,15 +184,43 @@ export class CandidatesService {
     return this.serialize(candidate, { missingTimesheetMonths });
   }
 
-  async create(
+  private async resolveAccountManagerUserId(
     organizationId: string,
+    clientId: string,
+    requestedId?: string | null,
+  ): Promise<string | null> {
+    const owners = await this.prisma.clientOwnership.findMany({
+      where: {
+        organizationId,
+        clientId,
+        ownershipRole: 'ACCOUNT_OWNER',
+      },
+      select: { userId: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    const ownerIds = owners.map((o) => o.userId);
+    if (!ownerIds.length) return null;
+    if (requestedId && ownerIds.includes(requestedId)) return requestedId;
+    return ownerIds[0] ?? null;
+  }
+
+  async create(
+    user: Pick<AuthUser, 'id' | 'role' | 'organizationId'>,
     dto: CreateCandidateDto,
-    actorUserId: string,
   ) {
+    const organizationId = user.organizationId;
+    const ownedClientIds = await resolveOwnedClientIds(this.prisma, user);
+    assertClientAccess(ownedClientIds, dto.clientId);
     const client = await this.prisma.client.findFirst({
       where: { id: dto.clientId, organizationId, deletedAt: null },
     });
     if (!client) throw new NotFoundException('Client not found');
+
+    const accountManagerUserId = await this.resolveAccountManagerUserId(
+      organizationId,
+      dto.clientId,
+      dto.accountManagerUserId,
+    );
 
     const publicId = await this.ids.allocateNext(organizationId, 'CD');
     const candidate = await this.prisma.candidate.create({
@@ -189,12 +240,13 @@ export class CandidatesService {
         projectAccount: dto.projectAccount?.trim() || null,
         workLocation: dto.workLocation?.trim() || null,
         clientReportingManager: dto.clientReportingManager?.trim() || null,
-        accountManagerUserId: dto.accountManagerUserId ?? null,
+        accountManagerUserId,
         billingType: dto.billingType ?? 'HOURLY',
         hourlyRate: dto.hourlyRate ?? null,
         monthlyFixedAmount: dto.monthlyFixedAmount ?? null,
         maxBillableHours: dto.maxBillableHours ?? null,
-        hoursPerDay: dto.hoursPerDay ?? 8,
+        hoursPerDay:
+          dto.billingType === 'FIXED' ? 8 : (dto.hoursPerDay ?? 8),
         currency: dto.currency?.trim() || 'INR',
         status: CandidateStatus.ACTIVE,
       },
@@ -202,7 +254,7 @@ export class CandidatesService {
     });
     await this.audit.record({
       organizationId,
-      actorUserId,
+      actorUserId: user.id,
       action: 'CREATE',
       entityType: 'Candidate',
       entityId: candidate.id,
@@ -213,13 +265,15 @@ export class CandidatesService {
   }
 
   async update(
-    organizationId: string,
+    user: Pick<AuthUser, 'id' | 'role' | 'organizationId'>,
     idOrPublicId: string,
     dto: UpdateCandidateDto,
-    actorUserId: string,
   ) {
-    const before = await this.findOne(organizationId, idOrPublicId);
+    const organizationId = user.organizationId;
+    const ownedClientIds = await resolveOwnedClientIds(this.prisma, user);
+    const before = await this.findOne(user, idOrPublicId);
     if (dto.clientId) {
+      assertClientAccess(ownedClientIds, dto.clientId);
       const client = await this.prisma.client.findFirst({
         where: { id: dto.clientId, organizationId, deletedAt: null },
       });
@@ -249,9 +303,21 @@ export class CandidatesService {
     if (dto.clientReportingManager !== undefined)
       data.clientReportingManager =
         dto.clientReportingManager?.trim() || null;
-    if (dto.accountManagerUserId !== undefined) {
-      data.accountManager = dto.accountManagerUserId
-        ? { connect: { id: dto.accountManagerUserId } }
+
+    const nextClientId = dto.clientId ?? before.clientId;
+    if (
+      dto.accountManagerUserId !== undefined ||
+      dto.clientId !== undefined
+    ) {
+      const resolvedAm = await this.resolveAccountManagerUserId(
+        organizationId,
+        nextClientId,
+        dto.accountManagerUserId !== undefined
+          ? dto.accountManagerUserId
+          : before.accountManagerUserId,
+      );
+      data.accountManager = resolvedAm
+        ? { connect: { id: resolvedAm } }
         : { disconnect: true };
     }
     if (dto.hourlyRate !== undefined) {
@@ -281,7 +347,7 @@ export class CandidatesService {
     });
     await this.audit.record({
       organizationId,
-      actorUserId,
+      actorUserId: user.id,
       action: 'UPDATE',
       entityType: 'Candidate',
       entityId: candidate.id,
@@ -293,12 +359,12 @@ export class CandidatesService {
   }
 
   async release(
-    organizationId: string,
+    user: Pick<AuthUser, 'id' | 'role' | 'organizationId'>,
     idOrPublicId: string,
     dto: ReleaseCandidateDto,
-    actorUserId: string,
   ) {
-    const before = await this.findOne(organizationId, idOrPublicId);
+    const organizationId = user.organizationId;
+    const before = await this.findOne(user, idOrPublicId);
     if (before.status === CandidateStatus.RELEASED) {
       throw new BadRequestException('Candidate is already released');
     }
@@ -311,14 +377,14 @@ export class CandidatesService {
         status: CandidateStatus.RELEASED,
         contractEndDate: new Date(dto.contractEndDate),
         releasedAt: new Date(),
-        releasedById: actorUserId,
+        releasedById: user.id,
         releaseReason: dto.releaseReason?.trim() || null,
       },
       include: candidateInclude,
     });
     await this.audit.record({
       organizationId,
-      actorUserId,
+      actorUserId: user.id,
       action: 'RELEASE',
       entityType: 'Candidate',
       entityId: candidate.id,
@@ -331,8 +397,35 @@ export class CandidatesService {
     return this.serialize(candidate, { missingTimesheetMonths });
   }
 
-  async timeline(organizationId: string, idOrPublicId: string) {
-    const candidate = await this.findOne(organizationId, idOrPublicId);
+  async softDelete(
+    user: Pick<AuthUser, 'id' | 'role' | 'organizationId'>,
+    idOrPublicId: string,
+  ) {
+    const before = await this.findOne(user, idOrPublicId);
+    const candidate = await this.prisma.candidate.update({
+      where: { id: before.id },
+      data: { deletedAt: new Date() },
+      include: candidateInclude,
+    });
+    await this.audit.record({
+      organizationId: user.organizationId,
+      actorUserId: user.id,
+      action: 'DELETE',
+      entityType: 'Candidate',
+      entityId: candidate.id,
+      entityPublicId: candidate.publicId,
+      before,
+      after: candidate,
+    });
+    return { success: true };
+  }
+
+  async timeline(
+    user: Pick<AuthUser, 'id' | 'role' | 'organizationId'>,
+    idOrPublicId: string,
+  ) {
+    const organizationId = user.organizationId;
+    const candidate = await this.findOne(user, idOrPublicId);
     const [leaves, timesheets, reviews] = await Promise.all([
       this.prisma.leave.findMany({
         where: {

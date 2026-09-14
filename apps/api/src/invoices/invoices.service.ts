@@ -16,6 +16,12 @@ import { paginationMeta, paginationSkip } from '@cdt/shared-types';
 import { PrismaService } from '../prisma/prisma.service';
 import { IdSequenceService } from '../common/id-sequence.service';
 import { AuditService } from '../audit/audit.service';
+import {
+  emptyIfNoAccess,
+  resolveOwnedClientIds,
+  withCandidateClientScope,
+} from '../common/client-scope';
+import type { AuthUser } from '../common/decorators/current-user.decorator';
 import { toNumber } from '../common/prisma-error';
 import { GenerateInvoiceDto, RejectInvoiceDto } from './dto/invoices.dto';
 import { periodFromYearMonth } from '../common/dates';
@@ -103,7 +109,7 @@ export class InvoicesService {
   }
 
   async findAll(params: {
-    organizationId: string;
+    user: Pick<AuthUser, 'id' | 'role' | 'organizationId'>;
     page?: number;
     pageSize?: number;
     status?: InvoiceStatus;
@@ -113,14 +119,20 @@ export class InvoicesService {
   }) {
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 20;
+    const ownedClientIds = await resolveOwnedClientIds(this.prisma, params.user);
+    if (emptyIfNoAccess(ownedClientIds)) {
+      return { items: [], meta: paginationMeta(0, page, pageSize) };
+    }
+    const candidateScope = withCandidateClientScope(
+      ownedClientIds,
+      params.clientId,
+    );
     const where: Prisma.InvoiceWhereInput = {
-      organizationId: params.organizationId,
+      organizationId: params.user.organizationId,
       ...(params.status ? { status: params.status } : {}),
       ...(params.yearMonth ? { yearMonth: params.yearMonth } : {}),
       ...(params.candidateId ? { candidateId: params.candidateId } : {}),
-      ...(params.clientId
-        ? { candidate: { clientId: params.clientId } }
-        : {}),
+      ...(candidateScope ? { candidate: candidateScope } : {}),
     };
     const [total, items] = await this.prisma.$transaction([
       this.prisma.invoice.count({ where }),
@@ -138,9 +150,21 @@ export class InvoicesService {
     };
   }
 
-  async findOne(organizationId: string, id: string) {
+  async findOne(
+    user: Pick<AuthUser, 'id' | 'role' | 'organizationId'>,
+    id: string,
+  ) {
+    const ownedClientIds = await resolveOwnedClientIds(this.prisma, user);
+    if (emptyIfNoAccess(ownedClientIds)) {
+      throw new NotFoundException('Invoice not found');
+    }
+    const candidateScope = withCandidateClientScope(ownedClientIds);
     const invoice = await this.prisma.invoice.findFirst({
-      where: { id, organizationId },
+      where: {
+        id,
+        organizationId: user.organizationId,
+        ...(candidateScope ? { candidate: candidateScope } : {}),
+      },
       include: invoiceInclude,
     });
     if (!invoice) throw new NotFoundException('Invoice not found');
@@ -289,8 +313,11 @@ export class InvoicesService {
     return this.serialize(invoice);
   }
 
-  async approve(organizationId: string, id: string, actorUserId: string) {
-    const before = await this.findOne(organizationId, id);
+  async approve(
+    user: Pick<AuthUser, 'id' | 'role' | 'organizationId'>,
+    id: string,
+  ) {
+    const before = await this.findOne(user, id);
     if (before.status !== InvoiceStatus.PENDING_REVIEW) {
       throw new BadRequestException('Only pending invoices can be approved');
     }
@@ -298,15 +325,15 @@ export class InvoicesService {
       where: { id },
       data: {
         status: InvoiceStatus.APPROVED,
-        reviewedById: actorUserId,
+        reviewedById: user.id,
         reviewedAt: new Date(),
         rejectionReason: null,
       },
       include: invoiceInclude,
     });
     await this.audit.record({
-      organizationId,
-      actorUserId,
+      organizationId: user.organizationId,
+      actorUserId: user.id,
       action: 'APPROVE',
       entityType: 'Invoice',
       entityId: invoice.id,
@@ -317,8 +344,11 @@ export class InvoicesService {
     return this.serialize(invoice);
   }
 
-  async send(organizationId: string, id: string, actorUserId: string) {
-    const before = await this.findOne(organizationId, id);
+  async send(
+    user: Pick<AuthUser, 'id' | 'role' | 'organizationId'>,
+    id: string,
+  ) {
+    const before = await this.findOne(user, id);
     if (before.status !== InvoiceStatus.APPROVED) {
       throw new BadRequestException('Only approved invoices can be sent');
     }
@@ -334,8 +364,8 @@ export class InvoicesService {
       include: invoiceInclude,
     });
     await this.audit.record({
-      organizationId,
-      actorUserId,
+      organizationId: user.organizationId,
+      actorUserId: user.id,
       action: 'SEND',
       entityType: 'Invoice',
       entityId: invoice.id,
@@ -346,8 +376,11 @@ export class InvoicesService {
     return this.serialize(invoice);
   }
 
-  async markPaid(organizationId: string, id: string, actorUserId: string) {
-    const before = await this.findOne(organizationId, id);
+  async markPaid(
+    user: Pick<AuthUser, 'id' | 'role' | 'organizationId'>,
+    id: string,
+  ) {
+    const before = await this.findOne(user, id);
     if (before.status !== InvoiceStatus.SENT) {
       throw new BadRequestException('Only sent invoices can be marked paid');
     }
@@ -360,8 +393,8 @@ export class InvoicesService {
       include: invoiceInclude,
     });
     await this.audit.record({
-      organizationId,
-      actorUserId,
+      organizationId: user.organizationId,
+      actorUserId: user.id,
       action: 'MARK_PAID',
       entityType: 'Invoice',
       entityId: invoice.id,
@@ -373,12 +406,11 @@ export class InvoicesService {
   }
 
   async reject(
-    organizationId: string,
+    user: Pick<AuthUser, 'id' | 'role' | 'organizationId'>,
     id: string,
     dto: RejectInvoiceDto,
-    actorUserId: string,
   ) {
-    const before = await this.findOne(organizationId, id);
+    const before = await this.findOne(user, id);
     if (before.status !== InvoiceStatus.PENDING_REVIEW) {
       throw new BadRequestException('Only pending invoices can be rejected');
     }
@@ -386,15 +418,15 @@ export class InvoicesService {
       where: { id },
       data: {
         status: InvoiceStatus.REJECTED,
-        reviewedById: actorUserId,
+        reviewedById: user.id,
         reviewedAt: new Date(),
         rejectionReason: dto.rejectionReason?.trim() || null,
       },
       include: invoiceInclude,
     });
     await this.audit.record({
-      organizationId,
-      actorUserId,
+      organizationId: user.organizationId,
+      actorUserId: user.id,
       action: 'REJECT',
       entityType: 'Invoice',
       entityId: invoice.id,

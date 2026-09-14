@@ -1,16 +1,17 @@
-import { FormEvent, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   apiErrorMessage,
   candidatesApi,
   clientsApi,
   lookupsApi,
-  usersApi,
 } from '../lib/api';
+import { scopeClientsForUser } from '../lib/client-scope';
 import { formatDate } from '../lib/format';
 import { labelFromOptions, WORK_LOCATION_OPTIONS } from '../lib/masterLists';
 import type { Candidate } from '../lib/types';
+import { useAuth } from '../context/AuthContext';
 import PageHeader from '../components/ui/PageHeader';
 import PublicId from '../components/ui/PublicId';
 import StatusPill from '../components/ui/StatusPill';
@@ -23,6 +24,7 @@ import Input from '../components/ui/Input';
 import Select from '../components/ui/Select';
 import { DetailField, DetailGrid, clickableRowClass } from '../components/ui/DetailGrid';
 import {
+  btnDanger,
   btnPrimary,
   btnSecondary,
   fieldClass,
@@ -31,6 +33,11 @@ import {
   tdClass,
   thClass,
 } from '../components/ui/styles';
+
+const CURRENCY_OPTIONS = [
+  { value: 'INR', label: 'INR' },
+  { value: 'DOLLAR', label: 'Dollar' },
+] as const;
 
 const emptyForm = {
   fullName: '',
@@ -59,7 +66,7 @@ function optionalFields(form: typeof emptyForm) {
     projectAccount: form.projectAccount || undefined,
     roleTitle: form.roleTitle || undefined,
     clientReportingManager: form.clientReportingManager || undefined,
-    accountManagerUserId: form.accountManagerUserId || undefined,
+    accountManagerUserId: form.accountManagerUserId || null,
     billingType: form.billingType as 'HOURLY' | 'FIXED',
     hourlyRate: form.hourlyRate ? Number(form.hourlyRate) : undefined,
     monthlyFixedAmount: form.monthlyFixedAmount
@@ -68,7 +75,12 @@ function optionalFields(form: typeof emptyForm) {
     maxBillableHours: form.maxBillableHours
       ? Number(form.maxBillableHours)
       : undefined,
-    hoursPerDay: form.hoursPerDay ? Number(form.hoursPerDay) : undefined,
+    hoursPerDay:
+      form.billingType === 'FIXED'
+        ? undefined
+        : form.hoursPerDay
+          ? Number(form.hoursPerDay)
+          : undefined,
     currency: form.currency || undefined,
     joinedOn: form.joinedOn || undefined,
     contractEndDate: form.contractEndDate || undefined,
@@ -78,33 +90,72 @@ function optionalFields(form: typeof emptyForm) {
   };
 }
 
+function candidateToForm(c: Candidate): typeof emptyForm {
+  return {
+    fullName: c.fullName ?? '',
+    clientId: c.clientId ?? c.client?.id ?? '',
+    projectAccount: c.projectAccount ?? '',
+    roleTitle: c.roleTitle ?? '',
+    clientReportingManager: c.clientReportingManager ?? '',
+    accountManagerUserId: c.accountManagerUserId ?? c.accountManager?.id ?? '',
+    billingType: (c.billingType as string) || 'HOURLY',
+    hourlyRate: c.hourlyRate != null ? String(c.hourlyRate) : '',
+    monthlyFixedAmount:
+      c.monthlyFixedAmount != null ? String(c.monthlyFixedAmount) : '',
+    maxBillableHours:
+      c.maxBillableHours != null ? String(c.maxBillableHours) : '',
+    hoursPerDay: c.hoursPerDay != null ? String(c.hoursPerDay) : '8',
+    currency:
+      c.currency === 'USD' || c.currency === 'DOLLAR'
+        ? 'DOLLAR'
+        : (c.currency ?? 'INR'),
+    joinedOn: c.joinedOn ? String(c.joinedOn).slice(0, 10) : '',
+    contractEndDate: c.contractEndDate
+      ? String(c.contractEndDate).slice(0, 10)
+      : '',
+    workLocation: c.workLocation ?? '',
+    email: c.email ?? '',
+    mobile: c.mobile ?? '',
+  };
+}
+
 export default function CandidatesPage() {
+  const { user } = useAuth();
   const qc = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [status, setStatus] = useState('ACTIVE');
   const [clientId, setClientId] = useState('');
   const [q, setQ] = useState('');
-  const [createOpen, setCreateOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingCandidate, setEditingCandidate] = useState<Candidate | null>(
+    null,
+  );
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(
     null,
   );
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState<string | null>(null);
+  const canManage =
+    user?.role === 'ADMIN' || user?.role === 'DELIVERY_OWNER';
 
   const clientsQuery = useQuery({
     queryKey: ['clients', 'all'],
     queryFn: () => clientsApi.list({ pageSize: 200 }),
   });
 
-  const usersQuery = useQuery({
-    queryKey: ['users', 'account-managers'],
-    queryFn: () => usersApi.list({ pageSize: 200 }),
-    enabled: createOpen,
-  });
+  const scopedClients = useMemo(
+    () =>
+      scopeClientsForUser(
+        clientsQuery.data?.items ?? [],
+        user?.ownedClientIds,
+      ),
+    [clientsQuery.data?.items, user?.ownedClientIds],
+  );
 
   const workLocationsQuery = useQuery({
     queryKey: ['lookups', 'WORK_LOCATION'],
     queryFn: () => lookupsApi.list('WORK_LOCATION'),
-    enabled: createOpen || !!selectedCandidate,
+    enabled: formOpen || !!selectedCandidate,
   });
 
   const workLocations = useMemo(() => {
@@ -122,9 +173,12 @@ export default function CandidatesPage() {
   const workLocationLabel = (code?: string | null) =>
     labelFromOptions(workLocations, code);
 
-  const accountManagers = (usersQuery.data?.items ?? []).filter(
-    (u) => u.role === 'ACCOUNT_MANAGER',
+  const selectedClient = useMemo(
+    () => scopedClients.find((c) => c.id === form.clientId) ?? null,
+    [scopedClients, form.clientId],
   );
+
+  const accountOwnersForClient = selectedClient?.accountOwners ?? [];
 
   const listQuery = useQuery({
     queryKey: ['candidates', { status, clientId, q }],
@@ -137,26 +191,98 @@ export default function CandidatesPage() {
       }),
   });
 
-  const createMut = useMutation({
-    mutationFn: () => candidatesApi.create(optionalFields(form)),
+  const saveMut = useMutation({
+    mutationFn: () => {
+      const body = optionalFields(form);
+      if (editingCandidate) {
+        return candidatesApi.update(editingCandidate.id, body);
+      }
+      return candidatesApi.create(body);
+    },
     onSuccess: async () => {
-      setCreateOpen(false);
+      setFormOpen(false);
+      setEditingCandidate(null);
       setForm(emptyForm);
       setError(null);
+      setSelectedCandidate(null);
       await qc.invalidateQueries({ queryKey: ['candidates'] });
     },
     onError: (err) => setError(apiErrorMessage(err)),
   });
 
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => candidatesApi.remove(id),
+    onSuccess: async () => {
+      setSelectedCandidate(null);
+      await qc.invalidateQueries({ queryKey: ['candidates'] });
+    },
+  });
+
   function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    createMut.mutate();
+    saveMut.mutate();
   }
 
   function resetDialog() {
     setForm(emptyForm);
+    setEditingCandidate(null);
     setError(null);
+  }
+
+  function openCreate() {
+    resetDialog();
+    setFormOpen(true);
+  }
+
+  function openEdit(c: Candidate) {
+    setSelectedCandidate(null);
+    setEditingCandidate(c);
+    setForm(candidateToForm(c));
+    setError(null);
+    setFormOpen(true);
+  }
+
+  useEffect(() => {
+    const editId = searchParams.get('edit');
+    if (!editId) return;
+    let cancelled = false;
+    candidatesApi
+      .get(editId)
+      .then((c) => {
+        if (cancelled) return;
+        openEdit(c);
+        setSearchParams(
+          (prev) => {
+            const next = new URLSearchParams(prev);
+            next.delete('edit');
+            return next;
+          },
+          { replace: true },
+        );
+      })
+      .catch(() => {
+        /* ignore invalid edit id */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams, setSearchParams]);
+
+  function onClientChange(nextClientId: string) {
+    const client =
+      scopedClients.find((c) => c.id === nextClientId) ?? null;
+    const aos = client?.accountOwners ?? [];
+    setForm((prev) => ({
+      ...prev,
+      clientId: nextClientId,
+      accountManagerUserId:
+        aos.length === 1
+          ? aos[0].id
+          : aos.some((a) => a.id === prev.accountManagerUserId)
+            ? prev.accountManagerUserId
+            : '',
+    }));
   }
 
   const rows = listQuery.data?.items ?? [];
@@ -171,10 +297,7 @@ export default function CandidatesPage() {
           <button
             type="button"
             className={btnPrimary}
-            onClick={() => {
-              resetDialog();
-              setCreateOpen(true);
-            }}
+            onClick={() => openCreate()}
           >
             New candidate
           </button>
@@ -220,7 +343,7 @@ export default function CandidatesPage() {
             onChange={(e) => setClientId(e.target.value)}
           >
             <option value="">All clients</option>
-            {(clientsQuery.data?.items ?? []).map((c) => (
+            {scopedClients.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
               </option>
@@ -242,10 +365,7 @@ export default function CandidatesPage() {
             <button
               type="button"
               className={btnPrimary}
-              onClick={() => {
-                resetDialog();
-                setCreateOpen(true);
-              }}
+              onClick={() => openCreate()}
             >
               New candidate
             </button>
@@ -322,7 +442,7 @@ export default function CandidatesPage() {
                 value={selectedCandidate.clientReportingManager}
               />
               <DetailField
-                label="Account manager"
+                label="Account owner"
                 value={selectedCandidate.accountManager?.fullName}
               />
               <DetailField
@@ -349,10 +469,12 @@ export default function CandidatesPage() {
                 label="Max billable hours"
                 value={selectedCandidate.maxBillableHours}
               />
-              <DetailField
-                label="Hours per day"
-                value={selectedCandidate.hoursPerDay}
-              />
+              {selectedCandidate.billingType !== 'FIXED' && (
+                <DetailField
+                  label="Hours per day"
+                  value={selectedCandidate.hoursPerDay}
+                />
+              )}
               <DetailField
                 label="Client start date"
                 value={formatDate(selectedCandidate.joinedOn)}
@@ -378,7 +500,36 @@ export default function CandidatesPage() {
                 value={selectedCandidate.mobile}
               />
             </DetailGrid>
-            <div className="mt-6 flex justify-end border-t border-border/70 pt-4">
+            <div className="mt-6 flex justify-end gap-2 border-t border-border/70 pt-4">
+              {canManage && (
+                <button
+                  type="button"
+                  className={btnDanger}
+                  disabled={deleteMut.isPending}
+                  onClick={() => {
+                    if (!selectedCandidate) return;
+                    if (
+                      !window.confirm(
+                        `Delete candidate “${selectedCandidate.fullName}”? This cannot be undone from the list.`,
+                      )
+                    ) {
+                      return;
+                    }
+                    deleteMut.mutate(selectedCandidate.id);
+                  }}
+                >
+                  {deleteMut.isPending ? 'Deleting…' : 'Delete'}
+                </button>
+              )}
+              {canManage && (
+                <button
+                  type="button"
+                  className={btnSecondary}
+                  onClick={() => openEdit(selectedCandidate)}
+                >
+                  Edit
+                </button>
+              )}
               <Link
                 to={`/candidates/${selectedCandidate.publicId || selectedCandidate.id}`}
                 className={btnPrimary}
@@ -392,23 +543,25 @@ export default function CandidatesPage() {
       </Dialog>
 
       <Dialog
-        open={createOpen}
-        title="Create candidate"
+        open={formOpen}
+        title={editingCandidate ? 'Edit candidate' : 'Create candidate'}
         wide
         onClose={() => {
-          setCreateOpen(false);
+          setFormOpen(false);
           resetDialog();
         }}
       >
         <form onSubmit={onSubmit} className="space-y-4">
-          <div className="rounded-xl border border-dashed border-border bg-muted/25 px-4 py-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              Candidate ID
-            </p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Assigned automatically on save (e.g. CD-00001). Not editable.
-            </p>
-          </div>
+          {!editingCandidate && (
+            <div className="rounded-xl border border-dashed border-border bg-muted/25 px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                Candidate ID
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Assigned automatically on save (e.g. CD-00001). Not editable.
+              </p>
+            </div>
+          )}
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="sm:col-span-2">
@@ -425,14 +578,14 @@ export default function CandidatesPage() {
             </div>
 
             <Select
-              id="cand-client"
+              id="cand-form-client"
               label="Client *"
               required
               value={form.clientId}
-              onChange={(e) => setForm({ ...form, clientId: e.target.value })}
+              onChange={(e) => onClientChange(e.target.value)}
             >
               <option value="">Select client</option>
-              {(clientsQuery.data?.items ?? []).map((c) => (
+              {scopedClients.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
@@ -466,14 +619,18 @@ export default function CandidatesPage() {
 
             <Select
               id="cand-am"
-              label="Account manager"
+              label="Account owner"
               value={form.accountManagerUserId}
               onChange={(e) =>
                 setForm({ ...form, accountManagerUserId: e.target.value })
               }
             >
-              <option value="">Select account manager</option>
-              {accountManagers.map((u) => (
+              <option value="">
+                {form.clientId
+                  ? 'Select account owner'
+                  : 'Select a client first'}
+              </option>
+              {accountOwnersForClient.map((u) => (
                 <option key={u.id} value={u.id}>
                   {u.fullName}
                 </option>
@@ -532,24 +689,32 @@ export default function CandidatesPage() {
               }
             />
 
-            <Input
-              id="cand-hours"
-              label="Hours per day"
-              type="number"
-              min={0}
-              step={0.5}
-              value={form.hoursPerDay}
-              onChange={(e) =>
-                setForm({ ...form, hoursPerDay: e.target.value })
-              }
-            />
+            {form.billingType !== 'FIXED' && (
+              <Input
+                id="cand-hours"
+                label="Hours per day"
+                type="number"
+                min={0}
+                step={0.5}
+                value={form.hoursPerDay}
+                onChange={(e) =>
+                  setForm({ ...form, hoursPerDay: e.target.value })
+                }
+              />
+            )}
 
-            <Input
+            <Select
               id="cand-currency"
               label="Currency"
               value={form.currency}
               onChange={(e) => setForm({ ...form, currency: e.target.value })}
-            />
+            >
+              {CURRENCY_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </Select>
 
             <Input
               id="cand-start"
@@ -585,21 +750,23 @@ export default function CandidatesPage() {
               ))}
             </Select>
 
-            <div>
-              <label className={labelClass} htmlFor="cand-employment">
-                Employment status
-              </label>
-              <input
-                id="cand-employment"
-                className={`${fieldClass} bg-muted/40 text-muted-foreground`}
-                value="Active"
-                readOnly
-                disabled
-              />
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                New candidates are created as Active.
-              </p>
-            </div>
+            {!editingCandidate && (
+              <div>
+                <label className={labelClass} htmlFor="cand-employment">
+                  Employment status
+                </label>
+                <input
+                  id="cand-employment"
+                  className={`${fieldClass} bg-muted/40 text-muted-foreground`}
+                  value="Active"
+                  readOnly
+                  disabled
+                />
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  New candidates are created as Active.
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="border-t border-border/70 pt-4">
@@ -630,7 +797,7 @@ export default function CandidatesPage() {
               type="button"
               className={btnSecondary}
               onClick={() => {
-                setCreateOpen(false);
+                setFormOpen(false);
                 resetDialog();
               }}
             >
@@ -639,9 +806,13 @@ export default function CandidatesPage() {
             <button
               type="submit"
               className={btnPrimary}
-              disabled={createMut.isPending}
+              disabled={saveMut.isPending}
             >
-              {createMut.isPending ? 'Creating…' : 'Create candidate'}
+              {saveMut.isPending
+                ? 'Saving…'
+                : editingCandidate
+                  ? 'Save changes'
+                  : 'Create candidate'}
             </button>
           </div>
         </form>

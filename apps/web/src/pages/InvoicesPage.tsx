@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiErrorMessage, invoicesApi } from '../lib/api';
-import { candidateLabel } from '../lib/format';
+import { candidateLabel, toIsoCurrency } from '../lib/format';
 import { useAuth } from '../context/AuthContext';
 import type { Invoice } from '../lib/types';
 import PageHeader from '../components/ui/PageHeader';
@@ -28,9 +28,10 @@ type Tab =
   | 'REJECTED';
 
 function formatAmount(amount: number, currency: string) {
-  return new Intl.NumberFormat(undefined, {
+  const iso = toIsoCurrency(currency);
+  return new Intl.NumberFormat(iso === 'INR' ? 'en-IN' : 'en-US', {
     style: 'currency',
-    currency: currency || 'INR',
+    currency: iso,
     maximumFractionDigits: 2,
   }).format(amount);
 }
@@ -55,7 +56,7 @@ export default function InvoicesPage() {
   const [tab, setTab] = useState<Tab>('PENDING_REVIEW');
   const [error, setError] = useState<string | null>(null);
   const canReview =
-    user?.role === 'ADMIN' || user?.role === 'ACCOUNT_MANAGER';
+    user?.role === 'ADMIN' || user?.role === 'ACCOUNT_OWNER';
 
   const listQuery = useQuery({
     queryKey: ['invoices', tab],
@@ -99,7 +100,7 @@ export default function InvoicesPage() {
 
       {!canReview && (
         <Alert tone="info">
-          Invoice review requires Account Manager or ADMIN.
+          Invoice review requires Account Owner or ADMIN.
         </Alert>
       )}
 

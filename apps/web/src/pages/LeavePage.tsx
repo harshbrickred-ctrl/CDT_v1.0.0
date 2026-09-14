@@ -6,9 +6,11 @@ import {
   leavesApi,
   lookupsApi,
 } from '../lib/api';
+import { scopeClientsForUser } from '../lib/client-scope';
 import { LEAVE_TYPE_FALLBACK } from '../lib/masterLists';
 import { formatDate } from '../lib/format';
 import type { Candidate, Leave } from '../lib/types';
+import { useAuth } from '../context/AuthContext';
 import PageHeader from '../components/ui/PageHeader';
 import PublicId from '../components/ui/PublicId';
 import StatusPill from '../components/ui/StatusPill';
@@ -72,6 +74,7 @@ function addDaysIso(iso: string, days: number) {
 }
 
 export default function LeavePage() {
+  const { user } = useAuth();
   const qc = useQueryClient();
   const [status, setStatus] = useState('');
   const [clientId, setClientId] = useState('');
@@ -97,6 +100,15 @@ export default function LeavePage() {
     queryKey: ['clients', 'all'],
     queryFn: () => clientsApi.list({ pageSize: 200 }),
   });
+
+  const scopedClients = useMemo(
+    () =>
+      scopeClientsForUser(
+        clientsQuery.data?.items ?? [],
+        user?.ownedClientIds,
+      ),
+    [clientsQuery.data?.items, user?.ownedClientIds],
+  );
 
   const leaveTypesQuery = useQuery({
     queryKey: ['lookups', 'LEAVE_TYPE'],
@@ -239,7 +251,7 @@ export default function LeavePage() {
           onChange={(e) => setClientId(e.target.value)}
         >
           <option value="">All clients</option>
-          {(clientsQuery.data?.items ?? []).map((c) => (
+          {scopedClients.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
             </option>

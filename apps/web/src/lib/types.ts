@@ -1,4 +1,4 @@
-export type Role = 'ADMIN' | 'DELIVERY_MANAGER' | 'ACCOUNT_MANAGER';
+export type Role = 'ADMIN' | 'DELIVERY_OWNER' | 'ACCOUNT_OWNER';
 
 export type EngagementHealth = 'ON_TRACK' | 'AT_RISK' | 'ESCALATED';
 
@@ -20,11 +20,20 @@ export interface PaginationMeta {
   hasPrev?: boolean;
 }
 
+export interface ClientOwnerUser {
+  id: string;
+  fullName: string;
+  email: string;
+  role?: string;
+}
+
 export interface Client {
   id: string;
   name: string;
   code?: string | null;
   isActive?: boolean;
+  deliveryOwners?: ClientOwnerUser[];
+  accountOwners?: ClientOwnerUser[];
 }
 
 export interface Candidate {

@@ -32,6 +32,11 @@ export class CreateUserDto {
 export class UpdateUserDto {
   @ApiPropertyOptional()
   @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
   @MinLength(1)
   fullName?: string;

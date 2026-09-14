@@ -22,6 +22,8 @@ type AuthUser = {
   role: string;
   organizationId?: string;
   organizationSlug?: OrganizationId;
+  /** null = ADMIN (all clients); string[] = owned client IDs */
+  ownedClientIds?: string[] | null;
 };
 
 type AuthContextValue = {
@@ -78,6 +80,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setAuthToken(accessToken);
+  }, [accessToken]);
+
+  useEffect(() => {
+    if (!accessToken) return;
+    let cancelled = false;
+    api
+      .get<AuthUser>('/auth/me')
+      .then(({ data }) => {
+        if (cancelled) return;
+        setUser(data);
+        sessionStorage.setItem(USER_KEY, JSON.stringify(data));
+      })
+      .catch(() => {
+        /* keep stored user if /me fails */
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [accessToken]);
 
   useEffect(() => {

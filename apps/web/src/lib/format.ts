@@ -19,6 +19,23 @@ export function formatInr(amount?: number | null) {
   }).format(amount);
 }
 
+/** Map app currency labels to ISO 4217 for Intl.NumberFormat. */
+export function toIsoCurrency(currency?: string | null) {
+  const c = (currency || 'INR').toUpperCase();
+  if (c === 'DOLLAR' || c === 'USD') return 'USD';
+  return c === 'INR' ? 'INR' : 'INR';
+}
+
+export function formatMoney(amount?: number | null, currency?: string | null) {
+  if (amount == null || Number.isNaN(amount)) return '—';
+  const iso = toIsoCurrency(currency);
+  return new Intl.NumberFormat(iso === 'INR' ? 'en-IN' : 'en-US', {
+    style: 'currency',
+    currency: iso,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
 export function formatDate(value?: string | null) {
   if (!value) return '—';
   try {

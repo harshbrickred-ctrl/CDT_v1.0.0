@@ -39,7 +39,7 @@ export class TimesheetsController {
     @Query('approvalStatus') approvalStatus?: ApprovalStatus,
   ) {
     return this.timesheets.findAll({
-      organizationId: user.organizationId,
+      user,
       page: page ? Number(page) : 1,
       pageSize: pageSize ? Number(pageSize) : 20,
       candidateId,
@@ -54,7 +54,7 @@ export class TimesheetsController {
     @CurrentUser() user: AuthUser,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.timesheets.findOne(user.organizationId, id);
+    return this.timesheets.findOne(user, id);
   }
 
   @Put()
@@ -71,7 +71,7 @@ export class TimesheetsController {
   }
 
   @Post(':id/approve')
-  @Roles(Role.ADMIN, Role.ACCOUNT_MANAGER)
+  @Roles(Role.ADMIN, Role.ACCOUNT_OWNER)
   approve(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthUser,
@@ -80,7 +80,7 @@ export class TimesheetsController {
   }
 
   @Post(':id/reject')
-  @Roles(Role.ADMIN, Role.ACCOUNT_MANAGER)
+  @Roles(Role.ADMIN, Role.ACCOUNT_OWNER)
   reject(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: RejectTimesheetDto,

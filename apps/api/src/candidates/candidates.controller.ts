@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -45,7 +46,7 @@ export class CandidatesController {
           .filter(Boolean) as CandidateStatus[])
       : undefined;
     return this.candidates.findAll({
-      organizationId: user.organizationId,
+      user,
       page: page ? Number(page) : 1,
       pageSize: pageSize ? Number(pageSize) : 20,
       clientId,
@@ -57,37 +58,43 @@ export class CandidatesController {
 
   @Get(':id/timeline')
   timeline(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.candidates.timeline(user.organizationId, id);
+    return this.candidates.timeline(user, id);
   }
 
   @Get(':id')
   findOne(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.candidates.findOne(user.organizationId, id);
+    return this.candidates.findOne(user, id);
   }
 
   @Post()
-  @Roles(Role.ADMIN, Role.DELIVERY_MANAGER)
+  @Roles(Role.ADMIN, Role.DELIVERY_OWNER)
   create(@Body() dto: CreateCandidateDto, @CurrentUser() user: AuthUser) {
-    return this.candidates.create(user.organizationId, dto, user.id);
+    return this.candidates.create(user, dto);
   }
 
   @Patch(':id')
-  @Roles(Role.ADMIN, Role.DELIVERY_MANAGER)
+  @Roles(Role.ADMIN, Role.DELIVERY_OWNER)
   update(
     @Param('id') id: string,
     @Body() dto: UpdateCandidateDto,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.candidates.update(user.organizationId, id, dto, user.id);
+    return this.candidates.update(user, id, dto);
   }
 
   @Post(':id/release')
-  @Roles(Role.ADMIN, Role.DELIVERY_MANAGER)
+  @Roles(Role.ADMIN, Role.DELIVERY_OWNER)
   release(
     @Param('id') id: string,
     @Body() dto: ReleaseCandidateDto,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.candidates.release(user.organizationId, id, dto, user.id);
+    return this.candidates.release(user, id, dto);
+  }
+
+  @Delete(':id')
+  @Roles(Role.ADMIN, Role.DELIVERY_OWNER)
+  remove(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.candidates.softDelete(user, id);
   }
 }

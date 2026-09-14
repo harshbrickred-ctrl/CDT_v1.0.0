@@ -5,6 +5,7 @@ import {
   clientsApi,
   deliveryReviewsApi,
 } from '../lib/api';
+import { scopeClientsForUser } from '../lib/client-scope';
 import {
   candidateLabel,
   clientFeedbackLabel,
@@ -13,6 +14,7 @@ import {
   formatPct,
 } from '../lib/format';
 import type { Candidate, DeliveryReview } from '../lib/types';
+import { useAuth } from '../context/AuthContext';
 import {
   CLIENT_FEEDBACK_OPTIONS,
   ENGAGEMENT_HEALTH_OPTIONS,
@@ -79,6 +81,7 @@ function monthLabel(yearMonth: string) {
 }
 
 export default function DeliveryReviewsPage() {
+  const { user } = useAuth();
   const qc = useQueryClient();
   const [yearMonthFilter, setYearMonthFilter] = useState(currentYearMonth());
   const [clientId, setClientId] = useState('');
@@ -102,6 +105,15 @@ export default function DeliveryReviewsPage() {
     queryKey: ['clients', 'all'],
     queryFn: () => clientsApi.list({ pageSize: 200 }),
   });
+
+  const clients = useMemo(
+    () =>
+      scopeClientsForUser(
+        clientsQuery.data?.items ?? [],
+        user?.ownedClientIds,
+      ),
+    [clientsQuery.data?.items, user?.ownedClientIds],
+  );
 
   const needsEscalationNotes =
     form.engagementHealth === 'AT_RISK' || form.engagementHealth === 'ESCALATED';
@@ -148,7 +160,6 @@ export default function DeliveryReviewsPage() {
   }
 
   const rows = listQuery.data?.items ?? [];
-  const clients = clientsQuery.data?.items ?? [];
 
   const clientName = useMemo(() => {
     const map = new Map(clients.map((c) => [c.id, c.name]));

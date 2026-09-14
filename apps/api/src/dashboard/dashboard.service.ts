@@ -10,6 +10,12 @@ import {
 } from '@prisma/client';
 import { periodFromYearMonth, previousYearMonth, utcToday, missingDueTimesheetMonths } from '../common/dates';
 import { toNumber } from '../common/prisma-error';
+import {
+  emptyIfNoAccess,
+  resolveOwnedClientIds,
+  withClientIdScope,
+} from '../common/client-scope';
+import type { AuthUser } from '../common/decorators/current-user.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { fetchKpiDetail } from './kpi-detail';
 import { fetchDashboardCharts } from './dashboard-charts';
@@ -49,7 +55,7 @@ export class DashboardService {
   }
 
   async summary(params: {
-    organizationId: string;
+    user: Pick<AuthUser, 'id' | 'role' | 'organizationId'>;
     clientId?: string;
     health?: EngagementHealth;
     month?: string;
@@ -57,11 +63,16 @@ export class DashboardService {
     const month = this.resolveMonth(params.month);
     const { periodStart, periodEnd } = periodFromYearMonth(month);
     const today = utcToday();
+    const ownedClientIds = await resolveOwnedClientIds(this.prisma, params.user);
+    if (emptyIfNoAccess(ownedClientIds)) {
+      return this.emptySummary(month);
+    }
+    const clientFilter = withClientIdScope(ownedClientIds, params.clientId);
 
     const candidateBase: Prisma.CandidateWhereInput = {
-      organizationId: params.organizationId,
+      organizationId: params.user.organizationId,
       deletedAt: null,
-      ...(params.clientId ? { clientId: params.clientId } : {}),
+      ...(clientFilter ? { clientId: clientFilter } : {}),
     };
 
     const activeWhere: Prisma.CandidateWhereInput = {
@@ -70,6 +81,7 @@ export class DashboardService {
     };
 
     const invoiceBase = this.invoiceWhere(candidateBase, month);
+    const organizationId = params.user.organizationId;
 
     const [
       activeCandidates,
@@ -96,7 +108,7 @@ export class DashboardService {
       }),
       this.prisma.leave.count({
         where: {
-          organizationId: params.organizationId,
+          organizationId,
           deletedAt: null,
           status: LeaveStatus.APPROVED,
           startDate: { lte: today },
@@ -106,7 +118,7 @@ export class DashboardService {
       }),
       this.prisma.leave.count({
         where: {
-          organizationId: params.organizationId,
+          organizationId,
           deletedAt: null,
           status: LeaveStatus.PENDING,
           candidate: candidateBase,
@@ -114,7 +126,7 @@ export class DashboardService {
       }),
       this.prisma.timesheet.count({
         where: {
-          organizationId: params.organizationId,
+          organizationId,
           deletedAt: null,
           approvalStatus: ApprovalStatus.PENDING,
           yearMonth: month,
@@ -123,7 +135,7 @@ export class DashboardService {
       }),
       this.prisma.deliveryReview.findMany({
         where: {
-          organizationId: params.organizationId,
+          organizationId,
           deletedAt: null,
           yearMonth: month,
           ...(params.health ? { engagementHealth: params.health } : {}),
@@ -138,7 +150,7 @@ export class DashboardService {
       }),
       this.prisma.timesheet.findMany({
         where: {
-          organizationId: params.organizationId,
+          organizationId,
           deletedAt: null,
           yearMonth: month,
           candidate: candidateBase,
@@ -152,16 +164,16 @@ export class DashboardService {
       }),
       this.prisma.client.findMany({
         where: {
-          organizationId: params.organizationId,
+          organizationId,
           deletedAt: null,
-          ...(params.clientId ? { id: params.clientId } : {}),
+          ...(clientFilter ? { id: clientFilter } : {}),
         },
         select: {
           id: true,
           name: true,
           candidates: {
             where: {
-              organizationId: params.organizationId,
+              organizationId,
               deletedAt: null,
               status: CandidateStatus.ACTIVE,
             },
@@ -177,7 +189,7 @@ export class DashboardService {
       }),
       this.prisma.invoice.count({
         where: {
-          organizationId: params.organizationId,
+          organizationId,
           candidate: candidateBase,
           status: InvoiceStatus.SENT,
           dueDate: { lt: today },
@@ -288,7 +300,7 @@ export class DashboardService {
     const timesheetsByCandidate = new Map<string, Set<string>>();
     for (const t of await this.prisma.timesheet.findMany({
       where: {
-        organizationId: params.organizationId,
+        organizationId,
         deletedAt: null,
         candidate: {
           ...candidateBase,
@@ -332,9 +344,10 @@ export class DashboardService {
       (t) => t.approvalStatus === ApprovalStatus.APPROVED,
     ).length;
     const charts = await fetchDashboardCharts(this.prisma, {
-      organizationId: params.organizationId,
+      organizationId,
       month,
       clientId: params.clientId,
+      ownedClientIds,
       health: params.health,
     });
 
@@ -374,17 +387,68 @@ export class DashboardService {
     };
   }
 
-  async overdueReviews(organizationId: string, month?: string) {
+  private emptySummary(month: string) {
+    return {
+      month,
+      activeCandidates: 0,
+      totalCandidates: 0,
+      onTrackEngagements: 0,
+      atRiskEngagements: 0,
+      escalations: 0,
+      totalReleasedCandidates: 0,
+      totalInvoiced: 0,
+      paidAmount: 0,
+      outstandingAmount: 0,
+      rejectedInvoices: 0,
+      draftInvoices: 0,
+      overdueInvoices: 0,
+      onLeaveToday: 0,
+      pendingLeaveApprovals: 0,
+      pendingTimesheetApprovals: 0,
+      approvedTimesheetsCount: 0,
+      avgUtilizationPct: null,
+      avgPaymentTatDays: null,
+      goodClientFeedback: 0,
+      releasedInMonth: 0,
+      healthBreakdown: { onTrack: 0, atRisk: 0, escalated: 0 },
+      missingTimesheetsCount: 0,
+      healthChart: [
+        { key: 'ON_TRACK', label: 'On Track', count: 0 },
+        { key: 'AT_RISK', label: 'At Risk', count: 0 },
+        { key: 'ESCALATED', label: 'Escalated', count: 0 },
+      ],
+      topClients: [],
+      charts: {
+        headcountByClient: [],
+        paymentStatusByAmount: [],
+        invoiceStatusBars: [],
+        revenueTrendByMonth: [],
+        topClientsByRevenue: [],
+        atRiskClients: [],
+      },
+    };
+  }
+
+  async overdueReviews(
+    user: Pick<AuthUser, 'id' | 'role' | 'organizationId'>,
+    month?: string,
+  ) {
     const yearMonth = month
       ? this.resolveMonth(month)
       : previousYearMonth(this.resolveMonth());
     const prev = previousYearMonth(yearMonth);
+    const ownedClientIds = await resolveOwnedClientIds(this.prisma, user);
+    if (emptyIfNoAccess(ownedClientIds)) {
+      return { month: yearMonth, previousMonth: prev, count: 0, items: [] };
+    }
+    const clientFilter = withClientIdScope(ownedClientIds);
 
     const activeCandidates = await this.prisma.candidate.findMany({
       where: {
-        organizationId,
+        organizationId: user.organizationId,
         deletedAt: null,
         status: CandidateStatus.ACTIVE,
+        ...(clientFilter ? { clientId: clientFilter } : {}),
       },
       select: {
         id: true,
@@ -398,7 +462,7 @@ export class DashboardService {
 
     const reviews = await this.prisma.deliveryReview.findMany({
       where: {
-        organizationId,
+        organizationId: user.organizationId,
         deletedAt: null,
         yearMonth: { in: [yearMonth, prev] },
         candidateId: { in: activeCandidates.map((c) => c.id) },
@@ -427,7 +491,7 @@ export class DashboardService {
   }
 
   async kpiDetail(params: {
-    organizationId: string;
+    user: Pick<AuthUser, 'id' | 'role' | 'organizationId'>;
     kpi: string;
     clientId?: string;
     health?: EngagementHealth;
@@ -435,8 +499,17 @@ export class DashboardService {
     detailMonth?: string;
   }) {
     const month = this.resolveMonth(params.month);
+    const ownedClientIds = await resolveOwnedClientIds(this.prisma, params.user);
     try {
-      return await fetchKpiDetail(this.prisma, { ...params, month });
+      return await fetchKpiDetail(this.prisma, {
+        organizationId: params.user.organizationId,
+        kpi: params.kpi,
+        clientId: params.clientId,
+        health: params.health,
+        month,
+        detailMonth: params.detailMonth,
+        ownedClientIds,
+      });
     } catch (e) {
       if (
         e instanceof Error &&

@@ -1,5 +1,5 @@
 import { FormEvent, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   apiErrorMessage,
@@ -9,6 +9,7 @@ import {
   timesheetsApi,
 } from '../lib/api';
 import { clientFeedbackLabel, formatDate, formatPct } from '../lib/format';
+import { useAuth } from '../context/AuthContext';
 import PageHeader from '../components/ui/PageHeader';
 import PublicId from '../components/ui/PublicId';
 import StatusPill from '../components/ui/StatusPill';
@@ -34,6 +35,8 @@ type Tab = 'leave' | 'timesheets' | 'reviews' | 'timeline';
 
 export default function CandidateDetailPage() {
   const { id = '' } = useParams();
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const qc = useQueryClient();
   const [tab, setTab] = useState<Tab>('leave');
   const [releaseOpen, setReleaseOpen] = useState(false);
@@ -41,6 +44,8 @@ export default function CandidateDetailPage() {
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const canManage =
+    user?.role === 'ADMIN' || user?.role === 'DELIVERY_OWNER';
 
   const detailQuery = useQuery({
     queryKey: ['candidates', id],
@@ -99,6 +104,15 @@ export default function CandidateDetailPage() {
     onError: (err) => setError(apiErrorMessage(err)),
   });
 
+  const deleteMut = useMutation({
+    mutationFn: () => candidatesApi.remove(candidateKey),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['candidates'] });
+      navigate('/candidates');
+    },
+    onError: (err) => setError(apiErrorMessage(err)),
+  });
+
   function onRelease(e: FormEvent) {
     e.preventDefault();
     if (!effectiveDate) {
@@ -149,15 +163,45 @@ export default function CandidateDetailPage() {
         title={candidate.fullName}
         description="Overview, leave, timesheets, and delivery reviews."
         actions={
-          candidate.status === 'ACTIVE' ? (
-            <button
-              type="button"
-              className={btnDanger}
-              onClick={() => setReleaseOpen(true)}
-            >
-              Release
-            </button>
-          ) : null
+          <div className="flex flex-wrap gap-2">
+            {canManage && (
+              <Link
+                to={`/candidates?edit=${candidate.id}`}
+                className={btnSecondary}
+              >
+                Edit
+              </Link>
+            )}
+            {canManage && (
+              <button
+                type="button"
+                className={btnDanger}
+                disabled={deleteMut.isPending}
+                onClick={() => {
+                  if (
+                    !window.confirm(
+                      `Delete candidate “${candidate.fullName}”? This cannot be undone from the list.`,
+                    )
+                  ) {
+                    return;
+                  }
+                  setError(null);
+                  deleteMut.mutate();
+                }}
+              >
+                {deleteMut.isPending ? 'Deleting…' : 'Delete'}
+              </button>
+            )}
+            {canManage && candidate.status === 'ACTIVE' ? (
+              <button
+                type="button"
+                className={btnDanger}
+                onClick={() => setReleaseOpen(true)}
+              >
+                Release
+              </button>
+            ) : null}
+          </div>
         }
       />
 
@@ -230,7 +274,7 @@ export default function CandidateDetailPage() {
         </div>
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Account manager
+            Account owner
           </p>
           <p className="mt-1 text-sm font-medium">
             {candidate.accountManager?.fullName ?? '—'}
@@ -272,14 +316,16 @@ export default function CandidateDetailPage() {
             {candidate.maxBillableHours ?? '—'}
           </p>
         </div>
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Hours per day
-          </p>
-          <p className="mt-1 text-sm font-medium">
-            {candidate.hoursPerDay ?? '—'}
-          </p>
-        </div>
+        {candidate.billingType !== 'FIXED' && (
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Hours per day
+            </p>
+            <p className="mt-1 text-sm font-medium">
+              {candidate.hoursPerDay ?? '—'}
+            </p>
+          </div>
+        )}
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Client start date

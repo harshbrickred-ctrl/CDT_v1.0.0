@@ -2,8 +2,10 @@ import { ReactNode, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion, useReducedMotion } from 'framer-motion';
 import { clientsApi, dashboardApi, apiErrorMessage } from '../lib/api';
+import { scopeClientsForUser } from '../lib/client-scope';
 import { currentYearMonth, formatInr, formatPct } from '../lib/format';
 import { fadeUp } from '../lib/motion';
+import { useAuth } from '../context/AuthContext';
 import PageHeader from '../components/ui/PageHeader';
 import EmptyState from '../components/ui/EmptyState';
 import FilterBar from '../components/ui/FilterBar';
@@ -147,6 +149,7 @@ function formatTodayHint() {
 
 export default function DashboardPage() {
   const prefersReducedMotion = useReducedMotion();
+  const { user } = useAuth();
   const [clientId, setClientId] = useState('');
   const [health, setHealth] = useState('');
   const [month, setMonth] = useState(currentYearMonth());
@@ -159,6 +162,15 @@ export default function DashboardPage() {
     queryKey: ['clients', 'all'],
     queryFn: () => clientsApi.list({ pageSize: 200 }),
   });
+
+  const scopedClients = useMemo(
+    () =>
+      scopeClientsForUser(
+        clientsQuery.data?.items ?? [],
+        user?.ownedClientIds,
+      ),
+    [clientsQuery.data?.items, user?.ownedClientIds],
+  );
 
   const params = useMemo(() => {
     const p: Record<string, string> = { month };
@@ -379,7 +391,7 @@ export default function DashboardPage() {
           onChange={(e) => setClientId(e.target.value)}
         >
           <option value="">All clients</option>
-          {(clientsQuery.data?.items ?? []).map((c) => (
+          {scopedClients.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
             </option>

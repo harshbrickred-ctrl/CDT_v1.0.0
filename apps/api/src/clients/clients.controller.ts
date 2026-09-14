@@ -34,7 +34,7 @@ export class ClientsController {
     @Query('q') q?: string,
   ) {
     return this.clients.findAll(
-      user.organizationId,
+      user,
       page ? Number(page) : 1,
       pageSize ? Number(pageSize) : 20,
       q,
@@ -46,31 +46,31 @@ export class ClientsController {
     @CurrentUser() user: AuthUser,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.clients.findOne(user.organizationId, id);
+    return this.clients.findOne(user, id);
   }
 
   @Post()
-  @Roles(Role.ADMIN, Role.DELIVERY_MANAGER)
+  @Roles(Role.ADMIN, Role.DELIVERY_OWNER)
   create(@Body() dto: CreateClientDto, @CurrentUser() user: AuthUser) {
-    return this.clients.create(user.organizationId, dto, user.id);
+    return this.clients.create(user, dto);
   }
 
   @Patch(':id')
-  @Roles(Role.ADMIN, Role.DELIVERY_MANAGER)
+  @Roles(Role.ADMIN, Role.DELIVERY_OWNER)
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateClientDto,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.clients.update(user.organizationId, id, dto, user.id);
+    return this.clients.update(user, id, dto);
   }
 
   @Delete(':id')
-  @Roles(Role.ADMIN, Role.DELIVERY_MANAGER)
+  @Roles(Role.ADMIN, Role.DELIVERY_OWNER)
   remove(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.clients.softDelete(user.organizationId, id, user.id);
+    return this.clients.softDelete(user, id);
   }
 }

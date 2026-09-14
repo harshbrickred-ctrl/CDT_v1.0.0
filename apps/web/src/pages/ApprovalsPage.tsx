@@ -29,7 +29,7 @@ export default function ApprovalsPage() {
   const qc = useQueryClient();
   const [tab, setTab] = useState<Tab>('leave');
   const [error, setError] = useState<string | null>(null);
-  const canAct = user?.role === 'ADMIN' || user?.role === 'ACCOUNT_MANAGER';
+  const canAct = user?.role === 'ADMIN' || user?.role === 'ACCOUNT_OWNER';
 
   const leaveQuery = useQuery({
     queryKey: ['leaves', 'pending'],
@@ -88,12 +88,12 @@ export default function ApprovalsPage() {
       <PageHeader
         eyebrow="Workflow"
         title="Approvals"
-        description="Pending leave and timesheet decisions for Account Manager and Admin."
+        description="Pending leave and timesheet decisions for Account Owner and Admin."
       />
 
       {!canAct && (
         <Alert tone="info">
-          You can view pending items; approve/reject requires Account Manager or
+          You can view pending items; approve/reject requires Account Owner or
           ADMIN.
         </Alert>
       )}
@@ -183,7 +183,7 @@ export default function ApprovalsPage() {
           {!tsQuery.isLoading && tsRows.length === 0 ? (
             <EmptyState
               title="No pending timesheets"
-              description="Submitted timesheets awaiting Account Manager approval appear here."
+              description="Submitted timesheets awaiting Account Owner approval appear here."
             />
           ) : (
             <div className={tableWrap}>

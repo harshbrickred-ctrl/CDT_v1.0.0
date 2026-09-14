@@ -10,6 +10,10 @@ import {
 } from '@prisma/client';
 import { toNumber } from '../common/prisma-error';
 import {
+  emptyIfNoAccess,
+  withClientIdScope,
+} from '../common/client-scope';
+import {
   missingDueTimesheetMonths,
   periodFromYearMonth,
   utcToday,
@@ -78,9 +82,11 @@ function fmtDate(d: Date | null | undefined) {
 
 function fmtAmount(amount: Prisma.Decimal | number, currency: string) {
   const n = toNumber(amount) ?? 0;
-  return new Intl.NumberFormat('en-IN', {
+  const code =
+    currency === 'DOLLAR' || currency === 'USD' ? 'USD' : currency || 'INR';
+  return new Intl.NumberFormat(code === 'INR' ? 'en-IN' : 'en-US', {
     style: 'currency',
-    currency: currency || 'INR',
+    currency: code,
     maximumFractionDigits: 0,
   }).format(n);
 }
@@ -120,12 +126,14 @@ function formatYearMonthLabel(yearMonth: string): string {
 
 function candidateBaseWhere(
   organizationId: string,
+  ownedClientIds: string[] | null,
   clientId?: string,
 ): Prisma.CandidateWhereInput {
+  const clientFilter = withClientIdScope(ownedClientIds, clientId);
   return {
     organizationId,
     deletedAt: null,
-    ...(clientId ? { clientId } : {}),
+    ...(clientFilter ? { clientId: clientFilter } : {}),
   };
 }
 
@@ -139,6 +147,7 @@ export async function fetchKpiDetail(
     month?: string;
     /** For missing-ts: YYYY-MM of the month to list candidates for. */
     detailMonth?: string;
+    ownedClientIds?: string[] | null;
   },
 ): Promise<KpiDetailResult> {
   const kpi = params.kpi as DashboardKpiId;
@@ -146,11 +155,22 @@ export async function fetchKpiDetail(
     throw new Error(`Unknown KPI: ${params.kpi}`);
   }
 
+  const ownedClientIds = params.ownedClientIds ?? null;
+  if (emptyIfNoAccess(ownedClientIds)) {
+    return {
+      kpi,
+      title: kpi,
+      columns: [],
+      rows: [],
+    };
+  }
+
   const month = params.month ?? defaultMonth();
   periodFromYearMonth(month);
   const today = utcToday();
   const candidateBase = candidateBaseWhere(
     params.organizationId,
+    ownedClientIds,
     params.clientId,
   );
 

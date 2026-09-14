@@ -7,6 +7,8 @@ import {
   leavesApi,
   timesheetsApi,
 } from '../../lib/api';
+import { scopeClientsForUser } from '../../lib/client-scope';
+import { useAuth } from '../../context/AuthContext';
 import Dialog from '../ui/Dialog';
 import EmptyState from '../ui/EmptyState';
 import Spinner from '../ui/Spinner';
@@ -168,6 +170,7 @@ export default function BulkFillTimesheetsDialog({
   initialYearMonth: string;
   candidates?: BulkFillCandidate[];
 }) {
+  const { user } = useAuth();
   const [clientId, setClientId] = useState(initialClientId);
   const [yearMonth, setYearMonth] = useState(initialYearMonth);
   const [rows, setRows] = useState<BulkRow[]>([]);
@@ -189,6 +192,15 @@ export default function BulkFillTimesheetsDialog({
     queryFn: () => clientsApi.list({ pageSize: 200 }),
     enabled: open && mode === 'by-client',
   });
+
+  const scopedClients = useMemo(
+    () =>
+      scopeClientsForUser(
+        clientsQuery.data?.items ?? [],
+        user?.ownedClientIds,
+      ),
+    [clientsQuery.data?.items, user?.ownedClientIds],
+  );
 
   const byClientCandidatesQuery = useQuery({
     queryKey: ['candidates', 'bulk-ts', clientId],
@@ -410,7 +422,7 @@ export default function BulkFillTimesheetsDialog({
               }}
             >
               <option value="">Select client</option>
-              {(clientsQuery.data?.items ?? []).map((c) => (
+              {scopedClients.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>

@@ -1,6 +1,7 @@
 import {
   IsDateString,
   IsEnum,
+  IsIn,
   IsNumber,
   IsOptional,
   IsString,
@@ -10,6 +11,9 @@ import {
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { CandidateStatus, BillingType } from '@prisma/client';
+
+export const CANDIDATE_CURRENCIES = ['INR', 'DOLLAR'] as const;
+export type CandidateCurrency = (typeof CANDIDATE_CURRENCIES)[number];
 
 export class CreateCandidateDto {
   @ApiProperty()
@@ -100,10 +104,10 @@ export class CreateCandidateDto {
   @Min(0.01)
   hoursPerDay?: number;
 
-  @ApiPropertyOptional({ default: 'INR' })
+  @ApiPropertyOptional({ enum: CANDIDATE_CURRENCIES, default: 'INR' })
   @IsOptional()
-  @IsString()
-  currency?: string;
+  @IsIn(CANDIDATE_CURRENCIES)
+  currency?: CandidateCurrency;
 }
 
 export class UpdateCandidateDto {
@@ -197,10 +201,10 @@ export class UpdateCandidateDto {
   @Min(0.01)
   hoursPerDay?: number;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ enum: CANDIDATE_CURRENCIES })
   @IsOptional()
-  @IsString()
-  currency?: string;
+  @IsIn(CANDIDATE_CURRENCIES)
+  currency?: CandidateCurrency;
 
   @ApiPropertyOptional({ enum: CandidateStatus })
   @IsOptional()

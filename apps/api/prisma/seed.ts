@@ -3,6 +3,7 @@ import {
   BillingType,
   CandidateStatus,
   ClientFeedback,
+  ClientOwnershipRole,
   EngagementHealth,
   InvoiceStatus,
   LeaveStatus,
@@ -137,6 +138,46 @@ async function seedDemoPortfolio(
       },
     });
     clientByCode.set(c.code, row);
+  }
+
+  // Delivery Owner owns all demo clients; Account Owner owns a subset.
+  for (const row of clientByCode.values()) {
+    await prisma.clientOwnership.upsert({
+      where: {
+        clientId_userId_ownershipRole: {
+          clientId: row.id,
+          userId: users.dm.id,
+          ownershipRole: ClientOwnershipRole.DELIVERY_OWNER,
+        },
+      },
+      update: {},
+      create: {
+        organizationId,
+        clientId: row.id,
+        userId: users.dm.id,
+        ownershipRole: ClientOwnershipRole.DELIVERY_OWNER,
+      },
+    });
+  }
+  for (const code of ['ACME', 'GLOBEX', 'INITECH'] as const) {
+    const row = clientByCode.get(code);
+    if (!row) continue;
+    await prisma.clientOwnership.upsert({
+      where: {
+        clientId_userId_ownershipRole: {
+          clientId: row.id,
+          userId: users.am.id,
+          ownershipRole: ClientOwnershipRole.ACCOUNT_OWNER,
+        },
+      },
+      update: {},
+      create: {
+        organizationId,
+        clientId: row.id,
+        userId: users.am.id,
+        ownershipRole: ClientOwnershipRole.ACCOUNT_OWNER,
+      },
+    });
   }
 
   const specs: DemoCandidateSpec[] = [

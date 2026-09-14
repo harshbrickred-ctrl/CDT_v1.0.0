@@ -35,7 +35,7 @@ export class DeliveryReviewsController {
     @Query('health') health?: EngagementHealth,
   ) {
     return this.reviews.findAll({
-      organizationId: user.organizationId,
+      user,
       page: page ? Number(page) : 1,
       pageSize: pageSize ? Number(pageSize) : 20,
       candidateId,
@@ -50,11 +50,11 @@ export class DeliveryReviewsController {
     @CurrentUser() user: AuthUser,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.reviews.findOne(user.organizationId, id);
+    return this.reviews.findOne(user, id);
   }
 
   @Put()
-  @Roles(Role.ADMIN, Role.DELIVERY_MANAGER)
+  @Roles(Role.ADMIN, Role.DELIVERY_OWNER)
   upsert(
     @Body() dto: UpsertDeliveryReviewDto,
     @CurrentUser() user: AuthUser,

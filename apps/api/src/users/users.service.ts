@@ -85,11 +85,22 @@ export class UsersService {
   async update(organizationId: string, id: string, dto: UpdateUserDto) {
     await this.findOne(organizationId, id);
     const data: {
+      email?: string;
       fullName?: string;
       role?: Role;
       isActive?: boolean;
       passwordHash?: string;
     } = {};
+    if (dto.email !== undefined) {
+      const email = dto.email.toLowerCase().trim();
+      const existing = await this.prisma.user.findUnique({
+        where: { organizationId_email: { organizationId, email } },
+      });
+      if (existing && existing.id !== id && !existing.deletedAt) {
+        throw new ConflictException('Email already in use');
+      }
+      data.email = email;
+    }
     if (dto.fullName !== undefined) data.fullName = dto.fullName;
     if (dto.role !== undefined) data.role = dto.role;
     if (dto.isActive !== undefined) data.isActive = dto.isActive;

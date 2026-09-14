@@ -21,12 +21,16 @@ import {
   thClass,
 } from '../components/ui/styles';
 
-const ROLES = ['ADMIN', 'DELIVERY_MANAGER', 'ACCOUNT_MANAGER'] as const;
+const ROLES = [
+  { value: 'ADMIN', label: 'Admin' },
+  { value: 'DELIVERY_OWNER', label: 'Delivery Owner' },
+  { value: 'ACCOUNT_OWNER', label: 'Account Owner' },
+] as const;
 
 const emptyForm = {
   email: '',
   fullName: '',
-  role: 'DELIVERY_MANAGER',
+  role: 'DELIVERY_OWNER',
   password: '',
 };
 
@@ -82,7 +86,8 @@ export default function SettingsUsersPage() {
   const [error, setError] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [editingUser, setEditingUser] = useState<UserRow | null>(null);
-  const [editRole, setEditRole] = useState('DELIVERY_MANAGER');
+  const [editRole, setEditRole] = useState('DELIVERY_OWNER');
+  const [editEmail, setEditEmail] = useState('');
   const [editError, setEditError] = useState<string | null>(null);
   const isAdmin = user?.role === 'ADMIN';
 
@@ -107,7 +112,10 @@ export default function SettingsUsersPage() {
   const updateMut = useMutation({
     mutationFn: () => {
       if (!editingUser) throw new Error('No user selected');
-      return usersApi.update(editingUser.id, { role: editRole });
+      return usersApi.update(editingUser.id, {
+        role: editRole,
+        email: editEmail.trim(),
+      });
     },
     onSuccess: async () => {
       setEditingUser(null);
@@ -140,6 +148,7 @@ export default function SettingsUsersPage() {
     setEditError(null);
     setEditingUser(u);
     setEditRole(u.role);
+    setEditEmail(u.email);
   }
 
   function closeEditDialog() {
@@ -207,7 +216,9 @@ export default function SettingsUsersPage() {
                   <tr key={u.id} className="group">
                     <td className={`${tdClass} font-medium`}>{u.fullName}</td>
                     <td className={tdClass}>{u.email}</td>
-                    <td className={`${tdClass} font-mono text-xs`}>{u.role}</td>
+                    <td className={tdClass}>
+                      {ROLES.find((r) => r.value === u.role)?.label ?? u.role}
+                    </td>
                     <td className={tdClass}>
                       <StatusPill
                         status={u.isActive === false ? 'RELEASED' : 'ACTIVE'}
@@ -282,8 +293,8 @@ export default function SettingsUsersPage() {
               onChange={(e) => setForm({ ...form, role: e.target.value })}
             >
               {ROLES.map((role) => (
-                <option key={role} value={role}>
-                  {role}
+                <option key={role.value} value={role.value}>
+                  {role.label}
                 </option>
               ))}
             </select>
@@ -335,7 +346,7 @@ export default function SettingsUsersPage() {
 
       <Dialog
         open={editingUser != null}
-        title="Edit user role"
+        title="Edit user"
         onClose={closeEditDialog}
       >
         {editingUser && (
@@ -350,12 +361,16 @@ export default function SettingsUsersPage() {
               />
             </div>
             <div>
-              <label className={labelClass}>Email</label>
+              <label className={labelClass} htmlFor="edit-user-email">
+                Email
+              </label>
               <input
+                id="edit-user-email"
+                type="email"
                 className={fieldClass}
-                value={editingUser.email}
-                disabled
-                readOnly
+                required
+                value={editEmail}
+                onChange={(e) => setEditEmail(e.target.value)}
               />
             </div>
             <div>
@@ -369,8 +384,8 @@ export default function SettingsUsersPage() {
                 onChange={(e) => setEditRole(e.target.value)}
               >
                 {ROLES.map((role) => (
-                  <option key={role} value={role}>
-                    {role}
+                  <option key={role.value} value={role.value}>
+                    {role.label}
                   </option>
                 ))}
               </select>
@@ -392,10 +407,13 @@ export default function SettingsUsersPage() {
                 type="submit"
                 className={btnPrimary}
                 disabled={
-                  updateMut.isPending || editRole === editingUser.role
+                  updateMut.isPending ||
+                  (editRole === editingUser.role &&
+                    editEmail.trim().toLowerCase() ===
+                      editingUser.email.toLowerCase())
                 }
               >
-                {updateMut.isPending ? 'Saving…' : 'Save role'}
+                {updateMut.isPending ? 'Saving…' : 'Save'}
               </button>
             </div>
           </form>

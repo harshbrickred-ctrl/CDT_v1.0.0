@@ -8,6 +8,7 @@ import {
   timesheetsApi,
 } from '../lib/api';
 import { currentYearMonth, formatDate, formatPct } from '../lib/format';
+import { scopeClientsForUser } from '../lib/client-scope';
 import type { Candidate, Timesheet } from '../lib/types';
 import { useAuth } from '../context/AuthContext';
 import PageHeader from '../components/ui/PageHeader';
@@ -158,6 +159,15 @@ export default function TimesheetsPage() {
     queryFn: () => clientsApi.list({ pageSize: 200 }),
   });
 
+  const scopedClients = useMemo(
+    () =>
+      scopeClientsForUser(
+        clientsQuery.data?.items ?? [],
+        user?.ownedClientIds,
+      ),
+    [clientsQuery.data?.items, user?.ownedClientIds],
+  );
+
   const invoicesQuery = useQuery({
     queryKey: ['invoices', 'for-timesheets', yearMonthFilter],
     queryFn: () => invoicesApi.list({ yearMonth: yearMonthFilter, pageSize: 200 }),
@@ -173,8 +183,8 @@ export default function TimesheetsPage() {
 
   const canGenerateInvoice =
     user?.role === 'ADMIN' ||
-    user?.role === 'DELIVERY_MANAGER' ||
-    user?.role === 'ACCOUNT_MANAGER';
+    user?.role === 'DELIVERY_OWNER' ||
+    user?.role === 'ACCOUNT_OWNER';
 
   const generateMut = useMutation({
     mutationFn: (timesheetId: string) => invoicesApi.generate(timesheetId),
@@ -433,7 +443,7 @@ export default function TimesheetsPage() {
           onChange={(e) => setClientId(e.target.value)}
         >
           <option value="">All clients</option>
-          {(clientsQuery.data?.items ?? []).map((c) => (
+          {scopedClients.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
             </option>

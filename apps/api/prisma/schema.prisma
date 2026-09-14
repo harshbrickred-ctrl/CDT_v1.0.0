@@ -9,8 +9,13 @@ datasource db {
 
 enum Role {
   ADMIN
-  DELIVERY_MANAGER
-  ACCOUNT_MANAGER
+  DELIVERY_OWNER
+  ACCOUNT_OWNER
+}
+
+enum ClientOwnershipRole {
+  DELIVERY_OWNER
+  ACCOUNT_OWNER
 }
 
 enum CandidateStatus {
@@ -71,6 +76,7 @@ model Organization {
   deliveryReviews  DeliveryReview[]
   auditLogs        AuditLog[]
   idSequences      IdSequence[]
+  clientOwnerships ClientOwnership[]
 
   @@map("organizations")
 }
@@ -98,6 +104,7 @@ model User {
   reviewsWritten     DeliveryReview[] @relation("Reviewer")
   invoicesGenerated  Invoice[]        @relation("InvoiceGenerator")
   invoicesReviewed   Invoice[]        @relation("InvoiceReviewer")
+  clientOwnerships   ClientOwnership[]
 
   @@unique([organizationId, email])
   @@index([organizationId])
@@ -131,11 +138,31 @@ model Client {
 
   organization Organization @relation(fields: [organizationId], references: [id])
   candidates   Candidate[]
+  ownerships   ClientOwnership[]
 
   @@unique([organizationId, nameNormalized])
   @@unique([organizationId, code])
   @@index([organizationId])
   @@map("clients")
+}
+
+model ClientOwnership {
+  id             String               @id @default(uuid()) @db.Uuid
+  organizationId String               @map("organization_id") @db.Uuid
+  clientId       String               @map("client_id") @db.Uuid
+  userId         String               @map("user_id") @db.Uuid
+  ownershipRole  ClientOwnershipRole  @map("ownership_role")
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  client       Client       @relation(fields: [clientId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@unique([clientId, userId, ownershipRole])
+  @@index([organizationId, userId])
+  @@index([clientId, ownershipRole])
+  @@map("client_ownerships")
 }
 
 model Candidate {

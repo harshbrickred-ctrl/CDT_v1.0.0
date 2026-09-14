@@ -1,7 +1,9 @@
 import {
+  IsArray,
   IsBoolean,
   IsOptional,
   IsString,
+  IsUUID,
   MinLength,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -21,6 +23,18 @@ export class CreateClientDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  deliveryOwnerUserIds?: string[];
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  accountOwnerUserIds?: string[];
 }
 
 export class UpdateClientDto {
@@ -39,4 +53,16 @@ export class UpdateClientDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  deliveryOwnerUserIds?: string[];
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  accountOwnerUserIds?: string[];
 }

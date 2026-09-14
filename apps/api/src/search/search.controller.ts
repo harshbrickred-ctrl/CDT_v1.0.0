@@ -19,7 +19,7 @@ export class SearchController {
     @Query('limit') limit?: string,
   ) {
     return this.search.search(
-      user.organizationId,
+      user,
       q ?? '',
       limit ? Number(limit) : 20,
     );

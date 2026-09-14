@@ -211,16 +211,16 @@ export async function seedFoundationUsersForOrg(
   const dm = await upsertUser(prisma, {
     organizationId,
     email: 'dm@brickred.local',
-    fullName: 'Demo Delivery Manager',
-    role: Role.DELIVERY_MANAGER,
+    fullName: 'Demo Delivery Owner',
+    role: Role.DELIVERY_OWNER,
     password: demoPassword,
   });
 
   const am = await upsertUser(prisma, {
     organizationId,
     email: 'am@brickred.local',
-    fullName: 'Demo Account Manager',
-    role: Role.ACCOUNT_MANAGER,
+    fullName: 'Demo Account Owner',
+    role: Role.ACCOUNT_OWNER,
     password: demoPassword,
   });
 

@@ -7,6 +7,7 @@ import {
 } from '@prisma/client';
 import { previousYearMonth, utcToday } from '../common/dates';
 import { toNumber } from '../common/prisma-error';
+import { withClientIdScope } from '../common/client-scope';
 
 const INVOICED_STATUSES: InvoiceStatus[] = [
   InvoiceStatus.APPROVED,
@@ -56,12 +57,14 @@ export type DashboardChartsData = {
 
 function candidateBaseWhere(
   organizationId: string,
+  ownedClientIds: string[] | null | undefined,
   clientId?: string,
 ): Prisma.CandidateWhereInput {
+  const clientFilter = withClientIdScope(ownedClientIds ?? null, clientId);
   return {
     organizationId,
     deletedAt: null,
-    ...(clientId ? { clientId } : {}),
+    ...(clientFilter ? { clientId: clientFilter } : {}),
   };
 }
 
@@ -100,17 +103,23 @@ export async function fetchDashboardCharts(
     organizationId: string;
     month: string;
     clientId?: string;
+    ownedClientIds?: string[] | null;
     health?: EngagementHealth;
   },
 ): Promise<DashboardChartsData> {
   const candidateBase = candidateBaseWhere(
     params.organizationId,
+    params.ownedClientIds,
     params.clientId,
   );
   const activeWhere: Prisma.CandidateWhereInput = {
     ...candidateBase,
     status: CandidateStatus.ACTIVE,
   };
+  const clientFilter = withClientIdScope(
+    params.ownedClientIds ?? null,
+    params.clientId,
+  );
 
   const atRiskReviewWhere: Prisma.DeliveryReviewWhereInput =
     params.health === EngagementHealth.ON_TRACK
@@ -136,7 +145,7 @@ export async function fetchDashboardCharts(
       where: {
         organizationId: params.organizationId,
         deletedAt: null,
-        ...(params.clientId ? { id: params.clientId } : {}),
+        ...(clientFilter ? { id: clientFilter } : {}),
       },
       select: {
         id: true,

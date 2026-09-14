@@ -4,6 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { resolveOwnedClientIds } from '../common/client-scope';
 import { LoginDto } from './dto/auth.dto';
 
 export type JwtPayload = {
@@ -73,6 +74,12 @@ export class AuthService {
       },
     });
 
+    const ownedClientIds = await resolveOwnedClientIds(this.prisma, {
+      id: user.id,
+      role: user.role,
+      organizationId: user.organizationId,
+    });
+
     return {
       accessToken,
       refreshToken,
@@ -83,6 +90,7 @@ export class AuthService {
         role: user.role,
         organizationId: user.organizationId,
         organizationSlug: user.organizationSlug,
+        ownedClientIds,
       },
     };
   }
@@ -174,6 +182,11 @@ export class AuthService {
     if (!user || !user.isActive) {
       throw new UnauthorizedException('User not found');
     }
+    const ownedClientIds = await resolveOwnedClientIds(this.prisma, {
+      id: user.id,
+      role: user.role,
+      organizationId: user.organizationId,
+    });
     return {
       id: user.id,
       email: user.email,
@@ -184,6 +197,7 @@ export class AuthService {
       organizationId: user.organizationId,
       organizationSlug: user.organization.slug,
       organizationName: user.organization.name,
+      ownedClientIds,
     };
   }
 }

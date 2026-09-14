@@ -21,7 +21,7 @@ export class DashboardController {
     @Query('month') month?: string,
   ) {
     return this.dashboard.summary({
-      organizationId: user.organizationId,
+      user,
       clientId,
       health,
       month,
@@ -33,7 +33,7 @@ export class DashboardController {
     @CurrentUser() user: AuthUser,
     @Query('month') month?: string,
   ) {
-    return this.dashboard.overdueReviews(user.organizationId, month);
+    return this.dashboard.overdueReviews(user, month);
   }
 
   @Get('kpi-detail')
@@ -46,7 +46,7 @@ export class DashboardController {
     @Query('detailMonth') detailMonth?: string,
   ) {
     return this.dashboard.kpiDetail({
-      organizationId: user.organizationId,
+      user,
       kpi,
       clientId,
       health,

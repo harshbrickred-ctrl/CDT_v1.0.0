@@ -35,7 +35,7 @@ export class InvoicesController {
     @Query('clientId') clientId?: string,
   ) {
     return this.invoices.findAll({
-      organizationId: user.organizationId,
+      user,
       page: page ? Number(page) : 1,
       pageSize: pageSize ? Number(pageSize) : 20,
       status,
@@ -50,49 +50,49 @@ export class InvoicesController {
     @CurrentUser() user: AuthUser,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.invoices.findOne(user.organizationId, id);
+    return this.invoices.findOne(user, id);
   }
 
   @Post('generate')
-  @Roles(Role.ADMIN, Role.DELIVERY_MANAGER, Role.ACCOUNT_MANAGER)
+  @Roles(Role.ADMIN, Role.DELIVERY_OWNER, Role.ACCOUNT_OWNER)
   generate(@Body() dto: GenerateInvoiceDto, @CurrentUser() user: AuthUser) {
     return this.invoices.generate(user.organizationId, dto, user.id);
   }
 
   @Post(':id/approve')
-  @Roles(Role.ADMIN, Role.ACCOUNT_MANAGER)
+  @Roles(Role.ADMIN, Role.ACCOUNT_OWNER)
   approve(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.invoices.approve(user.organizationId, id, user.id);
+    return this.invoices.approve(user, id);
   }
 
   @Post(':id/send')
-  @Roles(Role.ADMIN, Role.ACCOUNT_MANAGER)
+  @Roles(Role.ADMIN, Role.ACCOUNT_OWNER)
   send(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.invoices.send(user.organizationId, id, user.id);
+    return this.invoices.send(user, id);
   }
 
   @Post(':id/mark-paid')
-  @Roles(Role.ADMIN, Role.ACCOUNT_MANAGER)
+  @Roles(Role.ADMIN, Role.ACCOUNT_OWNER)
   markPaid(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.invoices.markPaid(user.organizationId, id, user.id);
+    return this.invoices.markPaid(user, id);
   }
 
   @Post(':id/reject')
-  @Roles(Role.ADMIN, Role.ACCOUNT_MANAGER)
+  @Roles(Role.ADMIN, Role.ACCOUNT_OWNER)
   reject(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: RejectInvoiceDto,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.invoices.reject(user.organizationId, id, dto, user.id);
+    return this.invoices.reject(user, id, dto);
   }
 }

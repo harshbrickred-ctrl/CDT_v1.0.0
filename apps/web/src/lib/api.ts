@@ -143,6 +143,7 @@ export const candidatesApi = {
     id: string,
     body: { contractEndDate: string; releaseReason?: string },
   ) => postOne<Candidate>(`/candidates/${id}/release`, body),
+  remove: (id: string) => deleteOne(`/candidates/${id}`),
   timeline: (id: string) =>
     getList<TimelineEvent>(`/candidates/${id}/timeline`).catch(() => ({
       items: [] as TimelineEvent[],
