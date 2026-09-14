@@ -1,5 +1,5 @@
 import { ForbiddenException } from '@nestjs/common';
-import { Prisma, Role } from '@prisma/client';
+import { ClientOwnershipRole, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AuthUser } from './decorators/current-user.decorator';
 
@@ -23,6 +23,61 @@ export async function resolveOwnedClientIds(
     select: { clientId: true },
   });
   return [...new Set(rows.map((r) => r.clientId))];
+}
+
+/**
+ * ADMIN dashboard owner filters.
+ * null = no owner filter applied.
+ * string[] = client IDs (may be empty when intersection has no overlap).
+ */
+export async function resolveClientIdsForOwnerFilters(
+  prisma: PrismaService,
+  params: {
+    organizationId: string;
+    deliveryOwnerUserId?: string;
+    accountOwnerUserId?: string;
+  },
+): Promise<string[] | null> {
+  const deliveryOwnerUserId = params.deliveryOwnerUserId?.trim() || undefined;
+  const accountOwnerUserId = params.accountOwnerUserId?.trim() || undefined;
+  if (!deliveryOwnerUserId && !accountOwnerUserId) {
+    return null;
+  }
+
+  async function clientIdsFor(
+    userId: string,
+    ownershipRole: ClientOwnershipRole,
+  ): Promise<string[]> {
+    const rows = await prisma.clientOwnership.findMany({
+      where: {
+        organizationId: params.organizationId,
+        userId,
+        ownershipRole,
+        client: { deletedAt: null },
+      },
+      select: { clientId: true },
+    });
+    return [...new Set(rows.map((r) => r.clientId))];
+  }
+
+  if (deliveryOwnerUserId && accountOwnerUserId) {
+    const [doIds, aoIds] = await Promise.all([
+      clientIdsFor(deliveryOwnerUserId, ClientOwnershipRole.DELIVERY_OWNER),
+      clientIdsFor(accountOwnerUserId, ClientOwnershipRole.ACCOUNT_OWNER),
+    ]);
+    const aoSet = new Set(aoIds);
+    return doIds.filter((id) => aoSet.has(id));
+  }
+  if (deliveryOwnerUserId) {
+    return clientIdsFor(
+      deliveryOwnerUserId,
+      ClientOwnershipRole.DELIVERY_OWNER,
+    );
+  }
+  return clientIdsFor(
+    accountOwnerUserId!,
+    ClientOwnershipRole.ACCOUNT_OWNER,
+  );
 }
 
 export function assertClientAccess(

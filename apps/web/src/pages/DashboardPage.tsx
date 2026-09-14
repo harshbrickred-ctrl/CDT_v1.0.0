@@ -1,7 +1,12 @@
-import { ReactNode, useMemo, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion, useReducedMotion } from 'framer-motion';
-import { clientsApi, dashboardApi, apiErrorMessage } from '../lib/api';
+import {
+  clientsApi,
+  dashboardApi,
+  apiErrorMessage,
+  usersApi,
+} from '../lib/api';
 import { scopeClientsForUser } from '../lib/client-scope';
 import { formatInr, formatPct } from '../lib/format';
 import { fadeUp } from '../lib/motion';
@@ -150,10 +155,13 @@ function formatTodayHint() {
 export default function DashboardPage() {
   const prefersReducedMotion = useReducedMotion();
   const { user } = useAuth();
+  const isAdmin = user?.role === 'ADMIN';
   const [clientId, setClientId] = useState('');
   const [health, setHealth] = useState('');
   /** Empty string = all months (overall invoicing). */
   const [month, setMonth] = useState('');
+  const [deliveryOwnerUserId, setDeliveryOwnerUserId] = useState('');
+  const [accountOwnerUserId, setAccountOwnerUserId] = useState('');
   const [selectedKpi, setSelectedKpi] = useState<{
     id: DashboardKpiId;
     label: string;
@@ -164,7 +172,24 @@ export default function DashboardPage() {
     queryFn: () => clientsApi.list({ pageSize: 200 }),
   });
 
-  const scopedClients = useMemo(
+  const usersQuery = useQuery({
+    queryKey: ['users', 'dashboard-owners'],
+    queryFn: () => usersApi.list({ pageSize: 200 }),
+    enabled: isAdmin,
+  });
+
+  const deliveryOwnerOptions = useMemo(
+    () =>
+      (usersQuery.data?.items ?? []).filter((u) => u.role === 'DELIVERY_OWNER'),
+    [usersQuery.data],
+  );
+  const accountOwnerOptions = useMemo(
+    () =>
+      (usersQuery.data?.items ?? []).filter((u) => u.role === 'ACCOUNT_OWNER'),
+    [usersQuery.data],
+  );
+
+  const roleScopedClients = useMemo(
     () =>
       scopeClientsForUser(
         clientsQuery.data?.items ?? [],
@@ -173,13 +198,36 @@ export default function DashboardPage() {
     [clientsQuery.data?.items, user?.ownedClientIds],
   );
 
+  const scopedClients = useMemo(() => {
+    let list = roleScopedClients;
+    if (deliveryOwnerUserId) {
+      list = list.filter((c) =>
+        (c.deliveryOwners ?? []).some((o) => o.id === deliveryOwnerUserId),
+      );
+    }
+    if (accountOwnerUserId) {
+      list = list.filter((c) =>
+        (c.accountOwners ?? []).some((o) => o.id === accountOwnerUserId),
+      );
+    }
+    return list;
+  }, [roleScopedClients, deliveryOwnerUserId, accountOwnerUserId]);
+
+  useEffect(() => {
+    if (clientId && !scopedClients.some((c) => c.id === clientId)) {
+      setClientId('');
+    }
+  }, [clientId, scopedClients]);
+
   const params = useMemo(() => {
     const p: Record<string, string> = {};
     if (month) p.month = month;
     if (clientId) p.clientId = clientId;
     if (health) p.health = health;
+    if (deliveryOwnerUserId) p.deliveryOwnerUserId = deliveryOwnerUserId;
+    if (accountOwnerUserId) p.accountOwnerUserId = accountOwnerUserId;
     return p;
-  }, [clientId, health, month]);
+  }, [clientId, health, month, deliveryOwnerUserId, accountOwnerUserId]);
 
   const summaryQuery = useQuery({
     queryKey: ['dashboard', 'summary', params],
@@ -187,9 +235,21 @@ export default function DashboardPage() {
   });
 
   const overdueQuery = useQuery({
-    queryKey: ['dashboard', 'overdue-reviews', month || 'default'],
+    queryKey: [
+      'dashboard',
+      'overdue-reviews',
+      month || 'default',
+      deliveryOwnerUserId || '',
+      accountOwnerUserId || '',
+    ],
     queryFn: () =>
-      dashboardApi.overdueReviews(month ? { month } : undefined),
+      dashboardApi.overdueReviews({
+        ...(month ? { month } : {}),
+        ...(deliveryOwnerUserId
+          ? { deliveryOwnerUserId }
+          : {}),
+        ...(accountOwnerUserId ? { accountOwnerUserId } : {}),
+      }),
   });
 
   const summary = summaryQuery.data;
@@ -374,16 +434,25 @@ export default function DashboardPage() {
     if (month) p.month = month;
     if (clientId) p.clientId = clientId;
     if (health) p.health = health;
+    if (deliveryOwnerUserId) p.deliveryOwnerUserId = deliveryOwnerUserId;
+    if (accountOwnerUserId) p.accountOwnerUserId = accountOwnerUserId;
     return p;
-  }, [clientId, health, month]);
+  }, [clientId, health, month, deliveryOwnerUserId, accountOwnerUserId]);
 
   function resetFilters() {
     setClientId('');
     setHealth('');
     setMonth('');
+    setDeliveryOwnerUserId('');
+    setAccountOwnerUserId('');
   }
 
-  const hasFilters = clientId !== '' || health !== '' || month !== '';
+  const hasFilters =
+    clientId !== '' ||
+    health !== '' ||
+    month !== '' ||
+    deliveryOwnerUserId !== '' ||
+    accountOwnerUserId !== '';
 
   return (
     <div>
@@ -397,7 +466,37 @@ export default function DashboardPage() {
         }
       />
 
-      <FilterBar columns={4}>
+      <FilterBar columns={isAdmin ? 6 : 4}>
+        {isAdmin && (
+          <Select
+            id="dash-delivery-owner"
+            label="Delivery Owner"
+            value={deliveryOwnerUserId}
+            onChange={(e) => setDeliveryOwnerUserId(e.target.value)}
+          >
+            <option value="">All delivery owners</option>
+            {deliveryOwnerOptions.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.fullName}
+              </option>
+            ))}
+          </Select>
+        )}
+        {isAdmin && (
+          <Select
+            id="dash-account-owner"
+            label="Account Owner"
+            value={accountOwnerUserId}
+            onChange={(e) => setAccountOwnerUserId(e.target.value)}
+          >
+            <option value="">All account owners</option>
+            {accountOwnerOptions.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.fullName}
+              </option>
+            ))}
+          </Select>
+        )}
         <Select
           id="dash-client"
           label="Client"

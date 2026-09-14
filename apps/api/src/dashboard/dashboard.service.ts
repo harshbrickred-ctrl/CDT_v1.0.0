@@ -7,11 +7,13 @@ import {
   InvoiceStatus,
   LeaveStatus,
   Prisma,
+  Role,
 } from '@prisma/client';
 import { periodFromYearMonth, previousYearMonth, utcToday, missingDueTimesheetMonths } from '../common/dates';
 import { toNumber } from '../common/prisma-error';
 import {
   emptyIfNoAccess,
+  resolveClientIdsForOwnerFilters,
   resolveOwnedClientIds,
   withClientIdScope,
 } from '../common/client-scope';
@@ -60,17 +62,51 @@ export class DashboardService {
     };
   }
 
+  /**
+   * Role ownership first; ADMIN may further restrict via owner filter params.
+   * Non-ADMIN owner query params are ignored.
+   */
+  private async resolveDashboardClientScope(
+    user: Pick<AuthUser, 'id' | 'role' | 'organizationId'>,
+    ownerFilters?: {
+      deliveryOwnerUserId?: string;
+      accountOwnerUserId?: string;
+    },
+  ): Promise<string[] | null> {
+    let ownedClientIds = await resolveOwnedClientIds(this.prisma, user);
+    const isAdmin = user.role === Role.ADMIN || user.role === 'ADMIN';
+    if (
+      isAdmin &&
+      (ownerFilters?.deliveryOwnerUserId || ownerFilters?.accountOwnerUserId)
+    ) {
+      const ownerScoped = await resolveClientIdsForOwnerFilters(this.prisma, {
+        organizationId: user.organizationId,
+        deliveryOwnerUserId: ownerFilters.deliveryOwnerUserId,
+        accountOwnerUserId: ownerFilters.accountOwnerUserId,
+      });
+      if (ownerScoped !== null) {
+        ownedClientIds = ownerScoped;
+      }
+    }
+    return ownedClientIds;
+  }
+
   async summary(params: {
     user: Pick<AuthUser, 'id' | 'role' | 'organizationId'>;
     clientId?: string;
     health?: EngagementHealth;
     month?: string;
+    deliveryOwnerUserId?: string;
+    accountOwnerUserId?: string;
   }) {
     const month = this.parseMonthFilter(params.month);
     const currentMonth = this.resolveMonth();
     const { periodStart, periodEnd } = periodFromYearMonth(currentMonth);
     const today = utcToday();
-    const ownedClientIds = await resolveOwnedClientIds(this.prisma, params.user);
+    const ownedClientIds = await this.resolveDashboardClientScope(params.user, {
+      deliveryOwnerUserId: params.deliveryOwnerUserId,
+      accountOwnerUserId: params.accountOwnerUserId,
+    });
     if (emptyIfNoAccess(ownedClientIds)) {
       return this.emptySummary(month);
     }
@@ -446,13 +482,21 @@ export class DashboardService {
 
   async overdueReviews(
     user: Pick<AuthUser, 'id' | 'role' | 'organizationId'>,
-    month?: string,
+    params?: {
+      month?: string;
+      deliveryOwnerUserId?: string;
+      accountOwnerUserId?: string;
+    },
   ) {
+    const month = params?.month;
     const yearMonth = month
       ? this.resolveMonth(month)
       : previousYearMonth(this.resolveMonth());
     const prev = previousYearMonth(yearMonth);
-    const ownedClientIds = await resolveOwnedClientIds(this.prisma, user);
+    const ownedClientIds = await this.resolveDashboardClientScope(user, {
+      deliveryOwnerUserId: params?.deliveryOwnerUserId,
+      accountOwnerUserId: params?.accountOwnerUserId,
+    });
     if (emptyIfNoAccess(ownedClientIds)) {
       return { month: yearMonth, previousMonth: prev, count: 0, items: [] };
     }
@@ -512,9 +556,14 @@ export class DashboardService {
     health?: EngagementHealth;
     month?: string;
     detailMonth?: string;
+    deliveryOwnerUserId?: string;
+    accountOwnerUserId?: string;
   }) {
     const month = this.parseMonthFilter(params.month);
-    const ownedClientIds = await resolveOwnedClientIds(this.prisma, params.user);
+    const ownedClientIds = await this.resolveDashboardClientScope(params.user, {
+      deliveryOwnerUserId: params.deliveryOwnerUserId,
+      accountOwnerUserId: params.accountOwnerUserId,
+    });
     try {
       return await fetchKpiDetail(this.prisma, {
         organizationId: params.user.organizationId,

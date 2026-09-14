@@ -19,12 +19,16 @@ export class DashboardController {
     @Query('clientId') clientId?: string,
     @Query('health') health?: EngagementHealth,
     @Query('month') month?: string,
+    @Query('deliveryOwnerUserId') deliveryOwnerUserId?: string,
+    @Query('accountOwnerUserId') accountOwnerUserId?: string,
   ) {
     return this.dashboard.summary({
       user,
       clientId,
       health,
       month,
+      deliveryOwnerUserId,
+      accountOwnerUserId,
     });
   }
 
@@ -32,8 +36,14 @@ export class DashboardController {
   overdueReviews(
     @CurrentUser() user: AuthUser,
     @Query('month') month?: string,
+    @Query('deliveryOwnerUserId') deliveryOwnerUserId?: string,
+    @Query('accountOwnerUserId') accountOwnerUserId?: string,
   ) {
-    return this.dashboard.overdueReviews(user, month);
+    return this.dashboard.overdueReviews(user, {
+      month,
+      deliveryOwnerUserId,
+      accountOwnerUserId,
+    });
   }
 
   @Get('kpi-detail')
@@ -44,6 +54,8 @@ export class DashboardController {
     @Query('health') health?: EngagementHealth,
     @Query('month') month?: string,
     @Query('detailMonth') detailMonth?: string,
+    @Query('deliveryOwnerUserId') deliveryOwnerUserId?: string,
+    @Query('accountOwnerUserId') accountOwnerUserId?: string,
   ) {
     return this.dashboard.kpiDetail({
       user,
@@ -52,6 +64,8 @@ export class DashboardController {
       health,
       month,
       detailMonth,
+      deliveryOwnerUserId,
+      accountOwnerUserId,
     });
   }
 }
