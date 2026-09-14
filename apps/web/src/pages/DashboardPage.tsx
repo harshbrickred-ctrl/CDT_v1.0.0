@@ -466,7 +466,19 @@ export default function DashboardPage() {
         }
       />
 
-      <FilterBar columns={isAdmin ? 6 : 4}>
+      <FilterBar
+        columns={isAdmin ? 5 : 3}
+        actions={
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={resetFilters}
+            disabled={!hasFilters}
+          >
+            Reset
+          </Button>
+        }
+      >
         {isAdmin && (
           <Select
             id="dash-delivery-owner"
@@ -532,17 +544,6 @@ export default function DashboardPage() {
           <p className="mt-1 text-[11px] text-muted-foreground">
             {month ? 'Scoped to selected month' : 'All months (overall)'}
           </p>
-        </div>
-        <div className="flex items-end">
-          <Button
-            type="button"
-            variant="secondary"
-            className="w-full"
-            onClick={resetFilters}
-            disabled={!hasFilters}
-          >
-            Reset
-          </Button>
         </div>
       </FilterBar>
 
