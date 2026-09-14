@@ -33,6 +33,7 @@ export const DASHBOARD_KPI_IDS = [
   'escalations',
   'released-total',
   'total-invoiced',
+  'draft-invoiced',
   'paid',
   'outstanding',
   'rejected-inv',
@@ -145,6 +146,8 @@ export async function fetchKpiDetail(
     clientId?: string;
     health?: EngagementHealth;
     month?: string;
+    /** When true, omit yearMonth on month-scoped queries (all months). */
+    allMonths?: boolean;
     /** For missing-ts: YYYY-MM of the month to list candidates for. */
     detailMonth?: string;
     ownedClientIds?: string[] | null;
@@ -165,8 +168,12 @@ export async function fetchKpiDetail(
     };
   }
 
-  const month = params.month ?? defaultMonth();
-  periodFromYearMonth(month);
+  const allMonths = params.allMonths === true || !params.month?.trim();
+  const month = allMonths ? defaultMonth() : params.month!;
+  if (!allMonths) {
+    periodFromYearMonth(month);
+  }
+  const monthScope = allMonths ? {} : { yearMonth: month };
   const today = utcToday();
   const candidateBase = candidateBaseWhere(
     params.organizationId,
@@ -241,7 +248,7 @@ export async function fetchKpiDetail(
       const reviews = await prisma.deliveryReview.findMany({
         where: {
           deletedAt: null,
-          yearMonth: month,
+          ...monthScope,
           ...(engagementHealth ? { engagementHealth } : {}),
           ...(kpi === 'feedback' ? { clientFeedback: ClientFeedback.GOOD } : {}),
           candidate: candidateBase,
@@ -286,6 +293,7 @@ export async function fetchKpiDetail(
     }
 
     case 'total-invoiced':
+    case 'draft-invoiced':
     case 'paid':
     case 'outstanding':
     case 'rejected-inv':
@@ -294,6 +302,7 @@ export async function fetchKpiDetail(
     case 'avg-tat': {
       const titleMap = {
         'total-invoiced': 'Total Invoiced',
+        'draft-invoiced': 'Draft Invoiced',
         paid: 'Paid Invoices',
         outstanding: 'Outstanding (Sent)',
         'rejected-inv': 'Rejected Invoices',
@@ -304,7 +313,7 @@ export async function fetchKpiDetail(
       const statusWhere = invoiceStatusWhere(kpi, today);
       const invoices = await prisma.invoice.findMany({
         where: {
-          ...(kpi === 'overdue-inv' ? {} : { yearMonth: month }),
+          ...(kpi === 'overdue-inv' || allMonths ? {} : { yearMonth: month }),
           organizationId: params.organizationId,
           candidate: candidateBase,
           ...statusWhere,
@@ -468,7 +477,7 @@ export async function fetchKpiDetail(
         where: {
           organizationId: params.organizationId,
           deletedAt: null,
-          yearMonth: month,
+          ...monthScope,
           ...(kpi === 'pending-ts'
             ? { approvalStatus: ApprovalStatus.PENDING }
             : kpi === 'approved-ts'
@@ -738,6 +747,7 @@ function invoiceStatusWhere(
     case 'rejected-inv':
       return { status: InvoiceStatus.REJECTED };
     case 'draft-inv':
+    case 'draft-invoiced':
       return { status: InvoiceStatus.PENDING_REVIEW };
     case 'overdue-inv':
       return { status: InvoiceStatus.SENT, dueDate: { lt: today } };

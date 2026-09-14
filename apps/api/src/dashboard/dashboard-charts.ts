@@ -97,11 +97,17 @@ function monthLabel(yearMonth: string) {
   });
 }
 
+function currentYearMonthUtc() {
+  const now = new Date();
+  const mm = String(now.getUTCMonth() + 1).padStart(2, '0');
+  return `${now.getUTCFullYear()}-${mm}`;
+}
+
 export async function fetchDashboardCharts(
   prisma: PrismaClient,
   params: {
     organizationId: string;
-    month: string;
+    month: string | null;
     clientId?: string;
     ownedClientIds?: string[] | null;
     health?: EngagementHealth;
@@ -112,14 +118,16 @@ export async function fetchDashboardCharts(
     params.ownedClientIds,
     params.clientId,
   );
-  const activeWhere: Prisma.CandidateWhereInput = {
-    ...candidateBase,
-    status: CandidateStatus.ACTIVE,
-  };
   const clientFilter = withClientIdScope(
     params.ownedClientIds ?? null,
     params.clientId,
   );
+
+  const trendAnchor = params.month ?? currentYearMonthUtc();
+  const invoiceMonth = params.month ?? undefined;
+  const reviewMonthScope = params.month
+    ? { yearMonth: params.month }
+    : {};
 
   const atRiskReviewWhere: Prisma.DeliveryReviewWhereInput =
     params.health === EngagementHealth.ON_TRACK
@@ -127,7 +135,7 @@ export async function fetchDashboardCharts(
       : {
           organizationId: params.organizationId,
           deletedAt: null,
-          yearMonth: params.month,
+          ...reviewMonthScope,
           engagementHealth: params.health ?? {
             in: [EngagementHealth.AT_RISK, EngagementHealth.ESCALATED],
           },
@@ -162,7 +170,7 @@ export async function fetchDashboardCharts(
       orderBy: { name: 'asc' },
     }),
     prisma.invoice.findMany({
-      where: invoiceScopeWhere(candidateBase, params.month),
+      where: invoiceScopeWhere(candidateBase, invoiceMonth),
       select: { status: true, amount: true, dueDate: true },
     }),
     prisma.deliveryReview.findMany({
@@ -181,7 +189,7 @@ export async function fetchDashboardCharts(
       by: ['yearMonth'],
       where: {
         candidate: candidateBase,
-        yearMonth: { in: trailingMonths(params.month, 6) },
+        yearMonth: { in: trailingMonths(trendAnchor, 6) },
         status: { in: INVOICED_STATUSES },
       },
       _sum: { amount: true },
@@ -189,7 +197,7 @@ export async function fetchDashboardCharts(
     prisma.invoice.groupBy({
       by: ['candidateId'],
       where: {
-        ...invoiceScopeWhere(candidateBase, params.month),
+        ...invoiceScopeWhere(candidateBase, invoiceMonth),
         status: { in: INVOICED_STATUSES },
       },
       _sum: { amount: true },
@@ -258,7 +266,7 @@ export async function fetchDashboardCharts(
       toNumber(r._sum.amount) ?? 0,
     ]),
   );
-  const revenueTrendByMonth = trailingMonths(params.month, 6).map((m) => ({
+  const revenueTrendByMonth = trailingMonths(trendAnchor, 6).map((m) => ({
     month: m,
     label: monthLabel(m),
     revenue: Math.round(revenueMap.get(m) ?? 0),

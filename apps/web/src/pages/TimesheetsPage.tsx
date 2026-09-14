@@ -191,6 +191,7 @@ export default function TimesheetsPage() {
     onSuccess: async () => {
       setError(null);
       await qc.invalidateQueries({ queryKey: ['invoices'] });
+      await qc.invalidateQueries({ queryKey: ['dashboard'] });
     },
     onError: (err) => setError(apiErrorMessage(err)),
   });

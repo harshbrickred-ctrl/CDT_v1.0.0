@@ -44,9 +44,15 @@ export class DashboardService {
     return `${now.getUTCFullYear()}-${mm}`;
   }
 
+  /** Blank/omitted month → all months (null). Otherwise validated YYYY-MM. */
+  private parseMonthFilter(month?: string): string | null {
+    if (!month?.trim()) return null;
+    return this.resolveMonth(month.trim());
+  }
+
   private invoiceWhere(
     candidateBase: Prisma.CandidateWhereInput,
-    month?: string,
+    month?: string | null,
   ): Prisma.InvoiceWhereInput {
     return {
       ...(month ? { yearMonth: month } : {}),
@@ -60,8 +66,9 @@ export class DashboardService {
     health?: EngagementHealth;
     month?: string;
   }) {
-    const month = this.resolveMonth(params.month);
-    const { periodStart, periodEnd } = periodFromYearMonth(month);
+    const month = this.parseMonthFilter(params.month);
+    const currentMonth = this.resolveMonth();
+    const { periodStart, periodEnd } = periodFromYearMonth(currentMonth);
     const today = utcToday();
     const ownedClientIds = await resolveOwnedClientIds(this.prisma, params.user);
     if (emptyIfNoAccess(ownedClientIds)) {
@@ -80,6 +87,7 @@ export class DashboardService {
       status: CandidateStatus.ACTIVE,
     };
 
+    const monthScope = month ? { yearMonth: month } : {};
     const invoiceBase = this.invoiceWhere(candidateBase, month);
     const organizationId = params.user.organizationId;
 
@@ -97,6 +105,7 @@ export class DashboardService {
       rejectedInvoices,
       overdueInvoices,
       totalInvoicedAgg,
+      draftInvoicedAgg,
       paidAgg,
       outstandingAgg,
       paidInvoicesForTat,
@@ -129,7 +138,7 @@ export class DashboardService {
           organizationId,
           deletedAt: null,
           approvalStatus: ApprovalStatus.PENDING,
-          yearMonth: month,
+          ...monthScope,
           candidate: candidateBase,
         },
       }),
@@ -137,7 +146,7 @@ export class DashboardService {
         where: {
           organizationId,
           deletedAt: null,
-          yearMonth: month,
+          ...monthScope,
           ...(params.health ? { engagementHealth: params.health } : {}),
           candidate: candidateBase,
         },
@@ -152,7 +161,7 @@ export class DashboardService {
         where: {
           organizationId,
           deletedAt: null,
-          yearMonth: month,
+          ...monthScope,
           candidate: candidateBase,
         },
         select: {
@@ -197,6 +206,10 @@ export class DashboardService {
       }),
       this.prisma.invoice.aggregate({
         where: { ...invoiceBase, status: { in: INVOICED_STATUSES } },
+        _sum: { amount: true },
+      }),
+      this.prisma.invoice.aggregate({
+        where: { ...invoiceBase, status: InvoiceStatus.PENDING_REVIEW },
         _sum: { amount: true },
       }),
       this.prisma.invoice.aggregate({
@@ -360,6 +373,7 @@ export class DashboardService {
       escalations: healthBreakdown.escalated,
       totalReleasedCandidates,
       totalInvoiced: toNumber(totalInvoicedAgg._sum.amount) ?? 0,
+      draftInvoiced: toNumber(draftInvoicedAgg._sum.amount) ?? 0,
       paidAmount: toNumber(paidAgg._sum.amount) ?? 0,
       outstandingAmount: toNumber(outstandingAgg._sum.amount) ?? 0,
       rejectedInvoices,
@@ -387,7 +401,7 @@ export class DashboardService {
     };
   }
 
-  private emptySummary(month: string) {
+  private emptySummary(month: string | null) {
     return {
       month,
       activeCandidates: 0,
@@ -397,6 +411,7 @@ export class DashboardService {
       escalations: 0,
       totalReleasedCandidates: 0,
       totalInvoiced: 0,
+      draftInvoiced: 0,
       paidAmount: 0,
       outstandingAmount: 0,
       rejectedInvoices: 0,
@@ -498,7 +513,7 @@ export class DashboardService {
     month?: string;
     detailMonth?: string;
   }) {
-    const month = this.resolveMonth(params.month);
+    const month = this.parseMonthFilter(params.month);
     const ownedClientIds = await resolveOwnedClientIds(this.prisma, params.user);
     try {
       return await fetchKpiDetail(this.prisma, {
@@ -506,7 +521,8 @@ export class DashboardService {
         kpi: params.kpi,
         clientId: params.clientId,
         health: params.health,
-        month,
+        month: month ?? undefined,
+        allMonths: month === null,
         detailMonth: params.detailMonth,
         ownedClientIds,
       });

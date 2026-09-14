@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { motion, useReducedMotion } from 'framer-motion';
 import { clientsApi, dashboardApi, apiErrorMessage } from '../lib/api';
 import { scopeClientsForUser } from '../lib/client-scope';
-import { currentYearMonth, formatInr, formatPct } from '../lib/format';
+import { formatInr, formatPct } from '../lib/format';
 import { fadeUp } from '../lib/motion';
 import { useAuth } from '../context/AuthContext';
 import PageHeader from '../components/ui/PageHeader';
@@ -152,7 +152,8 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const [clientId, setClientId] = useState('');
   const [health, setHealth] = useState('');
-  const [month, setMonth] = useState(currentYearMonth());
+  /** Empty string = all months (overall invoicing). */
+  const [month, setMonth] = useState('');
   const [selectedKpi, setSelectedKpi] = useState<{
     id: DashboardKpiId;
     label: string;
@@ -173,7 +174,8 @@ export default function DashboardPage() {
   );
 
   const params = useMemo(() => {
-    const p: Record<string, string> = { month };
+    const p: Record<string, string> = {};
+    if (month) p.month = month;
     if (clientId) p.clientId = clientId;
     if (health) p.health = health;
     return p;
@@ -185,8 +187,9 @@ export default function DashboardPage() {
   });
 
   const overdueQuery = useQuery({
-    queryKey: ['dashboard', 'overdue-reviews', month],
-    queryFn: () => dashboardApi.overdueReviews({ month }),
+    queryKey: ['dashboard', 'overdue-reviews', month || 'default'],
+    queryFn: () =>
+      dashboardApi.overdueReviews(month ? { month } : undefined),
   });
 
   const summary = summaryQuery.data;
@@ -245,6 +248,13 @@ export default function DashboardPage() {
         id: 'total-invoiced',
         label: 'Total Invoiced',
         value: summary?.totalInvoiced ?? 0,
+        formatValue: formatInr,
+        icon: kpiIcons.invoice,
+      },
+      {
+        id: 'draft-invoiced',
+        label: 'Draft Invoiced',
+        value: summary?.draftInvoiced ?? 0,
         formatValue: formatInr,
         icon: kpiIcons.invoice,
       },
@@ -360,7 +370,8 @@ export default function DashboardPage() {
   }
 
   const kpiDetailParams = useMemo(() => {
-    const p: Record<string, string> = { month };
+    const p: Record<string, string> = {};
+    if (month) p.month = month;
     if (clientId) p.clientId = clientId;
     if (health) p.health = health;
     return p;
@@ -369,18 +380,21 @@ export default function DashboardPage() {
   function resetFilters() {
     setClientId('');
     setHealth('');
-    setMonth(currentYearMonth());
+    setMonth('');
   }
 
-  const hasFilters =
-    clientId !== '' || health !== '' || month !== currentYearMonth();
+  const hasFilters = clientId !== '' || health !== '' || month !== '';
 
   return (
     <div>
       <PageHeader
         eyebrow="Overview"
         title="Dashboard"
-        description="Portfolio health, billing, and operational KPIs for the selected month."
+        description={
+          month
+            ? 'Portfolio health, billing, and operational KPIs for the selected month.'
+            : 'Portfolio health, billing, and operational KPIs across all months.'
+        }
       />
 
       <FilterBar columns={4}>
@@ -408,13 +422,18 @@ export default function DashboardPage() {
           <option value="AT_RISK">At Risk</option>
           <option value="ESCALATED">Escalated</option>
         </Select>
-        <Input
-          id="dash-month"
-          label="Month"
-          type="month"
-          value={month}
-          onChange={(e) => setMonth(e.target.value)}
-        />
+        <div>
+          <Input
+            id="dash-month"
+            label="Month"
+            type="month"
+            value={month}
+            onChange={(e) => setMonth(e.target.value)}
+          />
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {month ? 'Scoped to selected month' : 'All months (overall)'}
+          </p>
+        </div>
         <div className="flex items-end">
           <Button
             type="button"
@@ -444,7 +463,11 @@ export default function DashboardPage() {
         <div className={isFetching ? 'opacity-70 transition-opacity' : ''}>
           <DashboardSection
             title="Candidates & engagements"
-            description="Headcount, health, and risk signals for the selected month."
+            description={
+              month
+                ? 'Headcount, health, and risk signals for the selected month.'
+                : 'Headcount, health, and risk signals across all months.'
+            }
           >
             <div>
               <DashboardBlockLabel>KPI cards</DashboardBlockLabel>

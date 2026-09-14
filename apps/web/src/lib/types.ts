@@ -288,6 +288,7 @@ export type DashboardKpiId =
   | 'escalations'
   | 'released-total'
   | 'total-invoiced'
+  | 'draft-invoiced'
   | 'paid'
   | 'outstanding'
   | 'rejected-inv'
@@ -326,7 +327,7 @@ export interface DashboardKpiDetail {
 }
 
 export interface DashboardSummaryRaw {
-  month?: string;
+  month?: string | null;
   activeCandidates?: number;
   totalCandidates?: number;
   onTrackEngagements?: number;
@@ -334,6 +335,7 @@ export interface DashboardSummaryRaw {
   escalations?: number;
   totalReleasedCandidates?: number;
   totalInvoiced?: number;
+  draftInvoiced?: number;
   paidAmount?: number;
   outstandingAmount?: number;
   rejectedInvoices?: number;
@@ -359,7 +361,7 @@ export interface DashboardSummaryRaw {
 }
 
 export interface DashboardSummary {
-  month: string;
+  month: string | null;
   activeCandidates: number;
   totalCandidates: number;
   onTrackEngagements: number;
@@ -367,6 +369,7 @@ export interface DashboardSummary {
   escalations: number;
   totalReleasedCandidates: number;
   totalInvoiced: number;
+  draftInvoiced: number;
   paidAmount: number;
   outstandingAmount: number;
   rejectedInvoices: number;
