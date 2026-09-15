@@ -17,6 +17,7 @@ import { paginationMeta, paginationSkip } from '@cdt/shared-types';
 import { PrismaService } from '../prisma/prisma.service';
 import { IdSequenceService } from '../common/id-sequence.service';
 import { AuditService } from '../audit/audit.service';
+import { InvoicesService } from '../invoices/invoices.service';
 import {
   emptyIfNoAccess,
   resolveOwnedClientIds,
@@ -51,6 +52,7 @@ export class TimesheetsService {
     private readonly prisma: PrismaService,
     private readonly ids: IdSequenceService,
     private readonly audit: AuditService,
+    private readonly invoices: InvoicesService,
   ) {}
 
   private serialize(row: {
@@ -408,6 +410,24 @@ export class TimesheetsService {
       before: this.serialize(before),
       after: this.serialize(row),
     });
+
+    try {
+      await this.invoices.generate(
+        organizationId,
+        { timesheetId: id },
+        actorUserId,
+      );
+    } catch (err) {
+      await this.prisma.timesheet.update({
+        where: { id },
+        data: {
+          approvalStatus: ApprovalStatus.PENDING,
+          approvedById: null,
+        },
+      });
+      throw err;
+    }
+
     return this.serialize(row);
   }
 

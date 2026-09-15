@@ -122,7 +122,7 @@ export default function InvoicesPage() {
       {!listQuery.isLoading && rows.length === 0 ? (
         <EmptyState
           title="No invoices in this queue"
-          description="Generate invoices from approved timesheets on the Timesheets page."
+          description="Draft invoices are created automatically when a timesheet is approved. Legacy approved timesheets without an invoice can still use Generate on the Timesheets page."
         />
       ) : (
         !listQuery.isLoading && (

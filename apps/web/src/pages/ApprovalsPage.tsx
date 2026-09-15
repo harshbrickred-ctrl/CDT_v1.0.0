@@ -29,6 +29,7 @@ export default function ApprovalsPage() {
   const qc = useQueryClient();
   const [tab, setTab] = useState<Tab>('leave');
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const canAct = user?.role === 'ADMIN' || user?.role === 'ACCOUNT_OWNER';
 
   const leaveQuery = useQuery({
@@ -54,11 +55,19 @@ export default function ApprovalsPage() {
       const reason = window.prompt('Rejection reason (optional)') ?? undefined;
       return leavesApi.reject(id, reason);
     },
-    onSuccess: async () => {
+    onSuccess: async (_data, variables) => {
       setError(null);
+      setSuccess(
+        variables.action === 'approve'
+          ? 'Leave approved.'
+          : 'Leave rejected.',
+      );
       await qc.invalidateQueries({ queryKey: ['leaves'] });
     },
-    onError: (err) => setError(apiErrorMessage(err)),
+    onError: (err) => {
+      setSuccess(null);
+      setError(apiErrorMessage(err));
+    },
   });
 
   const tsMut = useMutation({
@@ -73,11 +82,23 @@ export default function ApprovalsPage() {
       const reason = window.prompt('Rejection reason (optional)') ?? undefined;
       return timesheetsApi.reject(id, reason);
     },
-    onSuccess: async () => {
+    onSuccess: async (_data, variables) => {
       setError(null);
-      await qc.invalidateQueries({ queryKey: ['timesheets'] });
+      setSuccess(
+        variables.action === 'approve'
+          ? 'Timesheet approved and draft invoice created.'
+          : 'Timesheet rejected.',
+      );
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['timesheets'] }),
+        qc.invalidateQueries({ queryKey: ['invoices'] }),
+        qc.invalidateQueries({ queryKey: ['dashboard'] }),
+      ]);
     },
-    onError: (err) => setError(apiErrorMessage(err)),
+    onError: (err) => {
+      setSuccess(null);
+      setError(apiErrorMessage(err));
+    },
   });
 
   const leaveRows = leaveQuery.data?.items ?? [];
@@ -108,6 +129,7 @@ export default function ApprovalsPage() {
       />
 
       {error && <Alert tone="error">{error}</Alert>}
+      {success && <Alert tone="info">{success}</Alert>}
 
       {tab === 'leave' && (
         <>
