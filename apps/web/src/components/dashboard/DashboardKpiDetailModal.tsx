@@ -17,7 +17,7 @@ import BulkFillTimesheetsDialog, {
 
 const CANDIDATE_COLUMNS: DashboardKpiDetailColumn[] = [
   { key: 'publicId', label: 'ID' },
-  { key: 'name', label: 'Candidate' },
+  { key: 'name', label: 'Employee' },
   { key: 'client', label: 'Client' },
   { key: 'role', label: 'Role' },
   { key: 'status', label: 'Status' },
@@ -52,7 +52,7 @@ function entityHref(row: DashboardKpiDetailRow) {
   switch (row.entityType) {
     case 'candidate':
     case 'review':
-      return `/candidates/${row.entityId}`;
+      return `/employees/${row.entityId}`;
     case 'invoice':
       return '/invoices';
     case 'leave':
@@ -77,7 +77,7 @@ function resolveMonthKey(row: DashboardKpiDetailRow): string | null {
 function toBulkCandidates(rows: DashboardKpiDetailRow[]): BulkFillCandidate[] {
   return rows.map((row) => ({
     id: String(row.entityId ?? row.id),
-    name: String(row.name ?? 'Candidate'),
+    name: String(row.name ?? 'Employee'),
     clientId: typeof row.clientId === 'string' ? row.clientId : null,
     status: typeof row.status === 'string' ? row.status : null,
   }));
@@ -320,7 +320,7 @@ export default function DashboardKpiDetailModal({
             )}
             {display.showingMonths && (
               <p className="mt-3 text-xs text-muted-foreground">
-                Select a month to see candidates missing that timesheet.
+                Select a month to see employees missing that timesheet.
               </p>
             )}
           </div>

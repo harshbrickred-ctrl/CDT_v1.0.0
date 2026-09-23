@@ -273,7 +273,7 @@ export const searchApi = {
         publicId: c.publicId,
         label: c.fullName,
         subtitle: [c.status, c.client?.name].filter(Boolean).join(' · ') || null,
-        href: `/candidates/${c.publicId || c.id}`,
+        href: `/employees/${c.publicId || c.id}`,
       }),
     );
     const clients = (raw?.clients ?? []).map(

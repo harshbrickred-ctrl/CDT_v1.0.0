@@ -144,7 +144,7 @@ export default function ClientsPage() {
       <PageHeader
         eyebrow="Master data"
         title="Clients"
-        description="Normalized client master used across candidates and dashboards."
+        description="Normalized client master used across employees and dashboards."
         actions={
           <button type="button" className={btnPrimary} onClick={openCreate}>
             New client
@@ -158,7 +158,7 @@ export default function ClientsPage() {
       {!listQuery.isLoading && rows.length === 0 ? (
         <EmptyState
           title="No clients"
-          description="Add a client before creating candidates."
+          description="Add a client before creating employees."
           action={
             <button type="button" className={btnPrimary} onClick={openCreate}>
               New client

@@ -97,7 +97,7 @@ export default function CandidateDetailPage() {
           `Released. Missing timesheets for ${missing.join(', ')}. Open Timesheets to fill them for invoicing.`,
         );
       } else {
-        setNotice('Candidate released successfully.');
+        setNotice('Employee released successfully.');
       }
       await qc.invalidateQueries({ queryKey: ['candidates'] });
     },
@@ -108,7 +108,7 @@ export default function CandidateDetailPage() {
     mutationFn: () => candidatesApi.remove(candidateKey),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ['candidates'] });
-      navigate('/candidates');
+      navigate('/employees');
     },
     onError: (err) => setError(apiErrorMessage(err)),
   });
@@ -116,7 +116,7 @@ export default function CandidateDetailPage() {
   function onRelease(e: FormEvent) {
     e.preventDefault();
     if (!effectiveDate) {
-      setError('End date is required to release a candidate.');
+      setError('End date is required to release an employee.');
       return;
     }
     setError(null);
@@ -127,10 +127,10 @@ export default function CandidateDetailPage() {
   if (detailQuery.isError || !candidate) {
     return (
       <EmptyState
-        title="Candidate not found"
-        description={apiErrorMessage(detailQuery.error, 'Unable to load candidate.')}
+        title="Employee not found"
+        description={apiErrorMessage(detailQuery.error, 'Unable to load employee.')}
         action={
-          <Link to="/candidates" className={btnSecondary}>
+          <Link to="/employees" className={btnSecondary}>
             Back to list
           </Link>
         }
@@ -151,22 +151,22 @@ export default function CandidateDetailPage() {
     <div>
       <div className="mb-4">
         <Link
-          to="/candidates"
+          to="/employees"
           className="text-sm font-medium text-muted-foreground transition hover:text-primary"
         >
-          ← Candidates
+          ← Employees
         </Link>
       </div>
 
       <PageHeader
-        eyebrow="Candidate"
+        eyebrow="Employee"
         title={candidate.fullName}
         description="Overview, leave, timesheets, and delivery reviews."
         actions={
           <div className="flex flex-wrap gap-2">
             {canManage && (
               <Link
-                to={`/candidates?edit=${candidate.id}`}
+                to={`/employees?edit=${candidate.id}`}
                 className={btnSecondary}
               >
                 Edit
@@ -180,7 +180,7 @@ export default function CandidateDetailPage() {
                 onClick={() => {
                   if (
                     !window.confirm(
-                      `Delete candidate “${candidate.fullName}”? This cannot be undone from the list.`,
+                      `Delete employee “${candidate.fullName}”? This cannot be undone from the list.`,
                     )
                   ) {
                     return;
@@ -236,7 +236,7 @@ export default function CandidateDetailPage() {
       <Card accent className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Candidate ID
+            Employee ID
           </p>
           <p className="mt-1 text-sm font-medium">
             <PublicId value={candidate.publicId} />
@@ -375,7 +375,7 @@ export default function CandidateDetailPage() {
       {tab === 'leave' && (
         <TabTable
           loading={leaveQuery.isLoading}
-          empty="No leave records for this candidate."
+          empty="No leave records for this employee."
           headers={['ID', 'Type', 'Dates', 'Days', 'Status']}
           rows={(leaveQuery.data?.items ?? []).map((l) => [
             <PublicId key="id" value={l.publicId} />,
@@ -484,7 +484,7 @@ export default function CandidateDetailPage() {
 
       <Dialog
         open={releaseOpen}
-        title="Release candidate"
+        title="Release employee"
         onClose={() => {
           setReleaseOpen(false);
           setError(null);

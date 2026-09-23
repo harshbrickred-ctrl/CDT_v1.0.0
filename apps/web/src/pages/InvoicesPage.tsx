@@ -131,7 +131,7 @@ export default function InvoicesPage() {
               <thead>
                 <tr>
                   <th className={thClass}>Invoice ID</th>
-                  <th className={thClass}>Candidate</th>
+                  <th className={thClass}>Employee</th>
                   <th className={thClass}>Month</th>
                   <th className={thClass}>Calculation</th>
                   <th className={thClass}>Amount</th>

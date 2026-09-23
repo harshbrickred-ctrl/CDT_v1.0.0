@@ -77,7 +77,7 @@ function samplePayload(mode: 'json' | 'csv', kind: EntityKind) {
   }
   return kind === 'clients'
     ? 'name,code\nAcme,ACME'
-    : 'fullName,clientName,joinedOn\nAlex Candidate,Acme,2026-07-01';
+    : 'fullName,clientName,joinedOn\nAlex Employee,Acme,2026-07-01';
 }
 
 export default function SettingsImportPage() {
@@ -171,7 +171,7 @@ export default function SettingsImportPage() {
                 }}
               >
                 <option value="clients">Clients</option>
-                <option value="candidates">Candidates</option>
+                <option value="candidates">Employees</option>
               </select>
             </div>
           </div>
@@ -186,7 +186,7 @@ export default function SettingsImportPage() {
               spellCheck={false}
             />
             <p className="mt-1 text-xs text-muted-foreground">
-              Candidates: use <code>clientName</code>, <code>clientCode</code>, or{' '}
+              Employees: use <code>clientName</code>, <code>clientCode</code>, or{' '}
               <code>clientId</code>.
             </p>
           </div>

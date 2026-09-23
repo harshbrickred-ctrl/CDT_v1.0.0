@@ -181,7 +181,7 @@ export default function LeavePage() {
     e.preventDefault();
     setError(null);
     if (!form.candidateId) {
-      setError('Select a candidate to continue.');
+      setError('Select an employee to continue.');
       return;
     }
     if (computedDays == null) {
@@ -224,7 +224,7 @@ export default function LeavePage() {
       <PageHeader
         eyebrow="Presence"
         title="Leave"
-        description="Search a candidate, pick dates, and mark leave in a few steps."
+        description="Search an employee, pick dates, and mark leave in a few steps."
         actions={
           <button type="button" className={btnPrimary} onClick={openDialog}>
             Mark leave
@@ -284,8 +284,8 @@ export default function LeavePage() {
           title={hasFilters ? 'No matching leave' : 'No leave records yet'}
           description={
             hasFilters
-              ? 'Try clearing filters or mark leave for another candidate.'
-              : 'Use Mark leave to record time off for an active candidate.'
+              ? 'Try clearing filters or mark leave for another employee.'
+              : 'Use Mark leave to record time off for an active employee.'
           }
         />
       ) : (
@@ -295,7 +295,7 @@ export default function LeavePage() {
               <thead>
                 <tr>
                   <th className={thClass}>Leave ID</th>
-                  <th className={thClass}>Candidate</th>
+                  <th className={thClass}>Employee</th>
                   <th className={thClass}>Client</th>
                   <th className={thClass}>Type</th>
                   <th className={thClass}>Dates</th>
@@ -348,11 +348,11 @@ export default function LeavePage() {
               value={<PublicId value={selectedLeave.publicId} />}
             />
             <DetailField
-              label="Candidate ID"
+              label="Employee ID"
               value={<PublicId value={selectedLeave.candidate?.publicId} />}
             />
             <DetailField
-              label="Candidate name"
+              label="Employee name"
               value={selectedLeave.candidate?.fullName}
             />
             <DetailField

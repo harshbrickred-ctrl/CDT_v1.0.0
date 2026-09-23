@@ -11,8 +11,8 @@ import {
 
 const FEATURES = [
   {
-    title: 'Candidate master',
-    description: 'Single source of truth for every placed candidate.',
+    title: 'Employee master',
+    description: 'Single source of truth for every placed employee.',
   },
   {
     title: 'Leave & timesheets',

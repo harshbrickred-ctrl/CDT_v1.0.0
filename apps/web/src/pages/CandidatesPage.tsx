@@ -291,7 +291,7 @@ export default function CandidatesPage() {
     <div>
       <PageHeader
         eyebrow="Roster"
-        title="Candidates"
+        title="Employees"
         description="Deployed delivery roster with public IDs."
         actions={
           <button
@@ -299,7 +299,7 @@ export default function CandidatesPage() {
             className={btnPrimary}
             onClick={() => openCreate()}
           >
-            New candidate
+            New employee
           </button>
         }
       />
@@ -359,15 +359,15 @@ export default function CandidatesPage() {
 
       {!listQuery.isLoading && rows.length === 0 ? (
         <EmptyState
-          title="No candidates"
-          description="Create a candidate to start leave, timesheets, and reviews."
+          title="No employees"
+          description="Create an employee to start leave, timesheets, and reviews."
           action={
             <button
               type="button"
               className={btnPrimary}
               onClick={() => openCreate()}
             >
-              New candidate
+              New employee
             </button>
           }
         />
@@ -376,7 +376,7 @@ export default function CandidatesPage() {
           <table className="min-w-full">
             <thead>
               <tr>
-                <th className={thClass}>Candidate ID</th>
+                <th className={thClass}>Employee ID</th>
                 <th className={thClass}>Name</th>
                 <th className={thClass}>Client</th>
                 <th className={thClass}>Status</th>
@@ -408,7 +408,7 @@ export default function CandidatesPage() {
 
       <Dialog
         open={Boolean(selectedCandidate)}
-        title="Candidate details"
+        title="Employee details"
         wide
         onClose={() => setSelectedCandidate(null)}
       >
@@ -416,11 +416,11 @@ export default function CandidatesPage() {
           <>
             <DetailGrid>
               <DetailField
-                label="Candidate ID"
+                label="Employee ID"
                 value={<PublicId value={selectedCandidate.publicId} />}
               />
               <DetailField
-                label="Candidate name"
+                label="Employee name"
                 value={selectedCandidate.fullName}
               />
               <DetailField
@@ -510,7 +510,7 @@ export default function CandidatesPage() {
                     if (!selectedCandidate) return;
                     if (
                       !window.confirm(
-                        `Delete candidate “${selectedCandidate.fullName}”? This cannot be undone from the list.`,
+                        `Delete employee “${selectedCandidate.fullName}”? This cannot be undone from the list.`,
                       )
                     ) {
                       return;
@@ -531,7 +531,7 @@ export default function CandidatesPage() {
                 </button>
               )}
               <Link
-                to={`/candidates/${selectedCandidate.publicId || selectedCandidate.id}`}
+                to={`/employees/${selectedCandidate.publicId || selectedCandidate.id}`}
                 className={btnPrimary}
                 onClick={() => setSelectedCandidate(null)}
               >
@@ -544,7 +544,7 @@ export default function CandidatesPage() {
 
       <Dialog
         open={formOpen}
-        title={editingCandidate ? 'Edit candidate' : 'Create candidate'}
+        title={editingCandidate ? 'Edit employee' : 'Create employee'}
         wide
         onClose={() => {
           setFormOpen(false);
@@ -555,7 +555,7 @@ export default function CandidatesPage() {
           {!editingCandidate && (
             <div className="rounded-xl border border-dashed border-border bg-muted/25 px-4 py-3">
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                Candidate ID
+                Employee ID
               </p>
               <p className="mt-1 text-sm text-muted-foreground">
                 Assigned automatically on save (e.g. CD-00001). Not editable.
@@ -566,7 +566,7 @@ export default function CandidatesPage() {
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="sm:col-span-2">
               <label className={labelClass} htmlFor="cand-name">
-                Candidate name *
+                Employee name *
               </label>
               <input
                 id="cand-name"
@@ -763,7 +763,7 @@ export default function CandidatesPage() {
                   disabled
                 />
                 <p className="mt-1 text-[11px] text-muted-foreground">
-                  New candidates are created as Active.
+                  New employees are created as Active.
                 </p>
               </div>
             )}
@@ -812,7 +812,7 @@ export default function CandidatesPage() {
                 ? 'Saving…'
                 : editingCandidate
                   ? 'Save changes'
-                  : 'Create candidate'}
+                  : 'Create employee'}
             </button>
           </div>
         </form>

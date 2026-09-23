@@ -148,7 +148,7 @@ export default function DeliveryReviewsPage() {
   function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (!form.candidateId) {
-      setError('Select a candidate.');
+      setError('Select an employee.');
       return;
     }
     if (needsEscalationNotes && !form.escalationNotes.trim()) {
@@ -214,7 +214,7 @@ export default function DeliveryReviewsPage() {
             <thead>
               <tr>
                 <th className={thClass}>Delivery ID</th>
-                <th className={thClass}>Candidate</th>
+                <th className={thClass}>Employee</th>
                 <th className={thClass}>Client</th>
                 <th className={thClass}>Review period</th>
                 <th className={thClass}>Health</th>
@@ -265,11 +265,11 @@ export default function DeliveryReviewsPage() {
           <DetailGrid>
             <DetailField label="Delivery ID" value={<PublicId value={selected.publicId} />} />
             <DetailField
-              label="Candidate ID"
+              label="Employee ID"
               value={selected.candidate?.publicId ?? '—'}
             />
             <DetailField
-              label="Candidate name"
+              label="Employee name"
               value={selected.candidate?.fullName ?? '—'}
             />
             <DetailField
@@ -328,7 +328,6 @@ export default function DeliveryReviewsPage() {
       >
         <form onSubmit={onSubmit} className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <label className={labelClass}>Candidate</label>
             <CandidateCombobox
               required
               value={form.candidateId}

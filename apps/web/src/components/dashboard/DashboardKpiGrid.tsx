@@ -37,7 +37,7 @@ export default function DashboardKpiGrid({
 export function DashboardSkeletonGrid() {
   return (
     <div className="mb-8 space-y-8">
-      {['Candidates', 'Invoicing', 'Operations', 'Feedback'].map((section) => (
+      {['Employees', 'Invoicing', 'Operations', 'Feedback'].map((section) => (
         <div
           key={section}
           className="overflow-hidden rounded-3xl border border-border/70"
@@ -52,7 +52,7 @@ export function DashboardSkeletonGrid() {
                 length:
                   section === 'Invoicing'
                     ? 6
-                    : section === 'Candidates'
+                    : section === 'Employees'
                       ? 6
                       : section === 'Operations'
                         ? 5

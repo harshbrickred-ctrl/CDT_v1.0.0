@@ -330,8 +330,8 @@ export default function BulkFillTimesheetsDialog({
     if (rows.length === 0) {
       setError(
         mode === 'by-client'
-          ? 'No active candidates for this client.'
-          : 'No candidates to fill.',
+          ? 'No active employees for this client.'
+          : 'No employees to fill.',
       );
       return;
     }
@@ -443,7 +443,7 @@ export default function BulkFillTimesheetsDialog({
           <p className="text-sm text-muted-foreground">
             Filling missing timesheets for{' '}
             <strong>{formatYearMonthLabel(yearMonth)}</strong> (
-            {candidates.length} candidate
+            {candidates.length} employee
             {candidates.length === 1 ? '' : 's'}).
           </p>
         )}
@@ -451,7 +451,7 @@ export default function BulkFillTimesheetsDialog({
         {mode === 'by-client' && !clientId ? (
           <EmptyState
             title="Select a client"
-            description="Choose a client and month to load active candidates."
+            description="Choose a client and month to load active employees."
           />
         ) : loading ? (
           <Spinner />
@@ -459,13 +459,13 @@ export default function BulkFillTimesheetsDialog({
           <EmptyState
             title={
               mode === 'by-client'
-                ? 'No active candidates'
-                : 'No candidates to fill'
+                ? 'No active employees'
+                : 'No employees to fill'
             }
             description={
               mode === 'by-client'
-                ? 'This client has no active candidates to fill.'
-                : 'There are no candidates in this missing-timesheet list.'
+                ? 'This client has no active employees to fill.'
+                : 'There are no employees in this missing-timesheet list.'
             }
           />
         ) : (
@@ -473,7 +473,7 @@ export default function BulkFillTimesheetsDialog({
             <table className="min-w-full">
               <thead>
                 <tr>
-                  <th className={thClass}>Candidate</th>
+                  <th className={thClass}>Employee</th>
                   <th className={thClass}>Working days</th>
                   <th className={thClass}>Leave / LOP</th>
                   <th className={thClass}>Days worked</th>

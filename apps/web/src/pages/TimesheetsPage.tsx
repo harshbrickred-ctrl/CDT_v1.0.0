@@ -368,7 +368,7 @@ export default function TimesheetsPage() {
     e.preventDefault();
     setError(null);
     if (!form.candidateId) {
-      setError('Select a candidate to continue.');
+      setError('Select an employee to continue.');
       return;
     }
     if (!form.yearMonth) {
@@ -405,7 +405,7 @@ export default function TimesheetsPage() {
       <PageHeader
         eyebrow="Attendance"
         title="Timesheets"
-        description="Search a candidate, confirm the month, and fill attendance with leave-aware suggestions."
+        description="Search an employee, confirm the month, and fill attendance with leave-aware suggestions."
         actions={
           <div className="flex flex-wrap gap-2">
             <button type="button" className={btnSecondary} onClick={openBulk}>
@@ -479,7 +479,7 @@ export default function TimesheetsPage() {
           description={
             hasFilters
               ? 'Try another month or clear filters.'
-              : 'Use Fill timesheet to capture monthly attendance for an active candidate.'
+              : 'Use Fill timesheet to capture monthly attendance for an active employee.'
           }
         />
       ) : (
@@ -489,7 +489,7 @@ export default function TimesheetsPage() {
               <thead>
                 <tr>
                   <th className={thClass}>Timesheet ID</th>
-                  <th className={thClass}>Candidate</th>
+                  <th className={thClass}>Employee</th>
                   <th className={thClass}>Client</th>
                   <th className={thClass}>Month</th>
                   <th className={thClass}>Attendance %</th>
@@ -544,11 +544,11 @@ export default function TimesheetsPage() {
                 value={<PublicId value={selectedTimesheet.publicId} />}
               />
               <DetailField
-                label="Candidate ID"
+                label="Employee ID"
                 value={<PublicId value={selectedTimesheet.candidate?.publicId} />}
               />
               <DetailField
-                label="Candidate name"
+                label="Employee name"
                 value={selectedTimesheet.candidate?.fullName}
               />
               <DetailField
@@ -651,7 +651,7 @@ export default function TimesheetsPage() {
           <CandidateCombobox
             required
             statuses={['ACTIVE', 'RELEASED']}
-            placeholder="Search active or released candidates…"
+            placeholder="Search active or released employees…"
             value={form.candidateId}
             selected={selectedCandidate}
             onChange={(c) => {

@@ -28,7 +28,7 @@ function clientName(
 }
 
 export default function CandidateCombobox({
-  label = 'Candidate',
+  label = 'Employee',
   value,
   selected,
   onChange,
@@ -195,8 +195,8 @@ export default function CandidateCombobox({
           {!isFetching && items.length === 0 && (
             <li className="px-3 py-2.5 text-xs text-muted-foreground">
               {debounced
-                ? `No candidates match “${debounced}”.`
-                : 'No candidates found.'}
+                ? `No employees match “${debounced}”.`
+                : 'No employees found.'}
             </li>
           )}
           {!isFetching &&

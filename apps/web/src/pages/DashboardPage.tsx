@@ -261,13 +261,13 @@ export default function DashboardPage() {
     () => [
       {
         id: 'total',
-        label: 'Total Candidates (All Statuses)',
+        label: 'Total Employees (All Statuses)',
         value: summary?.totalCandidates ?? 0,
         icon: kpiIcons.users,
       },
       {
         id: 'active',
-        label: 'Active Candidates',
+        label: 'Active Employees',
         value: summary?.activeCandidates ?? 0,
         icon: kpiIcons.users,
       },
@@ -294,7 +294,7 @@ export default function DashboardPage() {
       },
       {
         id: 'released-total',
-        label: 'Total Released Candidates',
+        label: 'Total Released Employees',
         value: summary?.totalReleasedCandidates ?? 0,
         icon: kpiIcons.released,
       },
@@ -564,7 +564,7 @@ export default function DashboardPage() {
       ) : (
         <div className={isFetching ? 'opacity-70 transition-opacity' : ''}>
           <DashboardSection
-            title="Candidates & engagements"
+            title="Employees & engagements"
             description={
               month
                 ? 'Headcount, health, and risk signals for the selected month.'
@@ -618,7 +618,7 @@ export default function DashboardPage() {
                   {topClients.length === 0 ? (
                     <EmptyState
                       title="No client rollup yet"
-                      description="Once candidates and reviews exist for this month, client headcount will appear here."
+                      description="Once employees and reviews exist for this month, client headcount will appear here."
                     />
                   ) : (
                     <div className="overflow-x-auto">

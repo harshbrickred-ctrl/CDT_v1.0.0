@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import AppShell from './components/layout/AppShell';
 import LoginPage from './pages/LoginPage';
@@ -22,6 +22,11 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function RedirectCandidateToEmployee() {
+  const { id } = useParams();
+  return <Navigate to={`/employees/${id}`} replace />;
+}
+
 export default function App() {
   return (
     <Routes>
@@ -35,8 +40,16 @@ export default function App() {
       >
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/candidates" element={<CandidatesPage />} />
-        <Route path="/candidates/:id" element={<CandidateDetailPage />} />
+        <Route path="/employees" element={<CandidatesPage />} />
+        <Route path="/employees/:id" element={<CandidateDetailPage />} />
+        <Route
+          path="/candidates"
+          element={<Navigate to="/employees" replace />}
+        />
+        <Route
+          path="/candidates/:id"
+          element={<RedirectCandidateToEmployee />}
+        />
         <Route path="/leave" element={<LeavePage />} />
         <Route path="/leaves" element={<Navigate to="/leave" replace />} />
         <Route path="/timesheets" element={<TimesheetsPage />} />

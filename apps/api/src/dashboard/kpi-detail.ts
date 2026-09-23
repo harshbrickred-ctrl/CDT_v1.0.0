@@ -185,7 +185,7 @@ export async function fetchKpiDetail(
     case 'active':
       return candidateRows(
         kpi,
-        'Active Candidates',
+        'Active Employees',
         await prisma.candidate.findMany({
           where: { ...candidateBase, status: CandidateStatus.ACTIVE },
           select: candidateSelect,
@@ -197,7 +197,7 @@ export async function fetchKpiDetail(
     case 'total':
       return candidateRows(
         kpi,
-        'Total Candidates (All Statuses)',
+        'Total Employees (All Statuses)',
         await prisma.candidate.findMany({
           where: candidateBase,
           select: candidateSelect,
@@ -210,7 +210,7 @@ export async function fetchKpiDetail(
     case 'released-total':
       return candidateRows(
         kpi,
-        'Total Released Candidates',
+        'Total Released Employees',
         await prisma.candidate.findMany({
           where: { ...candidateBase, status: CandidateStatus.RELEASED },
           select: candidateSelect,
@@ -272,7 +272,7 @@ export async function fetchKpiDetail(
         title: titleMap[kpi],
         columns: [
           { key: 'publicId', label: 'Review' },
-          { key: 'candidate', label: 'Candidate' },
+          { key: 'candidate', label: 'Employee' },
           { key: 'client', label: 'Client' },
           { key: 'health', label: 'Health' },
           { key: 'feedback', label: 'Feedback' },
@@ -334,7 +334,7 @@ export async function fetchKpiDetail(
         kpi === 'avg-tat'
           ? [
               { key: 'publicId', label: 'Invoice' },
-              { key: 'candidate', label: 'Candidate' },
+              { key: 'candidate', label: 'Employee' },
               { key: 'client', label: 'Client' },
               { key: 'amount', label: 'Amount', align: 'right' },
               { key: 'sentAt', label: 'Sent' },
@@ -343,7 +343,7 @@ export async function fetchKpiDetail(
             ]
           : [
               { key: 'publicId', label: 'Invoice' },
-              { key: 'candidate', label: 'Candidate' },
+              { key: 'candidate', label: 'Employee' },
               { key: 'client', label: 'Client' },
               { key: 'amount', label: 'Amount', align: 'right' },
               { key: 'status', label: 'Status' },
@@ -403,7 +403,7 @@ export async function fetchKpiDetail(
         title: 'Pending Leave Approvals',
         columns: [
           { key: 'publicId', label: 'Leave' },
-          { key: 'candidate', label: 'Candidate' },
+          { key: 'candidate', label: 'Employee' },
           { key: 'client', label: 'Client' },
           { key: 'type', label: 'Type' },
           { key: 'dates', label: 'Dates' },
@@ -450,7 +450,7 @@ export async function fetchKpiDetail(
         title: 'On Leave Today',
         columns: [
           { key: 'publicId', label: 'Leave' },
-          { key: 'candidate', label: 'Candidate' },
+          { key: 'candidate', label: 'Employee' },
           { key: 'client', label: 'Client' },
           { key: 'role', label: 'Role' },
           { key: 'dates', label: 'Dates' },
@@ -507,7 +507,7 @@ export async function fetchKpiDetail(
               : 'Utilization by Timesheet',
         columns: [
           { key: 'publicId', label: 'Timesheet' },
-          { key: 'candidate', label: 'Candidate' },
+          { key: 'candidate', label: 'Employee' },
           { key: 'client', label: 'Client' },
           { key: 'daysWorked', label: 'Days worked', align: 'right' },
           { key: 'utilization', label: 'Utilization', align: 'right' },
@@ -630,7 +630,7 @@ export async function fetchKpiDetail(
           detailMonth: null,
           columns: [
             { key: 'month', label: 'Month' },
-            { key: 'candidateCount', label: 'Candidates', align: 'right' },
+            { key: 'candidateCount', label: 'Employees', align: 'right' },
           ],
           rows: monthRows,
           candidatesByMonth,
@@ -647,7 +647,7 @@ export async function fetchKpiDetail(
         detailMonth,
         columns: [
           { key: 'publicId', label: 'ID' },
-          { key: 'name', label: 'Candidate' },
+          { key: 'name', label: 'Employee' },
           { key: 'client', label: 'Client' },
           { key: 'role', label: 'Role' },
           { key: 'status', label: 'Status' },
@@ -702,7 +702,7 @@ function candidateRows(
 ): KpiDetailResult {
   const columns: KpiDetailColumn[] = [
     { key: 'publicId', label: 'ID' },
-    { key: 'name', label: 'Candidate' },
+    { key: 'name', label: 'Employee' },
     { key: 'client', label: 'Client' },
     { key: 'role', label: 'Role' },
   ];
@@ -771,7 +771,7 @@ function emptyReviewDetail(
     title,
     columns: [
       { key: 'publicId', label: 'Review' },
-      { key: 'candidate', label: 'Candidate' },
+      { key: 'candidate', label: 'Employee' },
       { key: 'client', label: 'Client' },
       { key: 'health', label: 'Health' },
       { key: 'feedback', label: 'Feedback' },

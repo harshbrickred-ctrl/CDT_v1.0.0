@@ -145,7 +145,7 @@ export default function ApprovalsPage() {
                 <thead>
                   <tr>
                     <th className={thClass}>ID</th>
-                    <th className={thClass}>Candidate</th>
+                    <th className={thClass}>Employee</th>
                     <th className={thClass}>Type</th>
                     <th className={thClass}>Dates</th>
                     <th className={thClass}>Actions</th>
@@ -213,7 +213,7 @@ export default function ApprovalsPage() {
                 <thead>
                   <tr>
                     <th className={thClass}>ID</th>
-                    <th className={thClass}>Candidate</th>
+                    <th className={thClass}>Employee</th>
                     <th className={thClass}>Month</th>
                     <th className={thClass}>Attendance</th>
                     <th className={thClass}>Actions</th>

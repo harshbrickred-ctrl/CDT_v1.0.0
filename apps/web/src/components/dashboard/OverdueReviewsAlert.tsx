@@ -14,7 +14,7 @@ export default function OverdueReviewsAlert({
     <Alert tone="warning" className="mb-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p>
-          <span className="font-semibold">{count}</span> active candidate
+          <span className="font-semibold">{count}</span> active employee
           {count === 1 ? '' : 's'} missing delivery review
           {month ? ` for ${month}` : ''}.
         </p>
