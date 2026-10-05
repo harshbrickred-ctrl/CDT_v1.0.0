@@ -21,6 +21,7 @@ export class DashboardController {
     @Query('month') month?: string,
     @Query('deliveryOwnerUserId') deliveryOwnerUserId?: string,
     @Query('accountOwnerUserId') accountOwnerUserId?: string,
+    @Query('costCenter') costCenter?: string,
   ) {
     return this.dashboard.summary({
       user,
@@ -29,6 +30,7 @@ export class DashboardController {
       month,
       deliveryOwnerUserId,
       accountOwnerUserId,
+      costCenter,
     });
   }
 
@@ -38,11 +40,13 @@ export class DashboardController {
     @Query('month') month?: string,
     @Query('deliveryOwnerUserId') deliveryOwnerUserId?: string,
     @Query('accountOwnerUserId') accountOwnerUserId?: string,
+    @Query('costCenter') costCenter?: string,
   ) {
     return this.dashboard.overdueReviews(user, {
       month,
       deliveryOwnerUserId,
       accountOwnerUserId,
+      costCenter,
     });
   }
 
@@ -56,6 +60,7 @@ export class DashboardController {
     @Query('detailMonth') detailMonth?: string,
     @Query('deliveryOwnerUserId') deliveryOwnerUserId?: string,
     @Query('accountOwnerUserId') accountOwnerUserId?: string,
+    @Query('costCenter') costCenter?: string,
   ) {
     return this.dashboard.kpiDetail({
       user,
@@ -66,6 +71,7 @@ export class DashboardController {
       detailMonth,
       deliveryOwnerUserId,
       accountOwnerUserId,
+      costCenter,
     });
   }
 }

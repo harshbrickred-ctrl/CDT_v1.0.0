@@ -27,7 +27,7 @@ export default function Input({
       <div
         className={`flex items-center gap-2 rounded-lg border bg-background px-3 transition-all duration-200 ${
           focused
-            ? 'border-primary/60 shadow-[0_0_0_3px_hsl(38_92%_46%_/_0.12)]'
+            ? 'border-primary/60 shadow-[0_0_0_3px_hsl(var(--primary)_/_0.12)]'
             : 'border-border hover:border-border/80'
         }`}
       >

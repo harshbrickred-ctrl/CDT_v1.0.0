@@ -9,9 +9,14 @@ import {
 } from '../lib/api';
 import { scopeClientsForUser } from '../lib/client-scope';
 import { formatDate } from '../lib/format';
-import { labelFromOptions, WORK_LOCATION_OPTIONS } from '../lib/masterLists';
+import {
+  COST_CENTER_OPTIONS,
+  labelFromOptions,
+  WORK_LOCATION_OPTIONS,
+} from '../lib/masterLists';
 import type { Candidate } from '../lib/types';
 import { useAuth } from '../context/AuthContext';
+import { useCostCenter } from '../context/CostCenterContext';
 import PageHeader from '../components/ui/PageHeader';
 import PublicId from '../components/ui/PublicId';
 import StatusPill from '../components/ui/StatusPill';
@@ -42,6 +47,7 @@ const CURRENCY_OPTIONS = [
 const emptyForm = {
   fullName: '',
   clientId: '',
+  costCenter: 'BRICKRED',
   projectAccount: '',
   roleTitle: '',
   clientReportingManager: '',
@@ -63,6 +69,7 @@ function optionalFields(form: typeof emptyForm) {
   return {
     clientId: form.clientId,
     fullName: form.fullName,
+    costCenter: form.costCenter,
     projectAccount: form.projectAccount || undefined,
     roleTitle: form.roleTitle || undefined,
     clientReportingManager: form.clientReportingManager || undefined,
@@ -94,6 +101,7 @@ function candidateToForm(c: Candidate): typeof emptyForm {
   return {
     fullName: c.fullName ?? '',
     clientId: c.clientId ?? c.client?.id ?? '',
+    costCenter: c.costCenter || 'BRICKRED',
     projectAccount: c.projectAccount ?? '',
     roleTitle: c.roleTitle ?? '',
     clientReportingManager: c.clientReportingManager ?? '',
@@ -121,6 +129,7 @@ function candidateToForm(c: Candidate): typeof emptyForm {
 
 export default function CandidatesPage() {
   const { user } = useAuth();
+  const { costCenter, costCenterParam } = useCostCenter();
   const qc = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [status, setStatus] = useState('ACTIVE');
@@ -138,9 +147,18 @@ export default function CandidatesPage() {
   const canManage =
     user?.role === 'ADMIN' || user?.role === 'DELIVERY_OWNER';
 
+  const defaultFormCostCenter =
+    costCenter === 'ALL' ? 'BRICKRED' : costCenter;
+
+  const blankForm = (): typeof emptyForm => ({
+    ...emptyForm,
+    costCenter: defaultFormCostCenter,
+  });
+
   const clientsQuery = useQuery({
-    queryKey: ['clients', 'all'],
-    queryFn: () => clientsApi.list({ pageSize: 200 }),
+    queryKey: ['clients', 'all', costCenterParam],
+    queryFn: () =>
+      clientsApi.list({ pageSize: 200, costCenter: costCenterParam }),
   });
 
   const scopedClients = useMemo(
@@ -181,12 +199,13 @@ export default function CandidatesPage() {
   const accountOwnersForClient = selectedClient?.accountOwners ?? [];
 
   const listQuery = useQuery({
-    queryKey: ['candidates', { status, clientId, q }],
+    queryKey: ['candidates', { status, clientId, q, costCenterParam }],
     queryFn: () =>
       candidatesApi.list({
         status: status || undefined,
         clientId: clientId || undefined,
         q: q || undefined,
+        costCenter: costCenterParam,
         pageSize: 100,
       }),
   });
@@ -202,7 +221,7 @@ export default function CandidatesPage() {
     onSuccess: async () => {
       setFormOpen(false);
       setEditingCandidate(null);
-      setForm(emptyForm);
+      setForm(blankForm());
       setError(null);
       setSelectedCandidate(null);
       await qc.invalidateQueries({ queryKey: ['candidates'] });
@@ -225,7 +244,7 @@ export default function CandidatesPage() {
   }
 
   function resetDialog() {
-    setForm(emptyForm);
+    setForm(blankForm());
     setEditingCandidate(null);
     setError(null);
   }
@@ -379,6 +398,7 @@ export default function CandidatesPage() {
                 <th className={thClass}>Employee ID</th>
                 <th className={thClass}>Name</th>
                 <th className={thClass}>Client</th>
+                <th className={thClass}>Cost Center</th>
                 <th className={thClass}>Status</th>
               </tr>
             </thead>
@@ -395,6 +415,9 @@ export default function CandidatesPage() {
                   <td className={tdClass}>{c.fullName}</td>
                   <td className={tdClass}>
                     {c.client?.name ?? c.clientName ?? '—'}
+                  </td>
+                  <td className={tdClass}>
+                    {labelFromOptions(COST_CENTER_OPTIONS, c.costCenter)}
                   </td>
                   <td className={tdClass}>
                     <StatusPill status={c.status} />
@@ -428,6 +451,13 @@ export default function CandidatesPage() {
                 value={
                   selectedCandidate.client?.name ?? selectedCandidate.clientName
                 }
+              />
+              <DetailField
+                label="Cost Center"
+                value={labelFromOptions(
+                  COST_CENTER_OPTIONS,
+                  selectedCandidate.costCenter,
+                )}
               />
               <DetailField
                 label="Project / Account"
@@ -588,6 +618,22 @@ export default function CandidatesPage() {
               {scopedClients.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
+                </option>
+              ))}
+            </Select>
+
+            <Select
+              id="cand-cost-center"
+              label="Cost Center *"
+              required
+              value={form.costCenter}
+              onChange={(e) =>
+                setForm({ ...form, costCenter: e.target.value })
+              }
+            >
+              {COST_CENTER_OPTIONS.map((o) => (
+                <option key={o.code} value={o.code}>
+                  {o.label}
                 </option>
               ))}
             </Select>

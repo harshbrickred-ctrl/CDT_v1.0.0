@@ -32,12 +32,14 @@ export class ClientsController {
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('q') q?: string,
+    @Query('costCenter') costCenter?: string,
   ) {
     return this.clients.findAll(
       user,
       page ? Number(page) : 1,
       pageSize ? Number(pageSize) : 20,
       q,
+      costCenter,
     );
   }
 

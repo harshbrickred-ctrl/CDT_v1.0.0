@@ -15,6 +15,7 @@ import {
   emptyIfNoAccess,
   resolveOwnedClientIds,
   withCandidateClientScope,
+  withCostCenterFilter,
 } from '../common/client-scope';
 import type { AuthUser } from '../common/decorators/current-user.decorator';
 import { throwConflictIfUnique, toNumber } from '../common/prisma-error';
@@ -74,6 +75,7 @@ export class DeliveryReviewsService {
     yearMonth?: string;
     clientId?: string;
     health?: EngagementHealth;
+    costCenter?: string;
   }) {
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 20;
@@ -85,14 +87,21 @@ export class DeliveryReviewsService {
       ownedClientIds,
       params.clientId,
     );
+    const cc = withCostCenterFilter(params.costCenter);
     const where: Prisma.DeliveryReviewWhereInput = {
       organizationId: params.user.organizationId,
       deletedAt: null,
       ...(params.candidateId ? { candidateId: params.candidateId } : {}),
       ...(params.yearMonth ? { yearMonth: params.yearMonth } : {}),
       ...(params.health ? { engagementHealth: params.health } : {}),
-      ...(candidateScope
-        ? { candidate: { deletedAt: null, ...candidateScope } }
+      ...(candidateScope || cc
+        ? {
+            candidate: {
+              deletedAt: null,
+              ...candidateScope,
+              ...(cc ? { costCenter: cc } : {}),
+            },
+          }
         : {}),
     };
     const [total, items] = await this.prisma.$transaction([

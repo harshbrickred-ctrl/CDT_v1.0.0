@@ -33,6 +33,7 @@ export class DeliveryReviewsController {
     @Query('yearMonth') yearMonth?: string,
     @Query('clientId') clientId?: string,
     @Query('health') health?: EngagementHealth,
+    @Query('costCenter') costCenter?: string,
   ) {
     return this.reviews.findAll({
       user,
@@ -42,6 +43,7 @@ export class DeliveryReviewsController {
       yearMonth,
       clientId,
       health,
+      costCenter,
     });
   }
 

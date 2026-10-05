@@ -11,6 +11,7 @@ import { scopeClientsForUser } from '../lib/client-scope';
 import { formatInr, formatPct } from '../lib/format';
 import { fadeUp } from '../lib/motion';
 import { useAuth } from '../context/AuthContext';
+import { useCostCenter } from '../context/CostCenterContext';
 import PageHeader from '../components/ui/PageHeader';
 import EmptyState from '../components/ui/EmptyState';
 import FilterBar from '../components/ui/FilterBar';
@@ -155,6 +156,7 @@ function formatTodayHint() {
 export default function DashboardPage() {
   const prefersReducedMotion = useReducedMotion();
   const { user } = useAuth();
+  const { costCenterParam } = useCostCenter();
   const isAdmin = user?.role === 'ADMIN';
   const [clientId, setClientId] = useState('');
   const [health, setHealth] = useState('');
@@ -168,8 +170,9 @@ export default function DashboardPage() {
   } | null>(null);
 
   const clientsQuery = useQuery({
-    queryKey: ['clients', 'all'],
-    queryFn: () => clientsApi.list({ pageSize: 200 }),
+    queryKey: ['clients', 'all', costCenterParam],
+    queryFn: () =>
+      clientsApi.list({ pageSize: 200, costCenter: costCenterParam }),
   });
 
   const usersQuery = useQuery({
@@ -226,8 +229,16 @@ export default function DashboardPage() {
     if (health) p.health = health;
     if (deliveryOwnerUserId) p.deliveryOwnerUserId = deliveryOwnerUserId;
     if (accountOwnerUserId) p.accountOwnerUserId = accountOwnerUserId;
+    if (costCenterParam) p.costCenter = costCenterParam;
     return p;
-  }, [clientId, health, month, deliveryOwnerUserId, accountOwnerUserId]);
+  }, [
+    clientId,
+    health,
+    month,
+    deliveryOwnerUserId,
+    accountOwnerUserId,
+    costCenterParam,
+  ]);
 
   const summaryQuery = useQuery({
     queryKey: ['dashboard', 'summary', params],
@@ -241,6 +252,7 @@ export default function DashboardPage() {
       month || 'default',
       deliveryOwnerUserId || '',
       accountOwnerUserId || '',
+      costCenterParam || '',
     ],
     queryFn: () =>
       dashboardApi.overdueReviews({
@@ -249,6 +261,7 @@ export default function DashboardPage() {
           ? { deliveryOwnerUserId }
           : {}),
         ...(accountOwnerUserId ? { accountOwnerUserId } : {}),
+        ...(costCenterParam ? { costCenter: costCenterParam } : {}),
       }),
   });
 
@@ -436,8 +449,16 @@ export default function DashboardPage() {
     if (health) p.health = health;
     if (deliveryOwnerUserId) p.deliveryOwnerUserId = deliveryOwnerUserId;
     if (accountOwnerUserId) p.accountOwnerUserId = accountOwnerUserId;
+    if (costCenterParam) p.costCenter = costCenterParam;
     return p;
-  }, [clientId, health, month, deliveryOwnerUserId, accountOwnerUserId]);
+  }, [
+    clientId,
+    health,
+    month,
+    deliveryOwnerUserId,
+    accountOwnerUserId,
+    costCenterParam,
+  ]);
 
   function resetFilters() {
     setClientId('');

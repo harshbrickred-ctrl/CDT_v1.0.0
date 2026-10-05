@@ -1,4 +1,4 @@
-export type OrganizationId = 'brickred' | 'agyom';
+export type OrganizationId = 'cdt' | 'brickred' | 'agyom';
 
 /** Background tone the logo sits on */
 export type LogoTone = 'light' | 'dark';
@@ -9,18 +9,26 @@ export type Organization = {
   shortName: string;
   productName: string;
   tagline: string;
-  /** Wordmark for light UI backgrounds */
-  logoLightSrc: string;
+  /** Wordmark for light UI backgrounds. Omitted brands use a text wordmark. */
+  logoLightSrc?: string;
   /** Wordmark for dark UI backgrounds */
-  logoDarkSrc: string;
+  logoDarkSrc?: string;
   /** Mark for light UI backgrounds */
-  logoMarkLightSrc: string;
+  logoMarkLightSrc?: string;
   /** Mark for dark UI backgrounds */
-  logoMarkDarkSrc: string;
+  logoMarkDarkSrc?: string;
   accentClass: string;
 };
 
 export const ORGANIZATIONS: Organization[] = [
+  {
+    id: 'cdt',
+    name: 'Client Delivery Tracker',
+    shortName: 'CDT',
+    productName: 'CDT',
+    tagline: 'Client Delivery Tracker',
+    accentClass: 'border-primary/40 bg-primary/10 text-primary',
+  },
   {
     id: 'brickred',
     name: 'BrickRed',
@@ -39,19 +47,23 @@ export const ORGANIZATIONS: Organization[] = [
     shortName: 'Agyom',
     productName: 'CDT',
     tagline: 'Client Delivery Tracker',
-    logoLightSrc: '/brands/agyom-light.png',
-    logoDarkSrc: '/brands/agyom-dark.png',
-    logoMarkLightSrc: '/brands/agyom-mark-light.png',
-    logoMarkDarkSrc: '/brands/agyom-mark-dark.png',
-    accentClass: 'border-red-500/40 bg-red-500/10 text-red-700',
+    accentClass: 'border-[#0F766E]/40 bg-[#0F766E]/10 text-[#0F766E]',
   },
 ];
 
 export function isOrganizationId(value: string): value is OrganizationId {
-  return value === 'brickred' || value === 'agyom';
+  return value === 'cdt' || value === 'brickred' || value === 'agyom';
 }
 
-export function getOrganization(id: OrganizationId | null | undefined): Organization {
+export function brandForCostCenter(
+  costCenter: 'ALL' | 'BRICKRED' | 'AGYOM',
+): OrganizationId {
+  if (costCenter === 'BRICKRED') return 'brickred';
+  if (costCenter === 'AGYOM') return 'agyom';
+  return 'cdt';
+}
+
+export function getOrganization(id?: OrganizationId | null): Organization {
   return ORGANIZATIONS.find((o) => o.id === id) ?? ORGANIZATIONS[0];
 }
 

@@ -16,7 +16,12 @@ export class ImportBodyDto {
   @IsIn(IMPORT_ENTITIES)
   entity!: ImportEntity;
 
-  @ApiProperty({ type: 'array', items: { type: 'object' } })
+  @ApiProperty({
+    type: 'array',
+    items: { type: 'object' },
+    description:
+      'Row objects. For clients/candidates include optional costCenter (BRICKRED|AGYOM); defaults to BRICKRED when omitted.',
+  })
   @IsArray()
   @ArrayMinSize(1)
   @IsObject({ each: true })

@@ -10,6 +10,12 @@ export const LOOKUP_TYPE_CODES = [
   'ENGAGEMENT_HEALTH',
   'YES_NO',
   'RELEASE_REASON',
+  'COST_CENTER',
+] as const;
+
+export const COST_CENTER_OPTIONS = [
+  { code: 'BRICKRED', label: 'BrickRed' },
+  { code: 'AGYOM', label: 'Agyom' },
 ] as const;
 
 export const CLIENT_FEEDBACK_OPTIONS = [

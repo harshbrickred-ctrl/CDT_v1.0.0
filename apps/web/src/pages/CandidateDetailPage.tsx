@@ -9,6 +9,7 @@ import {
   timesheetsApi,
 } from '../lib/api';
 import { clientFeedbackLabel, formatDate, formatPct } from '../lib/format';
+import { COST_CENTER_OPTIONS, labelFromOptions } from '../lib/masterLists';
 import { useAuth } from '../context/AuthContext';
 import PageHeader from '../components/ui/PageHeader';
 import PublicId from '../components/ui/PublicId';
@@ -248,6 +249,14 @@ export default function CandidateDetailPage() {
           </p>
           <p className="mt-1 text-sm font-medium">
             {candidate.client?.name ?? candidate.clientName ?? '—'}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Cost Center
+          </p>
+          <p className="mt-1 text-sm font-medium">
+            {labelFromOptions(COST_CENTER_OPTIONS, candidate.costCenter)}
           </p>
         </div>
         <div>

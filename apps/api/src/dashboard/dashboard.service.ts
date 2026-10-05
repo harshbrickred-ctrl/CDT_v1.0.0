@@ -16,6 +16,7 @@ import {
   resolveClientIdsForOwnerFilters,
   resolveOwnedClientIds,
   withClientIdScope,
+  withCostCenterFilter,
 } from '../common/client-scope';
 import type { AuthUser } from '../common/decorators/current-user.decorator';
 import { PrismaService } from '../prisma/prisma.service';
@@ -98,6 +99,7 @@ export class DashboardService {
     month?: string;
     deliveryOwnerUserId?: string;
     accountOwnerUserId?: string;
+    costCenter?: string;
   }) {
     const month = this.parseMonthFilter(params.month);
     const currentMonth = this.resolveMonth();
@@ -111,11 +113,13 @@ export class DashboardService {
       return this.emptySummary(month);
     }
     const clientFilter = withClientIdScope(ownedClientIds, params.clientId);
+    const cc = withCostCenterFilter(params.costCenter);
 
     const candidateBase: Prisma.CandidateWhereInput = {
       organizationId: params.user.organizationId,
       deletedAt: null,
       ...(clientFilter ? { clientId: clientFilter } : {}),
+      ...(cc ? { costCenter: cc } : {}),
     };
 
     const activeWhere: Prisma.CandidateWhereInput = {
@@ -212,6 +216,7 @@ export class DashboardService {
           organizationId,
           deletedAt: null,
           ...(clientFilter ? { id: clientFilter } : {}),
+          ...(cc ? { costCenter: cc } : {}),
         },
         select: {
           id: true,
@@ -221,6 +226,7 @@ export class DashboardService {
               organizationId,
               deletedAt: null,
               status: CandidateStatus.ACTIVE,
+              ...(cc ? { costCenter: cc } : {}),
             },
             select: { id: true },
           },
@@ -398,6 +404,7 @@ export class DashboardService {
       clientId: params.clientId,
       ownedClientIds,
       health: params.health,
+      costCenter: params.costCenter,
     });
 
     return {
@@ -486,6 +493,7 @@ export class DashboardService {
       month?: string;
       deliveryOwnerUserId?: string;
       accountOwnerUserId?: string;
+      costCenter?: string;
     },
   ) {
     const month = params?.month;
@@ -501,6 +509,7 @@ export class DashboardService {
       return { month: yearMonth, previousMonth: prev, count: 0, items: [] };
     }
     const clientFilter = withClientIdScope(ownedClientIds);
+    const cc = withCostCenterFilter(params?.costCenter);
 
     const activeCandidates = await this.prisma.candidate.findMany({
       where: {
@@ -508,6 +517,7 @@ export class DashboardService {
         deletedAt: null,
         status: CandidateStatus.ACTIVE,
         ...(clientFilter ? { clientId: clientFilter } : {}),
+        ...(cc ? { costCenter: cc } : {}),
       },
       select: {
         id: true,
@@ -558,6 +568,7 @@ export class DashboardService {
     detailMonth?: string;
     deliveryOwnerUserId?: string;
     accountOwnerUserId?: string;
+    costCenter?: string;
   }) {
     const month = this.parseMonthFilter(params.month);
     const ownedClientIds = await this.resolveDashboardClientScope(params.user, {
@@ -574,6 +585,7 @@ export class DashboardService {
         allMonths: month === null,
         detailMonth: params.detailMonth,
         ownedClientIds,
+        costCenter: params.costCenter,
       });
     } catch (e) {
       if (

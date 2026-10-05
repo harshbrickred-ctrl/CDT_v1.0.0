@@ -122,6 +122,15 @@ export function withCandidateClientScope(
   return { clientId };
 }
 
+/** Scope candidates/clients by optional cost center filter (session filter). */
+export function withCostCenterFilter(
+  costCenter?: string | null,
+): string | undefined {
+  const trimmed = costCenter?.trim();
+  if (!trimmed || trimmed.toUpperCase() === 'ALL') return undefined;
+  return trimmed.toUpperCase();
+}
+
 export function emptyIfNoAccess(ownedClientIds: string[] | null): boolean {
   return ownedClientIds !== null && ownedClientIds.length === 0;
 }

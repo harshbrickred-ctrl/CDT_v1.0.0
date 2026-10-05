@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { searchApi } from '../../lib/api';
 import { fadeIn } from '../../lib/motion';
+import { useCostCenter } from '../../context/CostCenterContext';
 import PublicId from '../ui/PublicId';
 
 function typeLabel(type?: string) {
@@ -33,6 +34,7 @@ function hrefForHit(hit: {
 }
 
 export default function SearchBox() {
+  const { costCenterParam } = useCostCenter();
   const [q, setQ] = useState('');
   const [debounced, setDebounced] = useState('');
   const [open, setOpen] = useState(false);
@@ -54,8 +56,9 @@ export default function SearchBox() {
   }, []);
 
   const { data, isFetching } = useQuery({
-    queryKey: ['search', debounced],
-    queryFn: () => searchApi.query(debounced),
+    queryKey: ['search', debounced, costCenterParam],
+    queryFn: () =>
+      searchApi.query(debounced, { costCenter: costCenterParam }),
     enabled: debounced.length >= 2,
   });
 
@@ -63,11 +66,11 @@ export default function SearchBox() {
   const showPanel = open && debounced.length >= 2;
 
   return (
-    <div ref={wrapRef} className="relative w-full max-w-sm">
+    <div ref={wrapRef} className="relative min-w-0 w-full flex-1 xl:max-w-sm">
       <div
         className={`flex items-center gap-2 rounded-xl border bg-background px-3 transition-all duration-200 ${
           focused
-            ? 'border-primary/60 shadow-[0_0_0_3px_hsl(38_92%_46%_/_0.12)]'
+            ? 'border-primary/60 shadow-[0_0_0_3px_hsl(var(--primary)_/_0.12)]'
             : 'border-border hover:border-border/90'
         }`}
       >

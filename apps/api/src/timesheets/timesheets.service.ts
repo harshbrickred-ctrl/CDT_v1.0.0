@@ -22,6 +22,7 @@ import {
   emptyIfNoAccess,
   resolveOwnedClientIds,
   withCandidateClientScope,
+  withCostCenterFilter,
 } from '../common/client-scope';
 import type { AuthUser } from '../common/decorators/current-user.decorator';
 import { periodFromYearMonth, isCandidateEmployedInPeriod } from '../common/dates';
@@ -118,6 +119,7 @@ export class TimesheetsService {
     yearMonth?: string;
     clientId?: string;
     approvalStatus?: ApprovalStatus;
+    costCenter?: string;
   }) {
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 20;
@@ -129,6 +131,7 @@ export class TimesheetsService {
       ownedClientIds,
       params.clientId,
     );
+    const cc = withCostCenterFilter(params.costCenter);
     const where: Prisma.TimesheetWhereInput = {
       organizationId: params.user.organizationId,
       deletedAt: null,
@@ -137,8 +140,14 @@ export class TimesheetsService {
       ...(params.approvalStatus
         ? { approvalStatus: params.approvalStatus }
         : {}),
-      ...(candidateScope
-        ? { candidate: { deletedAt: null, ...candidateScope } }
+      ...(candidateScope || cc
+        ? {
+            candidate: {
+              deletedAt: null,
+              ...candidateScope,
+              ...(cc ? { costCenter: cc } : {}),
+            },
+          }
         : {}),
     };
     const [total, items] = await this.prisma.$transaction([

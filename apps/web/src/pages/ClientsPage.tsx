@@ -1,8 +1,10 @@
 import { FormEvent, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiErrorMessage, clientsApi, usersApi } from '../lib/api';
+import { COST_CENTER_OPTIONS, labelFromOptions } from '../lib/masterLists';
 import type { Client } from '../lib/types';
 import { useAuth } from '../context/AuthContext';
+import { useCostCenter } from '../context/CostCenterContext';
 import PageHeader from '../components/ui/PageHeader';
 import EmptyState from '../components/ui/EmptyState';
 import Dialog from '../components/ui/Dialog';
@@ -23,6 +25,7 @@ import {
 const emptyForm = {
   name: '',
   code: '',
+  costCenter: 'BRICKRED',
   isActive: true,
   deliveryOwnerUserIds: [] as string[],
   accountOwnerUserIds: [] as string[],
@@ -37,6 +40,7 @@ function ownerNames(
 
 export default function ClientsPage() {
   const { user } = useAuth();
+  const { costCenter, costCenterParam } = useCostCenter();
   const qc = useQueryClient();
   const isAdmin = user?.role === 'ADMIN';
   const [open, setOpen] = useState(false);
@@ -44,9 +48,18 @@ export default function ClientsPage() {
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState<string | null>(null);
 
+  const defaultFormCostCenter =
+    costCenter === 'ALL' ? 'BRICKRED' : costCenter;
+
+  const blankForm = (): typeof emptyForm => ({
+    ...emptyForm,
+    costCenter: defaultFormCostCenter,
+  });
+
   const listQuery = useQuery({
-    queryKey: ['clients', 'list'],
-    queryFn: () => clientsApi.list({ pageSize: 200 }),
+    queryKey: ['clients', 'list', costCenterParam],
+    queryFn: () =>
+      clientsApi.list({ pageSize: 200, costCenter: costCenterParam }),
   });
 
   const usersQuery = useQuery({
@@ -71,6 +84,7 @@ export default function ClientsPage() {
       const payload: Record<string, unknown> = {
         name: form.name,
         code: form.code || undefined,
+        costCenter: form.costCenter,
         isActive: form.isActive,
       };
       if (isAdmin) {
@@ -85,7 +99,7 @@ export default function ClientsPage() {
     onSuccess: async () => {
       setOpen(false);
       setEditing(null);
-      setForm(emptyForm);
+      setForm(blankForm());
       setError(null);
       await qc.invalidateQueries({ queryKey: ['clients'] });
     },
@@ -102,7 +116,7 @@ export default function ClientsPage() {
 
   function openCreate() {
     setEditing(null);
-    setForm(emptyForm);
+    setForm(blankForm());
     setError(null);
     setOpen(true);
   }
@@ -112,6 +126,7 @@ export default function ClientsPage() {
     setForm({
       name: c.name,
       code: c.code ?? '',
+      costCenter: c.costCenter || defaultFormCostCenter,
       isActive: c.isActive !== false,
       deliveryOwnerUserIds: (c.deliveryOwners ?? []).map((o) => o.id),
       accountOwnerUserIds: (c.accountOwners ?? []).map((o) => o.id),
@@ -172,6 +187,7 @@ export default function ClientsPage() {
               <tr>
                 <th className={thClass}>Name</th>
                 <th className={thClass}>Code</th>
+                <th className={thClass}>Cost Center</th>
                 <th className={thClass}>Delivery owners</th>
                 <th className={thClass}>Account owners</th>
                 <th className={thClass}>Active</th>
@@ -184,6 +200,9 @@ export default function ClientsPage() {
                   <td className={`${tdClass} font-medium`}>{c.name}</td>
                   <td className={`${tdClass} font-mono text-xs`}>
                     {c.code ?? '—'}
+                  </td>
+                  <td className={tdClass}>
+                    {labelFromOptions(COST_CENTER_OPTIONS, c.costCenter)}
                   </td>
                   <td className={tdClass}>{ownerNames(c.deliveryOwners)}</td>
                   <td className={tdClass}>{ownerNames(c.accountOwners)}</td>
@@ -246,6 +265,26 @@ export default function ClientsPage() {
               value={form.code}
               onChange={(e) => setForm({ ...form, code: e.target.value })}
             />
+          </div>
+          <div>
+            <label className={labelClass} htmlFor="client-cost-center">
+              Cost Center *
+            </label>
+            <select
+              id="client-cost-center"
+              className={fieldClass}
+              required
+              value={form.costCenter}
+              onChange={(e) =>
+                setForm({ ...form, costCenter: e.target.value })
+              }
+            >
+              {COST_CENTER_OPTIONS.map((o) => (
+                <option key={o.code} value={o.code}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
           </div>
           <label className="flex items-center gap-2 text-sm">
             <input

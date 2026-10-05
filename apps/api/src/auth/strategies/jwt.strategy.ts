@@ -38,7 +38,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       role: user.role,
       fullName: user.fullName,
       organizationId: user.organizationId,
-      organizationSlug: user.organization.slug as 'brickred' | 'agyom',
+      organizationSlug: 'brickred',
     };
   }
 }

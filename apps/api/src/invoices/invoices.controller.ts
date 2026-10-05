@@ -33,6 +33,7 @@ export class InvoicesController {
     @Query('yearMonth') yearMonth?: string,
     @Query('candidateId') candidateId?: string,
     @Query('clientId') clientId?: string,
+    @Query('costCenter') costCenter?: string,
   ) {
     return this.invoices.findAll({
       user,
@@ -42,6 +43,7 @@ export class InvoicesController {
       yearMonth,
       candidateId,
       clientId,
+      costCenter,
     });
   }
 

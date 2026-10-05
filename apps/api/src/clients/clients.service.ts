@@ -14,6 +14,7 @@ import {
   emptyIfNoAccess,
   resolveOwnedClientIds,
   withClientIdScope,
+  withCostCenterFilter,
 } from '../common/client-scope';
 import type { AuthUser } from '../common/decorators/current-user.decorator';
 import { throwConflictIfUnique } from '../common/prisma-error';
@@ -200,16 +201,19 @@ export class ClientsService {
     page = 1,
     pageSize = 20,
     q?: string,
+    costCenter?: string,
   ) {
     const ownedClientIds = await resolveOwnedClientIds(this.prisma, user);
     if (emptyIfNoAccess(ownedClientIds)) {
       return { items: [], meta: paginationMeta(0, page, pageSize) };
     }
     const idFilter = withClientIdScope(ownedClientIds);
+    const cc = withCostCenterFilter(costCenter);
     const where = {
       organizationId: user.organizationId,
       deletedAt: null,
       ...(idFilter ? { id: idFilter } : {}),
+      ...(cc ? { costCenter: cc } : {}),
       ...(q
         ? {
             OR: [
@@ -284,6 +288,7 @@ export class ClientsService {
                 name,
                 nameNormalized,
                 code: dto.code ?? null,
+                costCenter: dto.costCenter.trim().toUpperCase(),
                 isActive: dto.isActive ?? true,
                 deletedAt: null,
               },
@@ -294,6 +299,7 @@ export class ClientsService {
                 name,
                 nameNormalized,
                 code: dto.code ?? null,
+                costCenter: dto.costCenter.trim().toUpperCase(),
                 isActive: dto.isActive ?? true,
               },
             });
@@ -338,6 +344,7 @@ export class ClientsService {
       name?: string;
       nameNormalized?: string;
       code?: string | null;
+      costCenter?: string;
       isActive?: boolean;
     } = {};
     if (dto.name !== undefined) {
@@ -357,6 +364,8 @@ export class ClientsService {
       }
     }
     if (dto.code !== undefined) data.code = dto.code;
+    if (dto.costCenter !== undefined)
+      data.costCenter = dto.costCenter.trim().toUpperCase();
     if (dto.isActive !== undefined) data.isActive = dto.isActive;
     try {
       await this.prisma.client.update({

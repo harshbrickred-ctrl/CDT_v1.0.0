@@ -38,6 +38,7 @@ export class CandidatesController {
     @Query('status') status?: CandidateStatus,
     @Query('statuses') statuses?: string,
     @Query('q') q?: string,
+    @Query('costCenter') costCenter?: string,
   ) {
     const statusList = statuses
       ? (statuses
@@ -53,6 +54,7 @@ export class CandidatesController {
       status,
       statuses: statusList,
       q,
+      costCenter,
     });
   }
 

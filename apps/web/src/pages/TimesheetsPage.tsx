@@ -11,6 +11,7 @@ import { currentYearMonth, formatDate, formatPct } from '../lib/format';
 import { scopeClientsForUser } from '../lib/client-scope';
 import type { Candidate, Timesheet } from '../lib/types';
 import { useAuth } from '../context/AuthContext';
+import { useCostCenter } from '../context/CostCenterContext';
 import PageHeader from '../components/ui/PageHeader';
 import PublicId from '../components/ui/PublicId';
 import StatusPill from '../components/ui/StatusPill';
@@ -120,6 +121,7 @@ function timesheetPeriodDates(t: Timesheet) {
 
 export default function TimesheetsPage() {
   const { user } = useAuth();
+  const { costCenterParam } = useCostCenter();
   const qc = useQueryClient();
   const [yearMonthFilter, setYearMonthFilter] = useState(currentYearMonth());
   const [status, setStatus] = useState('');
@@ -143,7 +145,7 @@ export default function TimesheetsPage() {
     queryKey: [
       'timesheets',
       'list',
-      { yearMonthFilter, status, clientId },
+      { yearMonthFilter, status, clientId, costCenterParam },
     ],
     queryFn: () =>
       timesheetsApi.list({
@@ -151,12 +153,14 @@ export default function TimesheetsPage() {
         yearMonth: yearMonthFilter || undefined,
         approvalStatus: status || undefined,
         clientId: clientId || undefined,
+        costCenter: costCenterParam,
       }),
   });
 
   const clientsQuery = useQuery({
-    queryKey: ['clients', 'all'],
-    queryFn: () => clientsApi.list({ pageSize: 200 }),
+    queryKey: ['clients', 'all', costCenterParam],
+    queryFn: () =>
+      clientsApi.list({ pageSize: 200, costCenter: costCenterParam }),
   });
 
   const scopedClients = useMemo(
@@ -169,8 +173,13 @@ export default function TimesheetsPage() {
   );
 
   const invoicesQuery = useQuery({
-    queryKey: ['invoices', 'for-timesheets', yearMonthFilter],
-    queryFn: () => invoicesApi.list({ yearMonth: yearMonthFilter, pageSize: 200 }),
+    queryKey: ['invoices', 'for-timesheets', yearMonthFilter, costCenterParam],
+    queryFn: () =>
+      invoicesApi.list({
+        yearMonth: yearMonthFilter,
+        pageSize: 200,
+        costCenter: costCenterParam,
+      }),
   });
 
   const invoiceByTimesheetId = useMemo(() => {

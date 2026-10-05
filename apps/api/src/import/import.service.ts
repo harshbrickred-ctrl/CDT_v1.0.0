@@ -16,6 +16,7 @@ import { IdSequenceService } from '../common/id-sequence.service';
 import { AuditService } from '../audit/audit.service';
 import { periodFromYearMonth } from '../common/dates';
 import { isUniqueConflict } from '../common/prisma-error';
+import { isCostCenterCode } from '../common/cost-center';
 import {
   ImportBodyDto,
   ImportEntity,
@@ -33,6 +34,29 @@ function num(v: unknown): number | undefined {
   if (v === null || v === undefined || v === '') return undefined;
   const n = Number(v);
   return Number.isFinite(n) ? n : undefined;
+}
+
+/** Resolve costCenter from an import row; prefer explicit value, else BRICKRED. */
+function resolveImportCostCenter(
+  row: Record<string, unknown>,
+  rowIndex: number,
+  errors: ImportRowError[],
+): string | null {
+  const raw = str(row.costCenter);
+  if (!raw) {
+    // Default when import CSV/row omits costCenter (required on Client/Candidate).
+    return 'BRICKRED';
+  }
+  const code = raw.toUpperCase();
+  if (!isCostCenterCode(code)) {
+    errors.push({
+      row: rowIndex,
+      field: 'costCenter',
+      message: `costCenter must be one of: BRICKRED, AGYOM`,
+    });
+    return null;
+  }
+  return code;
 }
 
 @Injectable()
@@ -159,6 +183,8 @@ export class ImportService {
         });
         continue;
       }
+      const costCenter = resolveImportCostCenter(row, i, errors);
+      if (!costCenter) continue;
       if (!commit) continue;
       try {
         const client = existing?.deletedAt
@@ -168,6 +194,7 @@ export class ImportService {
                 name,
                 nameNormalized,
                 code: str(row.code) ?? null,
+                costCenter,
                 isActive: true,
                 deletedAt: null,
               },
@@ -178,6 +205,7 @@ export class ImportService {
                 name,
                 nameNormalized,
                 code: str(row.code) ?? null,
+                costCenter,
               },
             });
         if (actorUserId) {
@@ -280,6 +308,8 @@ export class ImportService {
         errors.push({ row: i, field: 'clientId', message: 'Client not found' });
         continue;
       }
+      const costCenter = resolveImportCostCenter(row, i, errors);
+      if (!costCenter) continue;
       if (!commit) continue;
       const publicId = await this.ids.allocateNext(organizationId, 'CD');
       const candidate = await this.prisma.candidate.create({
@@ -298,6 +328,7 @@ export class ImportService {
             : null,
           projectAccount: str(row.projectAccount) ?? null,
           workLocation: str(row.workLocation) ?? null,
+          costCenter,
           clientReportingManager: str(row.clientReportingManager) ?? null,
           status: CandidateStatus.ACTIVE,
         },

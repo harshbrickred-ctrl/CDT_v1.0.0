@@ -37,6 +37,7 @@ export class LeavesController {
     @Query('candidateId') candidateId?: string,
     @Query('status') status?: LeaveStatus,
     @Query('clientId') clientId?: string,
+    @Query('costCenter') costCenter?: string,
   ) {
     return this.leaves.findAll({
       user,
@@ -45,6 +46,7 @@ export class LeavesController {
       candidateId,
       status,
       clientId,
+      costCenter,
     });
   }
 

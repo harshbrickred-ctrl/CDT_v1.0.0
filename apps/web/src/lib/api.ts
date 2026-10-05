@@ -112,19 +112,22 @@ export async function deleteOne<T = unknown>(path: string): Promise<T> {
 
 /* ---- Domain helpers ---- */
 
+type CostCenterParams = { costCenter?: string };
+
 export const dashboardApi = {
-  summary: async (params?: Record<string, unknown>) => {
+  summary: async (params?: Record<string, unknown> & CostCenterParams) => {
     const raw = await getOne<DashboardSummaryRaw>('/dashboard/summary', params);
     return normalizeDashboardSummary(raw);
   },
-  overdueReviews: (params?: Record<string, unknown>) =>
+  overdueReviews: (params?: Record<string, unknown> & CostCenterParams) =>
     getOne<OverdueReviewsResult>('/dashboard/overdue-reviews', params),
-  kpiDetail: (params: Record<string, unknown>) =>
+  kpiDetail: (params: Record<string, unknown> & CostCenterParams) =>
     getOne<DashboardKpiDetail>('/dashboard/kpi-detail', params),
 };
 
 export const clientsApi = {
-  list: (params?: Record<string, unknown>) => getList<Client>('/clients', params),
+  list: (params?: Record<string, unknown> & CostCenterParams) =>
+    getList<Client>('/clients', params),
   create: (body: Partial<Client>) => postOne<Client>('/clients', body),
   update: (id: string, body: Partial<Client>) =>
     patchOne<Client>(`/clients/${id}`, body),
@@ -132,7 +135,7 @@ export const clientsApi = {
 };
 
 export const candidatesApi = {
-  list: (params?: Record<string, unknown>) =>
+  list: (params?: Record<string, unknown> & CostCenterParams) =>
     getList<Candidate>('/candidates', params),
   get: (id: string) => getOne<Candidate>(`/candidates/${id}`),
   create: (body: Record<string, unknown>) =>
@@ -151,7 +154,8 @@ export const candidatesApi = {
 };
 
 export const leavesApi = {
-  list: (params?: Record<string, unknown>) => getList<Leave>('/leaves', params),
+  list: (params?: Record<string, unknown> & CostCenterParams) =>
+    getList<Leave>('/leaves', params),
   create: (body: Record<string, unknown>) => postOne<Leave>('/leaves', body),
   approve: (id: string) => postOne<Leave>(`/leaves/${id}/approve`),
   reject: (id: string, reason?: string) =>
@@ -159,7 +163,7 @@ export const leavesApi = {
 };
 
 export const timesheetsApi = {
-  list: (params?: Record<string, unknown>) =>
+  list: (params?: Record<string, unknown> & CostCenterParams) =>
     getList<Timesheet>('/timesheets', params),
   upsert: (body: Record<string, unknown>) =>
     putOne<Timesheet>('/timesheets', body),
@@ -169,7 +173,7 @@ export const timesheetsApi = {
 };
 
 export const invoicesApi = {
-  list: (params?: Record<string, unknown>) =>
+  list: (params?: Record<string, unknown> & CostCenterParams) =>
     getList<Invoice>('/invoices', params),
   get: (id: string) => getOne<Invoice>(`/invoices/${id}`),
   generate: (timesheetId: string) =>
@@ -184,7 +188,7 @@ export const invoicesApi = {
 };
 
 export const deliveryReviewsApi = {
-  list: (params?: Record<string, unknown>) =>
+  list: (params?: Record<string, unknown> & CostCenterParams) =>
     getList<DeliveryReview>('/delivery-reviews', params),
   upsert: (body: Record<string, unknown>) =>
     putOne<DeliveryReview>('/delivery-reviews', body),
@@ -237,7 +241,7 @@ export const importApi = {
 };
 
 export const searchApi = {
-  query: async (q: string) => {
+  query: async (q: string, params?: CostCenterParams) => {
     const raw = await getOne<{
       candidates?: Array<{
         id: string;
@@ -254,7 +258,7 @@ export const searchApi = {
       }>;
       items?: SearchHit[];
       results?: SearchHit[];
-    }>('/search', { q });
+    }>('/search', { q, costCenter: params?.costCenter });
 
     if (Array.isArray(raw)) {
       return { items: raw as SearchHit[] };

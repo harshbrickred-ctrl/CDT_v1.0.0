@@ -3,11 +3,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import BrandLogo from '../components/brand/BrandLogo';
-import {
-  ORGANIZATIONS,
-  orgLogoSrc,
-  type OrganizationId,
-} from '../lib/organizations';
+import { getOrganization } from '../lib/organizations';
 
 const FEATURES = [
   {
@@ -192,7 +188,7 @@ function LoginField({
       <div
         className={`login-field-shell flex items-center gap-2 rounded-lg border bg-background px-3 transition-all duration-200 ${
           focused
-            ? 'border-primary/60 shadow-[0_0_0_3px_hsl(38_92%_46%_/_0.12)]'
+            ? 'border-primary/60 shadow-[0_0_0_3px_hsl(var(--primary)_/_0.12)]'
             : 'border-border hover:border-border/80'
         }`}
       >
@@ -225,8 +221,6 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const prefersReducedMotion = useReducedMotion();
   const passwordToggleId = useId();
-  const [organization, setOrganization] =
-    useState<OrganizationId>('brickred');
   const [email, setEmail] = useState('admin@sst.local');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -240,7 +234,7 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     try {
-      await login(email, password, organization);
+      await login(email, password);
       navigate('/dashboard', { replace: true });
     } catch {
       setError('Invalid email or password');
@@ -253,8 +247,7 @@ export default function LoginPage() {
     ? { initial: false as const, animate: { opacity: 1, x: 0, y: 0 } }
     : {};
 
-  const selectedOrg =
-    ORGANIZATIONS.find((o) => o.id === organization) ?? ORGANIZATIONS[0];
+  const company = getOrganization('cdt');
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2">
@@ -293,7 +286,7 @@ export default function LoginPage() {
         >
           <motion.div variants={fadeUp}>
             <BrandLogo
-              organization={organization}
+              organization="cdt"
               tone="dark"
               showTagline
               imgClassName="h-16 w-auto max-w-[360px] object-contain object-left sm:h-20 lg:h-24 lg:max-w-[420px]"
@@ -304,7 +297,7 @@ export default function LoginPage() {
             id="login-brand-heading"
             className="mt-6 max-w-md text-base leading-relaxed text-white/75 sm:text-lg"
           >
-            {selectedOrg.name} post-placement delivery control—presence, time,
+            {company.name} post-placement delivery control—presence, time,
             and engagement health in one ops console.
           </motion.p>
 
@@ -358,7 +351,7 @@ export default function LoginPage() {
           {...motionProps}
         >
           <div className="mb-8 lg:hidden">
-            <BrandLogo organization={organization} tone="light" showTagline />
+            <BrandLogo organization="cdt" tone="light" showTagline />
           </div>
 
           <motion.p
@@ -388,7 +381,7 @@ export default function LoginPage() {
 
             <motion.div variants={formItem} className="relative flex gap-4">
               <BrandLogo
-                organization={organization}
+                organization="cdt"
                 variant="mark"
                 tone="light"
                 markClassName="h-11 w-11 shrink-0"
@@ -398,58 +391,12 @@ export default function LoginPage() {
                   Sign in
                 </h1>
                 <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                  Choose your organization, then sign in with team credentials.
+                  Sign in with your team credentials.
                 </p>
               </div>
             </motion.div>
 
             <div className="relative mt-8 space-y-5">
-              <motion.div variants={formItem}>
-                <p
-                  id="org-label"
-                  className="mb-2 block text-sm font-medium text-foreground"
-                >
-                  Organization
-                </p>
-                <div
-                  role="radiogroup"
-                  aria-labelledby="org-label"
-                  className="grid grid-cols-2 gap-2"
-                >
-                  {ORGANIZATIONS.map((org) => {
-                    const selected = organization === org.id;
-                    return (
-                      <button
-                        key={org.id}
-                        type="button"
-                        role="radio"
-                        aria-checked={selected}
-                        onClick={() => setOrganization(org.id)}
-                        className={`flex items-center gap-2.5 rounded-xl border px-3 py-3 text-left transition ${
-                          selected
-                            ? 'border-primary bg-primary/10 shadow-[0_0_0_3px_hsl(38_92%_46%_/_0.12)]'
-                            : 'border-border bg-background hover:border-border/80 hover:bg-muted/40'
-                        }`}
-                      >
-                        <img
-                          src={orgLogoSrc(org, 'light', 'mark')}
-                          alt=""
-                          className="h-8 w-8 shrink-0 object-contain"
-                        />
-                        <span className="min-w-0">
-                          <span className="block text-sm font-semibold text-slate-deep">
-                            {org.name}
-                          </span>
-                          <span className="block text-[11px] text-muted-foreground">
-                            {org.productName}
-                          </span>
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </motion.div>
-
               <motion.div variants={formItem}>
                 <LoginField
                   id="email"
@@ -513,7 +460,7 @@ export default function LoginPage() {
                   prefersReducedMotion || loading ? undefined : { y: -1 }
                 }
                 whileTap={prefersReducedMotion ? undefined : { scale: 0.985 }}
-                className="group relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground shadow-[0_12px_32px_-12px_hsl(38_92%_46%_/_0.65)] transition-shadow hover:shadow-[0_16px_36px_-12px_hsl(38_92%_46%_/_0.75)] disabled:cursor-not-allowed disabled:opacity-60"
+                className="group relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground shadow-[0_12px_32px_-12px_hsl(var(--primary)_/_0.65)] transition-shadow hover:shadow-[0_16px_36px_-12px_hsl(var(--primary)_/_0.75)] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <span
                   aria-hidden
@@ -529,7 +476,7 @@ export default function LoginPage() {
                   </>
                 ) : (
                   <>
-                    Sign in to {selectedOrg.name}
+                    Sign in
                     <svg
                       aria-hidden
                       className="h-4 w-4 transition-transform group-hover:translate-x-0.5"

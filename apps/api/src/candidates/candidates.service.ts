@@ -13,6 +13,7 @@ import {
   emptyIfNoAccess,
   resolveOwnedClientIds,
   withClientIdScope,
+  withCostCenterFilter,
 } from '../common/client-scope';
 import type { AuthUser } from '../common/decorators/current-user.decorator';
 import {
@@ -119,6 +120,7 @@ export class CandidatesService {
     status?: CandidateStatus;
     statuses?: CandidateStatus[];
     q?: string;
+    costCenter?: string;
   }) {
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 20;
@@ -127,10 +129,12 @@ export class CandidatesService {
       return { items: [], meta: paginationMeta(0, page, pageSize) };
     }
     const clientFilter = withClientIdScope(ownedClientIds, params.clientId);
+    const costCenter = withCostCenterFilter(params.costCenter);
     const where: Prisma.CandidateWhereInput = {
       organizationId: params.user.organizationId,
       deletedAt: null,
       ...(clientFilter ? { clientId: clientFilter } : {}),
+      ...(costCenter ? { costCenter } : {}),
       ...(params.statuses?.length
         ? { status: { in: params.statuses } }
         : params.status
@@ -239,6 +243,7 @@ export class CandidatesService {
           : null,
         projectAccount: dto.projectAccount?.trim() || null,
         workLocation: dto.workLocation?.trim() || null,
+        costCenter: dto.costCenter.trim().toUpperCase(),
         clientReportingManager: dto.clientReportingManager?.trim() || null,
         accountManagerUserId,
         billingType: dto.billingType ?? 'HOURLY',
@@ -300,6 +305,8 @@ export class CandidatesService {
       data.projectAccount = dto.projectAccount?.trim() || null;
     if (dto.workLocation !== undefined)
       data.workLocation = dto.workLocation?.trim() || null;
+    if (dto.costCenter !== undefined)
+      data.costCenter = dto.costCenter.trim().toUpperCase();
     if (dto.clientReportingManager !== undefined)
       data.clientReportingManager =
         dto.clientReportingManager?.trim() || null;

@@ -11,6 +11,7 @@ import { LEAVE_TYPE_FALLBACK } from '../lib/masterLists';
 import { formatDate } from '../lib/format';
 import type { Candidate, Leave } from '../lib/types';
 import { useAuth } from '../context/AuthContext';
+import { useCostCenter } from '../context/CostCenterContext';
 import PageHeader from '../components/ui/PageHeader';
 import PublicId from '../components/ui/PublicId';
 import StatusPill from '../components/ui/StatusPill';
@@ -75,6 +76,7 @@ function addDaysIso(iso: string, days: number) {
 
 export default function LeavePage() {
   const { user } = useAuth();
+  const { costCenterParam } = useCostCenter();
   const qc = useQueryClient();
   const [status, setStatus] = useState('');
   const [clientId, setClientId] = useState('');
@@ -87,18 +89,20 @@ export default function LeavePage() {
   const [error, setError] = useState<string | null>(null);
 
   const listQuery = useQuery({
-    queryKey: ['leaves', 'list', { status, clientId }],
+    queryKey: ['leaves', 'list', { status, clientId, costCenterParam }],
     queryFn: () =>
       leavesApi.list({
         pageSize: 100,
         status: status || undefined,
         clientId: clientId || undefined,
+        costCenter: costCenterParam,
       }),
   });
 
   const clientsQuery = useQuery({
-    queryKey: ['clients', 'all'],
-    queryFn: () => clientsApi.list({ pageSize: 200 }),
+    queryKey: ['clients', 'all', costCenterParam],
+    queryFn: () =>
+      clientsApi.list({ pageSize: 200, costCenter: costCenterParam }),
   });
 
   const scopedClients = useMemo(

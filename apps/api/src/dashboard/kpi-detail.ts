@@ -12,6 +12,7 @@ import { toNumber } from '../common/prisma-error';
 import {
   emptyIfNoAccess,
   withClientIdScope,
+  withCostCenterFilter,
 } from '../common/client-scope';
 import {
   missingDueTimesheetMonths,
@@ -129,12 +130,15 @@ function candidateBaseWhere(
   organizationId: string,
   ownedClientIds: string[] | null,
   clientId?: string,
+  costCenter?: string,
 ): Prisma.CandidateWhereInput {
   const clientFilter = withClientIdScope(ownedClientIds, clientId);
+  const cc = withCostCenterFilter(costCenter);
   return {
     organizationId,
     deletedAt: null,
     ...(clientFilter ? { clientId: clientFilter } : {}),
+    ...(cc ? { costCenter: cc } : {}),
   };
 }
 
@@ -151,6 +155,7 @@ export async function fetchKpiDetail(
     /** For missing-ts: YYYY-MM of the month to list candidates for. */
     detailMonth?: string;
     ownedClientIds?: string[] | null;
+    costCenter?: string;
   },
 ): Promise<KpiDetailResult> {
   const kpi = params.kpi as DashboardKpiId;
@@ -179,6 +184,7 @@ export async function fetchKpiDetail(
     params.organizationId,
     ownedClientIds,
     params.clientId,
+    params.costCenter,
   );
 
   switch (kpi) {

@@ -2,7 +2,13 @@ import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
+import {
+  COST_CENTER_OPTIONS,
+  useCostCenter,
+  type CostCenterFilter,
+} from '../../context/CostCenterContext';
 import { pageEnter } from '../../lib/motion';
+import { getOrganization } from '../../lib/organizations';
 import BrandLogo from '../brand/BrandLogo';
 import SearchBox from './SearchBox';
 
@@ -14,6 +20,25 @@ type NavItem = {
 };
 
 const SIDEBAR_KEY = 'cdt_sidebar_collapsed';
+const DESKTOP_NAV_QUERY = '(min-width: 1024px)';
+
+function useIsDesktop() {
+  const [isDesktop, setIsDesktop] = useState(() =>
+    typeof window !== 'undefined'
+      ? window.matchMedia(DESKTOP_NAV_QUERY).matches
+      : true,
+  );
+
+  useEffect(() => {
+    const media = window.matchMedia(DESKTOP_NAV_QUERY);
+    const onChange = () => setIsDesktop(media.matches);
+    onChange();
+    media.addEventListener('change', onChange);
+    return () => media.removeEventListener('change', onChange);
+  }, []);
+
+  return isDesktop;
+}
 
 function Icon({ d }: { d: string }) {
   return (
@@ -169,9 +194,13 @@ function CollapseIcon({ collapsed }: { collapsed: boolean }) {
 }
 
 export default function AppShell() {
-  const { user, logout, organization, organizationMeta } = useAuth();
+  const { user, logout } = useAuth();
+  const { costCenter, setCostCenter, brand } = useCostCenter();
+  const organizationMeta = getOrganization(brand);
   const location = useLocation();
   const prefersReducedMotion = useReducedMotion();
+  const isDesktop = useIsDesktop();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const role = user?.role;
   const primary = visible(PRIMARY_NAV, role);
   const settings = visible(SETTINGS_NAV, role);
@@ -192,9 +221,33 @@ export default function AppShell() {
     }
   }, [collapsed]);
 
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (isDesktop) setMobileNavOpen(false);
+  }, [isDesktop]);
+
+  const showNavLabels = isDesktop ? !collapsed : true;
+
+  useEffect(() => {
+    if (brand === 'cdt') {
+      delete document.documentElement.dataset.org;
+      document.title = 'CDT — Client Delivery Tracker';
+    } else {
+      document.documentElement.dataset.org = brand;
+      document.title = `${organizationMeta.name} CDT — Client Delivery Tracker`;
+    }
+    return () => {
+      delete document.documentElement.dataset.org;
+      document.title = 'CDT — Client Delivery Tracker';
+    };
+  }, [brand, organizationMeta.name]);
+
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     `group relative flex items-center gap-2.5 rounded-xl text-sm transition-all duration-200 ${
-      collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
+      showNavLabels ? 'px-3 py-2.5' : 'justify-center px-2 py-2.5'
     } ${
       isActive
         ? 'bg-primary/15 font-semibold text-slate-deep'
@@ -202,41 +255,66 @@ export default function AppShell() {
     }`;
 
   return (
-    <div className="app-main-bg flex min-h-screen gap-3 p-3 sm:gap-4 sm:p-4">
-      {/* Floating sidebar panel */}
+    <div className="app-main-bg flex min-h-screen gap-3 overflow-x-hidden p-3 sm:gap-4 sm:p-4">
+      {mobileNavOpen && (
+        <button
+          type="button"
+          className="fixed inset-0 z-30 bg-slate-deep/40 lg:hidden"
+          aria-label="Close navigation"
+          onClick={() => setMobileNavOpen(false)}
+        />
+      )}
+      {/* Floating sidebar panel. Below the lg breakpoint it is an overlay drawer. */}
       <aside
-        className={`relative z-20 flex shrink-0 flex-col rounded-2xl border border-border/80 bg-card shadow-[0_20px_60px_-28px_hsl(222_28%_16%_/_0.28)] transition-[width] duration-300 ease-out ${
-          collapsed ? 'w-[72px]' : 'w-[252px]'
-        }`}
+        className={`relative z-40 flex shrink-0 flex-col rounded-2xl border border-border/80 bg-card shadow-[0_20px_60px_-28px_hsl(222_28%_16%_/_0.28)] transition-[width,transform] duration-300 ease-out max-lg:fixed max-lg:inset-y-3 max-lg:left-3 max-lg:w-[min(252px,calc(100vw-1.5rem))] ${
+          mobileNavOpen
+            ? 'max-lg:translate-x-0'
+            : 'max-lg:pointer-events-none max-lg:-translate-x-[calc(100%+1.5rem)]'
+        } ${collapsed ? 'lg:w-[72px]' : 'lg:w-[252px]'}`}
+        aria-hidden={!isDesktop && !mobileNavOpen}
       >
         <div
           className={`flex items-start gap-2 border-b border-border/70 ${
-            collapsed ? 'flex-col items-center px-2 py-4' : 'px-4 py-4'
+            showNavLabels ? 'px-4 py-4' : 'flex-col items-center px-2 py-4'
           }`}
         >
           <div
-            className={`min-w-0 flex-1 ${collapsed ? 'flex justify-center' : ''}`}
+            className={`min-w-0 flex-1 ${showNavLabels ? '' : 'flex justify-center'}`}
           >
-            {collapsed ? (
+            {showNavLabels ? (
+              <BrandLogo organization={brand} tone="light" showTagline />
+            ) : (
               <BrandLogo
-                organization={organization}
+                organization={brand}
                 variant="mark"
                 tone="light"
                 markClassName="h-9 w-9"
               />
-            ) : (
-              <BrandLogo organization={organization} tone="light" showTagline />
             )}
           </div>
           <button
             type="button"
-            onClick={() => setCollapsed((v) => !v)}
-            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            aria-expanded={!collapsed}
-            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            onClick={() =>
+              isDesktop ? setCollapsed((v) => !v) : setMobileNavOpen(false)
+            }
+            aria-label={
+              isDesktop
+                ? collapsed
+                  ? 'Expand sidebar'
+                  : 'Collapse sidebar'
+                : 'Close navigation'
+            }
+            aria-expanded={isDesktop ? !collapsed : mobileNavOpen}
+            title={
+              isDesktop
+                ? collapsed
+                  ? 'Expand sidebar'
+                  : 'Collapse sidebar'
+                : 'Close navigation'
+            }
             className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground transition-all duration-200 hover:bg-muted hover:text-foreground active:scale-95"
           >
-            <CollapseIcon collapsed={collapsed} />
+            <CollapseIcon collapsed={isDesktop ? collapsed : false} />
           </button>
         </div>
 
@@ -246,11 +324,12 @@ export default function AppShell() {
               key={item.to}
               to={item.to}
               className={linkClass}
-              title={collapsed ? item.label : undefined}
+              title={showNavLabels ? undefined : item.label}
+              onClick={() => setMobileNavOpen(false)}
             >
               {({ isActive }) => (
                 <>
-                  {isActive && !collapsed && (
+                  {isActive && showNavLabels && (
                     <span
                       aria-hidden
                       className="pointer-events-none absolute inset-y-0 left-0 flex items-center"
@@ -273,14 +352,14 @@ export default function AppShell() {
                   >
                     {item.icon}
                   </span>
-                  {!collapsed && item.label}
+                  {showNavLabels && item.label}
                 </>
               )}
             </NavLink>
           ))}
           {settings.length > 0 && (
             <>
-              {!collapsed ? (
+              {showNavLabels ? (
                 <p className="px-3 pb-1 pt-4 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                   Settings
                 </p>
@@ -292,11 +371,12 @@ export default function AppShell() {
                   key={item.to}
                   to={item.to}
                   className={linkClass}
-                  title={collapsed ? item.label : undefined}
+                  title={showNavLabels ? undefined : item.label}
+                  onClick={() => setMobileNavOpen(false)}
                 >
                   {({ isActive }) => (
                     <>
-                      {isActive && !collapsed && (
+                      {isActive && showNavLabels && (
                         <span
                           aria-hidden
                           className="pointer-events-none absolute inset-y-0 left-0 flex items-center"
@@ -323,7 +403,7 @@ export default function AppShell() {
                       >
                         {item.icon}
                       </span>
-                      {!collapsed && item.label}
+                      {showNavLabels && item.label}
                     </>
                   )}
                 </NavLink>
@@ -335,37 +415,63 @@ export default function AppShell() {
 
       {/* Main content column */}
       <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border/60 bg-card/40 shadow-[0_12px_40px_-28px_hsl(222_28%_16%_/_0.18)] backdrop-blur-[2px]">
-        <header className="sticky top-0 z-30 flex flex-wrap items-center justify-between gap-3 border-b border-border/70 bg-card/80 px-4 py-3 backdrop-blur-md sm:px-5">
+        <header className="sticky top-0 z-20 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border/70 bg-card/80 px-4 py-3 backdrop-blur-md sm:px-5">
           <div className="flex min-w-0 items-center gap-2">
             <button
               type="button"
-              onClick={() => setCollapsed((v) => !v)}
-              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border text-muted-foreground transition hover:bg-muted hover:text-foreground lg:hidden"
+              onClick={() => setMobileNavOpen((v) => !v)}
+              aria-label={mobileNavOpen ? 'Close navigation' : 'Open navigation'}
+              aria-expanded={mobileNavOpen}
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground transition hover:bg-muted hover:text-foreground lg:hidden"
             >
-              <CollapseIcon collapsed={collapsed} />
+              <CollapseIcon collapsed={!mobileNavOpen} />
             </button>
-            <div className="min-w-0 sm:hidden">
+            <div className="min-w-0 lg:hidden">
               <BrandLogo
-                organization={organization}
+                organization={brand}
                 variant="mark"
                 tone="light"
                 markClassName="h-8 w-8"
               />
             </div>
-            <div className="hidden min-w-0 sm:block">
-              <p className="text-sm text-muted-foreground">
-                {organizationMeta.name} ops console
+            <div className="hidden min-w-0 lg:block">
+              <p className="max-w-[14rem] truncate text-sm text-muted-foreground xl:max-w-none">
+                {brand === 'cdt'
+                  ? organizationMeta.name
+                  : `${organizationMeta.name} ops console`}
               </p>
             </div>
           </div>
-          <SearchBox />
-          <div className="flex items-center gap-3">
+          <div className="order-3 flex w-full min-w-0 items-center gap-2 xl:order-none xl:w-auto xl:flex-1">
+            <label className="sr-only" htmlFor="cost-center-filter">
+              Cost Center
+            </label>
+            <div className="w-[46%] max-w-[11.5rem] shrink-0 sm:w-auto sm:max-w-none">
+              <select
+                id="cost-center-filter"
+                className="h-9 w-full rounded-lg border border-border bg-background px-2.5 text-sm text-foreground sm:w-auto"
+                value={costCenter}
+                onChange={(e) =>
+                  setCostCenter(e.target.value as CostCenterFilter)
+                }
+                title="Cost Center"
+              >
+                <option value="ALL">All cost centers</option>
+                {COST_CENTER_OPTIONS.map((o) => (
+                  <option key={o.code} value={o.code}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <SearchBox />
+          </div>
+          <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3 xl:ml-0">
             <div className="flex items-center gap-2.5 rounded-full border border-border/80 bg-background/80 py-1 pl-1 pr-3">
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary">
                 {initials(user?.fullName)}
               </span>
-              <div className="hidden text-left sm:block">
+              <div className="hidden text-left md:block">
                 <p className="text-sm font-medium leading-tight">
                   {user?.fullName ?? 'User'}
                 </p>

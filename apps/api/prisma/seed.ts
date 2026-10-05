@@ -109,15 +109,15 @@ async function seedDemoPortfolio(
   const prevBounds = periodBounds(prevMonth);
 
   const clients = [
-    { name: 'Acme Corporation', code: 'ACME' },
-    { name: 'Globex Industries', code: 'GLOBEX' },
-    { name: 'Initech Solutions', code: 'INITECH' },
-    { name: 'Umbrella Health', code: 'UMBRELLA' },
-    { name: 'Stark Systems', code: 'STARK' },
-    { name: 'Wayne Logistics', code: 'WAYNE' },
+    { name: 'Acme Corporation', code: 'ACME', costCenter: 'BRICKRED' },
+    { name: 'Globex Industries', code: 'GLOBEX', costCenter: 'BRICKRED' },
+    { name: 'Initech Solutions', code: 'INITECH', costCenter: 'BRICKRED' },
+    { name: 'Umbrella Health', code: 'UMBRELLA', costCenter: 'AGYOM' },
+    { name: 'Stark Systems', code: 'STARK', costCenter: 'AGYOM' },
+    { name: 'Wayne Logistics', code: 'WAYNE', costCenter: 'AGYOM' },
   ] as const;
 
-  const clientByCode = new Map<string, { id: string; name: string }>();
+  const clientByCode = new Map<string, { id: string; name: string; costCenter: string }>();
   for (const c of clients) {
     const nameNormalized = normalizeName(c.name);
     const row = await prisma.client.upsert({
@@ -127,6 +127,7 @@ async function seedDemoPortfolio(
       update: {
         name: c.name,
         code: c.code,
+        costCenter: c.costCenter,
         isActive: true,
         deletedAt: null,
       },
@@ -135,6 +136,7 @@ async function seedDemoPortfolio(
         name: c.name,
         nameNormalized,
         code: c.code,
+        costCenter: c.costCenter,
       },
     });
     clientByCode.set(c.code, row);
@@ -492,6 +494,7 @@ async function seedDemoPortfolio(
         maxBillableHours: spec.maxBillableHours ?? null,
         hoursPerDay: 8,
         currency: 'INR',
+        costCenter: client.costCenter,
         joinedOn: addDays(periodStart, -120),
         releasedAt,
         releasedById: releasedAt ? users.dm.id : null,
@@ -513,6 +516,7 @@ async function seedDemoPortfolio(
         maxBillableHours: spec.maxBillableHours ?? null,
         hoursPerDay: 8,
         currency: 'INR',
+        costCenter: client.costCenter,
         joinedOn: addDays(periodStart, -120),
         releasedAt,
         releasedById: releasedAt ? users.dm.id : null,

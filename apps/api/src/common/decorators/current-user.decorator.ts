@@ -6,7 +6,7 @@ export type AuthUser = {
   role: string;
   fullName: string;
   organizationId: string;
-  organizationSlug: 'brickred' | 'agyom';
+  organizationSlug: 'brickred';
 };
 
 export const CurrentUser = createParamDecorator(

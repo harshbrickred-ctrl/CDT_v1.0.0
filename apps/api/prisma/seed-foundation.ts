@@ -9,12 +9,12 @@ export const ORG_DEFS = [
     slug: 'brickred' as const,
     name: 'BrickRed',
   },
-  {
-    id: '22222222-2222-2222-2222-222222222222',
-    slug: 'agyom' as const,
-    name: 'Agyom',
-  },
 ];
+
+export const COMPANY_ORG = ORG_DEFS[0];
+
+export const COST_CENTER_CODES = ['BRICKRED', 'AGYOM'] as const;
+export type CostCenterCode = (typeof COST_CENTER_CODES)[number];
 
 export async function ensureOrganizations(prisma: PrismaClient) {
   for (const org of ORG_DEFS) {
@@ -100,6 +100,11 @@ export async function seedLookups(prisma: PrismaClient) {
     { code: 'ONSITE', label: 'Onsite', sortOrder: 1 },
     { code: 'REMOTE', label: 'Remote', sortOrder: 2 },
     { code: 'HYBRID', label: 'Hybrid', sortOrder: 3 },
+  ]);
+
+  await seedLookupType(prisma, 'COST_CENTER', [
+    { code: 'BRICKRED', label: 'BrickRed', sortOrder: 1 },
+    { code: 'AGYOM', label: 'Agyom', sortOrder: 2 },
   ]);
 
   await seedLookupType(prisma, 'LEAVE_TYPE', [

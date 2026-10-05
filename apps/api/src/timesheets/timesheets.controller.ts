@@ -37,6 +37,7 @@ export class TimesheetsController {
     @Query('yearMonth') yearMonth?: string,
     @Query('clientId') clientId?: string,
     @Query('approvalStatus') approvalStatus?: ApprovalStatus,
+    @Query('costCenter') costCenter?: string,
   ) {
     return this.timesheets.findAll({
       user,
@@ -46,6 +47,7 @@ export class TimesheetsController {
       yearMonth,
       clientId,
       approvalStatus,
+      costCenter,
     });
   }
 

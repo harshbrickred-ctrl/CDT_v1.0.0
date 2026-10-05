@@ -31,6 +31,7 @@ export interface Client {
   id: string;
   name: string;
   code?: string | null;
+  costCenter: string;
   isActive?: boolean;
   deliveryOwners?: ClientOwnerUser[];
   accountOwners?: ClientOwnerUser[];
@@ -47,6 +48,7 @@ export interface Candidate {
   contractEndDate?: string | null;
   projectAccount?: string | null;
   workLocation?: string | null;
+  costCenter: string;
   clientReportingManager?: string | null;
   accountManagerUserId?: string | null;
   accountManager?: {

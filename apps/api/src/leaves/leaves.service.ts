@@ -17,6 +17,7 @@ import {
   emptyIfNoAccess,
   resolveOwnedClientIds,
   withCandidateClientScope,
+  withCostCenterFilter,
 } from '../common/client-scope';
 import type { AuthUser } from '../common/decorators/current-user.decorator';
 import { toNumber } from '../common/prisma-error';
@@ -89,6 +90,7 @@ export class LeavesService {
     candidateId?: string;
     status?: LeaveStatus;
     clientId?: string;
+    costCenter?: string;
   }) {
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 20;
@@ -100,13 +102,20 @@ export class LeavesService {
       ownedClientIds,
       params.clientId,
     );
+    const cc = withCostCenterFilter(params.costCenter);
     const where: Prisma.LeaveWhereInput = {
       organizationId: params.user.organizationId,
       deletedAt: null,
       ...(params.candidateId ? { candidateId: params.candidateId } : {}),
       ...(params.status ? { status: params.status } : {}),
-      ...(candidateScope
-        ? { candidate: { deletedAt: null, ...candidateScope } }
+      ...(candidateScope || cc
+        ? {
+            candidate: {
+              deletedAt: null,
+              ...candidateScope,
+              ...(cc ? { costCenter: cc } : {}),
+            },
+          }
         : {}),
     };
     const [total, items] = await this.prisma.$transaction([

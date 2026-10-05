@@ -7,6 +7,7 @@ import {
 } from '../lib/api';
 import { candidateLabel, formatDate, formatPct } from '../lib/format';
 import { useAuth } from '../context/AuthContext';
+import { useCostCenter } from '../context/CostCenterContext';
 import PageHeader from '../components/ui/PageHeader';
 import PublicId from '../components/ui/PublicId';
 import EmptyState from '../components/ui/EmptyState';
@@ -26,6 +27,7 @@ type Tab = 'leave' | 'timesheet';
 
 export default function ApprovalsPage() {
   const { user } = useAuth();
+  const { costCenterParam } = useCostCenter();
   const qc = useQueryClient();
   const [tab, setTab] = useState<Tab>('leave');
   const [error, setError] = useState<string | null>(null);
@@ -33,14 +35,23 @@ export default function ApprovalsPage() {
   const canAct = user?.role === 'ADMIN' || user?.role === 'ACCOUNT_OWNER';
 
   const leaveQuery = useQuery({
-    queryKey: ['leaves', 'pending'],
-    queryFn: () => leavesApi.list({ status: 'PENDING', pageSize: 100 }),
+    queryKey: ['leaves', 'pending', costCenterParam],
+    queryFn: () =>
+      leavesApi.list({
+        status: 'PENDING',
+        pageSize: 100,
+        costCenter: costCenterParam,
+      }),
   });
 
   const tsQuery = useQuery({
-    queryKey: ['timesheets', 'pending'],
+    queryKey: ['timesheets', 'pending', costCenterParam],
     queryFn: () =>
-      timesheetsApi.list({ approvalStatus: 'PENDING', pageSize: 100 }),
+      timesheetsApi.list({
+        approvalStatus: 'PENDING',
+        pageSize: 100,
+        costCenter: costCenterParam,
+      }),
   });
 
   const leaveMut = useMutation({

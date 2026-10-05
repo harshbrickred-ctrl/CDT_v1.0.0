@@ -20,6 +20,7 @@ import {
   emptyIfNoAccess,
   resolveOwnedClientIds,
   withCandidateClientScope,
+  withCostCenterFilter,
 } from '../common/client-scope';
 import type { AuthUser } from '../common/decorators/current-user.decorator';
 import { toNumber } from '../common/prisma-error';
@@ -116,6 +117,7 @@ export class InvoicesService {
     yearMonth?: string;
     candidateId?: string;
     clientId?: string;
+    costCenter?: string;
   }) {
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 20;
@@ -127,12 +129,20 @@ export class InvoicesService {
       ownedClientIds,
       params.clientId,
     );
+    const cc = withCostCenterFilter(params.costCenter);
     const where: Prisma.InvoiceWhereInput = {
       organizationId: params.user.organizationId,
       ...(params.status ? { status: params.status } : {}),
       ...(params.yearMonth ? { yearMonth: params.yearMonth } : {}),
       ...(params.candidateId ? { candidateId: params.candidateId } : {}),
-      ...(candidateScope ? { candidate: candidateScope } : {}),
+      ...(candidateScope || cc
+        ? {
+            candidate: {
+              ...candidateScope,
+              ...(cc ? { costCenter: cc } : {}),
+            },
+          }
+        : {}),
     };
     const [total, items] = await this.prisma.$transaction([
       this.prisma.invoice.count({ where }),

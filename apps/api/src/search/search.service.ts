@@ -4,6 +4,7 @@ import {
   emptyIfNoAccess,
   resolveOwnedClientIds,
   withClientIdScope,
+  withCostCenterFilter,
 } from '../common/client-scope';
 import type { AuthUser } from '../common/decorators/current-user.decorator';
 
@@ -15,6 +16,7 @@ export class SearchService {
     user: Pick<AuthUser, 'id' | 'role' | 'organizationId'>,
     q: string,
     limit = 20,
+    costCenter?: string,
   ) {
     const query = q?.trim() ?? '';
     if (!query) {
@@ -26,6 +28,7 @@ export class SearchService {
       return { candidates: [], clients: [] };
     }
     const clientFilter = withClientIdScope(ownedClientIds);
+    const cc = withCostCenterFilter(costCenter);
 
     const [candidates, clients] = await Promise.all([
       this.prisma.candidate.findMany({
@@ -33,6 +36,7 @@ export class SearchService {
           organizationId: user.organizationId,
           deletedAt: null,
           ...(clientFilter ? { clientId: clientFilter } : {}),
+          ...(cc ? { costCenter: cc } : {}),
           OR: [
             { fullName: { contains: query, mode: 'insensitive' } },
             { publicId: { contains: query, mode: 'insensitive' } },
@@ -54,6 +58,7 @@ export class SearchService {
           organizationId: user.organizationId,
           deletedAt: null,
           ...(clientFilter ? { id: clientFilter } : {}),
+          ...(cc ? { costCenter: cc } : {}),
           OR: [
             { name: { contains: query, mode: 'insensitive' } },
             { code: { contains: query, mode: 'insensitive' } },

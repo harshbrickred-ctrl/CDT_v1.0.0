@@ -7,7 +7,7 @@ import {
 } from '@prisma/client';
 import { previousYearMonth, utcToday } from '../common/dates';
 import { toNumber } from '../common/prisma-error';
-import { withClientIdScope } from '../common/client-scope';
+import { withClientIdScope, withCostCenterFilter } from '../common/client-scope';
 
 const INVOICED_STATUSES: InvoiceStatus[] = [
   InvoiceStatus.APPROVED,
@@ -59,12 +59,15 @@ function candidateBaseWhere(
   organizationId: string,
   ownedClientIds: string[] | null | undefined,
   clientId?: string,
+  costCenter?: string,
 ): Prisma.CandidateWhereInput {
   const clientFilter = withClientIdScope(ownedClientIds ?? null, clientId);
+  const cc = withCostCenterFilter(costCenter);
   return {
     organizationId,
     deletedAt: null,
     ...(clientFilter ? { clientId: clientFilter } : {}),
+    ...(cc ? { costCenter: cc } : {}),
   };
 }
 
@@ -111,17 +114,20 @@ export async function fetchDashboardCharts(
     clientId?: string;
     ownedClientIds?: string[] | null;
     health?: EngagementHealth;
+    costCenter?: string;
   },
 ): Promise<DashboardChartsData> {
   const candidateBase = candidateBaseWhere(
     params.organizationId,
     params.ownedClientIds,
     params.clientId,
+    params.costCenter,
   );
   const clientFilter = withClientIdScope(
     params.ownedClientIds ?? null,
     params.clientId,
   );
+  const cc = withCostCenterFilter(params.costCenter);
 
   const trendAnchor = params.month ?? currentYearMonthUtc();
   const invoiceMonth = params.month ?? undefined;
@@ -154,6 +160,7 @@ export async function fetchDashboardCharts(
         organizationId: params.organizationId,
         deletedAt: null,
         ...(clientFilter ? { id: clientFilter } : {}),
+        ...(cc ? { costCenter: cc } : {}),
       },
       select: {
         id: true,
@@ -163,6 +170,7 @@ export async function fetchDashboardCharts(
             organizationId: params.organizationId,
             deletedAt: null,
             status: CandidateStatus.ACTIVE,
+            ...(cc ? { costCenter: cc } : {}),
           },
           select: { id: true },
         },

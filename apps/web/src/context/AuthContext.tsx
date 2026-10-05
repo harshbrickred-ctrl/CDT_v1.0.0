@@ -8,12 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 import { api, setAuthToken } from '../lib/api';
-import {
-  getOrganization,
-  isOrganizationId,
-  type Organization,
-  type OrganizationId,
-} from '../lib/organizations';
+import { type OrganizationId } from '../lib/organizations';
 
 type AuthUser = {
   id: string;
@@ -30,13 +25,7 @@ type AuthContextValue = {
   accessToken: string | null;
   refreshToken: string | null;
   user: AuthUser | null;
-  organization: OrganizationId;
-  organizationMeta: Organization;
-  login: (
-    email: string,
-    password: string,
-    organization: OrganizationId,
-  ) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 };
 
@@ -56,16 +45,6 @@ function readStoredUser(): AuthUser | null {
   }
 }
 
-function readStoredOrganization(): OrganizationId {
-  try {
-    const raw = sessionStorage.getItem(ORG_KEY);
-    if (raw && isOrganizationId(raw)) return raw;
-  } catch {
-    /* ignore */
-  }
-  return 'brickred';
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [accessToken, setAccessToken] = useState<string | null>(
     () => sessionStorage.getItem(ACCESS_KEY),
@@ -74,9 +53,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => sessionStorage.getItem(REFRESH_KEY),
   );
   const [user, setUser] = useState<AuthUser | null>(() => readStoredUser());
-  const [organization, setOrganization] = useState<OrganizationId>(() =>
-    readStoredOrganization(),
-  );
 
   useEffect(() => {
     setAuthToken(accessToken);
@@ -100,37 +76,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [accessToken]);
 
-  useEffect(() => {
-    const org = getOrganization(organization);
-    document.documentElement.dataset.org = organization;
-    document.title = `${org.name} CDT — ${org.tagline}`;
-  }, [organization]);
+  const login = useCallback(async (email: string, password: string) => {
+    const { data } = await api.post<{
+      accessToken: string;
+      refreshToken: string;
+      user: AuthUser;
+    }>('/auth/login', { email, password });
 
-  const login = useCallback(
-    async (email: string, password: string, org: OrganizationId) => {
-      const { data } = await api.post<{
-        accessToken: string;
-        refreshToken: string;
-        user: AuthUser;
-      }>('/auth/login', { email, password, organization: org });
-
-      const resolvedOrg =
-        data.user.organizationSlug &&
-        isOrganizationId(data.user.organizationSlug)
-          ? data.user.organizationSlug
-          : org;
-
-      sessionStorage.setItem(ACCESS_KEY, data.accessToken);
-      sessionStorage.setItem(REFRESH_KEY, data.refreshToken);
-      sessionStorage.setItem(USER_KEY, JSON.stringify(data.user));
-      sessionStorage.setItem(ORG_KEY, resolvedOrg);
-      setAccessToken(data.accessToken);
-      setRefreshToken(data.refreshToken);
-      setUser(data.user);
-      setOrganization(resolvedOrg);
-    },
-    [],
-  );
+    sessionStorage.setItem(ACCESS_KEY, data.accessToken);
+    sessionStorage.setItem(REFRESH_KEY, data.refreshToken);
+    sessionStorage.setItem(USER_KEY, JSON.stringify(data.user));
+    setAccessToken(data.accessToken);
+    setRefreshToken(data.refreshToken);
+    setUser(data.user);
+  }, []);
 
   const logout = useCallback(async () => {
     const rt = sessionStorage.getItem(REFRESH_KEY);
@@ -146,33 +105,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAccessToken(null);
     setRefreshToken(null);
     setUser(null);
-    setOrganization('brickred');
   }, []);
-
-  const organizationMeta = useMemo(
-    () => getOrganization(organization),
-    [organization],
-  );
 
   const value = useMemo(
     () => ({
       accessToken,
       refreshToken,
       user,
-      organization,
-      organizationMeta,
       login,
       logout,
     }),
-    [
-      accessToken,
-      refreshToken,
-      user,
-      organization,
-      organizationMeta,
-      login,
-      logout,
-    ],
+    [accessToken, refreshToken, user, login, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

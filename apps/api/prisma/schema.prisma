@@ -131,6 +131,7 @@ model Client {
   name           String
   nameNormalized String    @map("name_normalized")
   code           String?
+  costCenter     String    @map("cost_center")
   isActive       Boolean   @default(true) @map("is_active")
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
@@ -143,6 +144,7 @@ model Client {
   @@unique([organizationId, nameNormalized])
   @@unique([organizationId, code])
   @@index([organizationId])
+  @@index([organizationId, costCenter])
   @@map("clients")
 }
 
@@ -179,6 +181,7 @@ model Candidate {
   contractEndDate        DateTime?       @map("contract_end_date") @db.Date
   projectAccount         String?         @map("project_account")
   workLocation           String?         @map("work_location")
+  costCenter             String          @map("cost_center")
   clientReportingManager String?         @map("client_reporting_manager")
   accountManagerUserId   String?         @map("account_manager_user_id") @db.Uuid
   billingType            BillingType     @default(HOURLY) @map("billing_type")
@@ -206,6 +209,7 @@ model Candidate {
 
   @@unique([organizationId, publicId])
   @@index([organizationId])
+  @@index([organizationId, costCenter])
   @@index([clientId])
   @@index([status])
   @@index([accountManagerUserId])

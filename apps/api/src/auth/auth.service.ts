@@ -12,7 +12,7 @@ export type JwtPayload = {
   email: string;
   role: string;
   organizationId: string;
-  organizationSlug: 'brickred' | 'agyom';
+  organizationSlug: 'brickred';
 };
 
 @Injectable()
@@ -43,7 +43,7 @@ export class AuthService {
     role: string;
     fullName: string;
     organizationId: string;
-    organizationSlug: 'brickred' | 'agyom';
+    organizationSlug: 'brickred';
   }) {
     const payload: JwtPayload = {
       sub: user.id,
@@ -96,17 +96,9 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
-    const org = await this.prisma.organization.findUnique({
-      where: { slug: dto.organization },
-    });
-    if (!org) {
-      throw new UnauthorizedException('Invalid organization');
-    }
-
     const user = await this.prisma.user.findFirst({
       where: {
         email: dto.email.toLowerCase(),
-        organizationId: org.id,
         deletedAt: null,
       },
       include: { organization: true },
@@ -124,7 +116,7 @@ export class AuthService {
       role: user.role,
       fullName: user.fullName,
       organizationId: user.organizationId,
-      organizationSlug: user.organization.slug as 'brickred' | 'agyom',
+      organizationSlug: 'brickred',
     });
   }
 
@@ -152,7 +144,7 @@ export class AuthService {
       role: stored.user.role,
       fullName: stored.user.fullName,
       organizationId: stored.user.organizationId,
-      organizationSlug: stored.user.organization.slug as 'brickred' | 'agyom',
+      organizationSlug: 'brickred',
     });
   }
 
@@ -195,7 +187,7 @@ export class AuthService {
       isActive: user.isActive,
       createdAt: user.createdAt,
       organizationId: user.organizationId,
-      organizationSlug: user.organization.slug,
+      organizationSlug: user.organization.slug === 'brickred' ? 'brickred' : 'brickred',
       organizationName: user.organization.name,
       ownedClientIds,
     };

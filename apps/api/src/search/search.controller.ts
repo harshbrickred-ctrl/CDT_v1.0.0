@@ -17,11 +17,13 @@ export class SearchController {
     @CurrentUser() user: AuthUser,
     @Query('q') q?: string,
     @Query('limit') limit?: string,
+    @Query('costCenter') costCenter?: string,
   ) {
     return this.search.search(
       user,
       q ?? '',
       limit ? Number(limit) : 20,
+      costCenter,
     );
   }
 }

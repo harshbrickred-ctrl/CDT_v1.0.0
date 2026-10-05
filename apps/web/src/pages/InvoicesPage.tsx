@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiErrorMessage, invoicesApi } from '../lib/api';
 import { candidateLabel, toIsoCurrency } from '../lib/format';
 import { useAuth } from '../context/AuthContext';
+import { useCostCenter } from '../context/CostCenterContext';
 import type { Invoice } from '../lib/types';
 import PageHeader from '../components/ui/PageHeader';
 import PublicId from '../components/ui/PublicId';
@@ -52,6 +53,7 @@ function invoiceBreakdown(inv: Invoice) {
 
 export default function InvoicesPage() {
   const { user } = useAuth();
+  const { costCenterParam } = useCostCenter();
   const qc = useQueryClient();
   const [tab, setTab] = useState<Tab>('PENDING_REVIEW');
   const [error, setError] = useState<string | null>(null);
@@ -59,8 +61,13 @@ export default function InvoicesPage() {
     user?.role === 'ADMIN' || user?.role === 'ACCOUNT_OWNER';
 
   const listQuery = useQuery({
-    queryKey: ['invoices', tab],
-    queryFn: () => invoicesApi.list({ status: tab, pageSize: 100 }),
+    queryKey: ['invoices', tab, costCenterParam],
+    queryFn: () =>
+      invoicesApi.list({
+        status: tab,
+        pageSize: 100,
+        costCenter: costCenterParam,
+      }),
   });
 
   const reviewMut = useMutation({

@@ -15,6 +15,7 @@ import {
 } from '../lib/format';
 import type { Candidate, DeliveryReview } from '../lib/types';
 import { useAuth } from '../context/AuthContext';
+import { useCostCenter } from '../context/CostCenterContext';
 import {
   CLIENT_FEEDBACK_OPTIONS,
   ENGAGEMENT_HEALTH_OPTIONS,
@@ -82,6 +83,7 @@ function monthLabel(yearMonth: string) {
 
 export default function DeliveryReviewsPage() {
   const { user } = useAuth();
+  const { costCenterParam } = useCostCenter();
   const qc = useQueryClient();
   const [yearMonthFilter, setYearMonthFilter] = useState(currentYearMonth());
   const [clientId, setClientId] = useState('');
@@ -92,18 +94,26 @@ export default function DeliveryReviewsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const listQuery = useQuery({
-    queryKey: ['delivery-reviews', 'list', yearMonthFilter, clientId],
+    queryKey: [
+      'delivery-reviews',
+      'list',
+      yearMonthFilter,
+      clientId,
+      costCenterParam,
+    ],
     queryFn: () =>
       deliveryReviewsApi.list({
         yearMonth: yearMonthFilter || undefined,
         clientId: clientId || undefined,
+        costCenter: costCenterParam,
         pageSize: 200,
       }),
   });
 
   const clientsQuery = useQuery({
-    queryKey: ['clients', 'all'],
-    queryFn: () => clientsApi.list({ pageSize: 200 }),
+    queryKey: ['clients', 'all', costCenterParam],
+    queryFn: () =>
+      clientsApi.list({ pageSize: 200, costCenter: costCenterParam }),
   });
 
   const clients = useMemo(

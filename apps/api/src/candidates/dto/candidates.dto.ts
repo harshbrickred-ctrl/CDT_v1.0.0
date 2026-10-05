@@ -65,6 +65,11 @@ export class CreateCandidateDto {
   @IsString()
   workLocation?: string;
 
+  @ApiProperty({ enum: ['BRICKRED', 'AGYOM'], example: 'BRICKRED' })
+  @IsString()
+  @IsIn(['BRICKRED', 'AGYOM'])
+  costCenter!: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
@@ -161,6 +166,12 @@ export class UpdateCandidateDto {
   @IsOptional()
   @IsString()
   workLocation?: string | null;
+
+  @ApiPropertyOptional({ enum: ['BRICKRED', 'AGYOM'] })
+  @IsOptional()
+  @IsString()
+  @IsIn(['BRICKRED', 'AGYOM'])
+  costCenter?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
