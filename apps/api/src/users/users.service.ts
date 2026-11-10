@@ -38,6 +38,14 @@ export class UsersService {
     return { items, meta: paginationMeta(total, page, pageSize) };
   }
 
+  async listOptions(organizationId: string) {
+    return this.prisma.user.findMany({
+      where: { organizationId, deletedAt: null, isActive: true },
+      select: { id: true, fullName: true, email: true },
+      orderBy: { fullName: 'asc' },
+    });
+  }
+
   async findOne(organizationId: string, id: string) {
     const user = await this.prisma.user.findFirst({
       where: { id, organizationId, deletedAt: null },

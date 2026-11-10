@@ -5,7 +5,6 @@ import {
 } from '@nestjs/common';
 import {
   ApprovalStatus,
-  CandidateStatus,
   LeaveStatus,
   Prisma,
 } from '@prisma/client';
@@ -27,6 +26,7 @@ import {
 import type { AuthUser } from '../common/decorators/current-user.decorator';
 import { periodFromYearMonth, isCandidateEmployedInPeriod } from '../common/dates';
 import { throwConflictIfUnique, toNumber } from '../common/prisma-error';
+import { assertActiveBillable } from '../candidates/employee-category';
 import {
   RejectTimesheetDto,
   UpsertTimesheetDto,
@@ -197,15 +197,7 @@ export class TimesheetsService {
       where: { id: dto.candidateId, organizationId, deletedAt: null },
     });
     if (!candidate) throw new NotFoundException('Candidate not found');
-
-    if (
-      candidate.status !== CandidateStatus.ACTIVE &&
-      candidate.status !== CandidateStatus.RELEASED
-    ) {
-      throw new BadRequestException(
-        'Timesheets can only be filled for active or released candidates',
-      );
-    }
+    assertActiveBillable(candidate, 'timesheet');
 
     let periodStart: Date;
     let periodEnd: Date;

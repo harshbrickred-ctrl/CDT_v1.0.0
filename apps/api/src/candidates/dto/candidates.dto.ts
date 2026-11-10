@@ -2,6 +2,7 @@ import {
   IsDateString,
   IsEnum,
   IsIn,
+  IsInt,
   IsNumber,
   IsOptional,
   IsString,
@@ -10,15 +11,27 @@ import {
   MinLength,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { CandidateStatus, BillingType } from '@prisma/client';
+import {
+  BenchFeedbackKind,
+  BillingType,
+  CandidateStatus,
+  EmployeeCategory,
+  EmployeeTeam,
+} from '@prisma/client';
+import { SUPPORT_FUNCTIONS } from '../employee-category';
 
 export const CANDIDATE_CURRENCIES = ['INR', 'DOLLAR'] as const;
 export type CandidateCurrency = (typeof CANDIDATE_CURRENCIES)[number];
 
 export class CreateCandidateDto {
-  @ApiProperty()
+  @ApiProperty({ enum: EmployeeCategory })
+  @IsEnum(EmployeeCategory)
+  category!: EmployeeCategory;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsUUID()
-  clientId!: string;
+  clientId?: string | null;
 
   @ApiProperty()
   @IsString()
@@ -78,7 +91,34 @@ export class CreateCandidateDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsUUID()
-  accountManagerUserId?: string;
+  accountManagerUserId?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  salesOwnerUserId?: string | null;
+
+  @ApiPropertyOptional({ enum: EmployeeTeam })
+  @IsOptional()
+  @IsEnum(EmployeeTeam)
+  team?: EmployeeTeam | null;
+
+  @ApiPropertyOptional({ enum: SUPPORT_FUNCTIONS })
+  @IsOptional()
+  @IsString()
+  @IsIn(SUPPORT_FUNCTIONS)
+  supportFunction?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  benchStartDate?: string | null;
+
+  @ApiPropertyOptional({ default: 0 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  interviewsScheduledCount?: number;
 
   @ApiPropertyOptional({ description: 'Hourly billing rate in candidate currency' })
   @IsOptional()
@@ -116,10 +156,15 @@ export class CreateCandidateDto {
 }
 
 export class UpdateCandidateDto {
+  @ApiPropertyOptional({ enum: EmployeeCategory })
+  @IsOptional()
+  @IsEnum(EmployeeCategory)
+  category?: EmployeeCategory;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsUUID()
-  clientId?: string;
+  clientId?: string | null;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -185,6 +230,32 @@ export class UpdateCandidateDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsUUID()
+  salesOwnerUserId?: string | null;
+
+  @ApiPropertyOptional({ enum: EmployeeTeam })
+  @IsOptional()
+  @IsEnum(EmployeeTeam)
+  team?: EmployeeTeam | null;
+
+  @ApiPropertyOptional({ enum: SUPPORT_FUNCTIONS })
+  @IsOptional()
+  @IsIn(SUPPORT_FUNCTIONS)
+  supportFunction?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  benchStartDate?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  interviewsScheduledCount?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsNumber()
   @Min(0.01)
   hourlyRate?: number | null;
@@ -232,4 +303,19 @@ export class ReleaseCandidateDto {
   @IsOptional()
   @IsString()
   releaseReason?: string;
+}
+
+export class CreateBenchFeedbackDto {
+  @ApiProperty({ enum: BenchFeedbackKind })
+  @IsEnum(BenchFeedbackKind)
+  kind!: BenchFeedbackKind;
+
+  @ApiProperty()
+  @IsDateString()
+  feedbackDate!: string;
+
+  @ApiProperty()
+  @IsString()
+  @MinLength(1)
+  body!: string;
 }

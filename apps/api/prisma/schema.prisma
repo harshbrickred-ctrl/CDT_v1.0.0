@@ -60,6 +60,23 @@ enum EngagementHealth {
   ESCALATED
 }
 
+enum EmployeeCategory {
+  BILLABLE
+  NON_BILLABLE
+  BENCH
+}
+
+enum EmployeeTeam {
+  SUPPORT
+  LEADERSHIP
+  DELIVERY
+}
+
+enum BenchFeedbackKind {
+  DELIVERY_MANAGER
+  ACCOUNT_OWNER
+}
+
 model Organization {
   id        String   @id @default(uuid()) @db.Uuid
   slug      String   @unique
@@ -77,6 +94,7 @@ model Organization {
   auditLogs        AuditLog[]
   idSequences      IdSequence[]
   clientOwnerships ClientOwnership[]
+  benchFeedback    CandidateBenchFeedback[]
 
   @@map("organizations")
 }
@@ -101,10 +119,12 @@ model User {
   timesheetsApproved Timesheet[]      @relation("TimesheetApprover")
   candidatesReleased Candidate[]      @relation("CandidateReleaser")
   candidatesManaged  Candidate[]      @relation("CandidateAccountManager")
+  candidatesSold     Candidate[]      @relation("CandidateSalesOwner")
   reviewsWritten     DeliveryReview[] @relation("Reviewer")
   invoicesGenerated  Invoice[]        @relation("InvoiceGenerator")
   invoicesReviewed   Invoice[]        @relation("InvoiceReviewer")
   clientOwnerships   ClientOwnership[]
+  benchFeedback      CandidateBenchFeedback[] @relation("BenchFeedbackAuthor")
 
   @@unique([organizationId, email])
   @@index([organizationId])
@@ -168,52 +188,81 @@ model ClientOwnership {
 }
 
 model Candidate {
-  id                     String          @id @default(uuid()) @db.Uuid
-  organizationId         String          @map("organization_id") @db.Uuid
-  publicId               String          @map("public_id")
-  clientId               String          @map("client_id") @db.Uuid
-  fullName               String          @map("full_name")
-  email                  String?
-  mobile                 String?
-  roleTitle              String?         @map("role_title")
-  sstReference           String?         @map("sst_reference")
-  joinedOn               DateTime?       @map("joined_on") @db.Date
-  contractEndDate        DateTime?       @map("contract_end_date") @db.Date
-  projectAccount         String?         @map("project_account")
-  workLocation           String?         @map("work_location")
-  costCenter             String          @map("cost_center")
-  clientReportingManager String?         @map("client_reporting_manager")
-  accountManagerUserId   String?         @map("account_manager_user_id") @db.Uuid
-  billingType            BillingType     @default(HOURLY) @map("billing_type")
-  hourlyRate             Decimal?        @map("hourly_rate") @db.Decimal(12, 2)
-  monthlyFixedAmount     Decimal?        @map("monthly_fixed_amount") @db.Decimal(14, 2)
-  maxBillableHours       Decimal?        @map("max_billable_hours") @db.Decimal(7, 2)
-  hoursPerDay            Decimal         @default(8) @map("hours_per_day") @db.Decimal(4, 2)
-  currency               String          @default("INR")
-  status                 CandidateStatus @default(ACTIVE)
-  releasedAt             DateTime?       @map("released_at")
-  releasedById           String?         @map("released_by_id") @db.Uuid
-  releaseReason          String?         @map("release_reason")
-  createdAt              DateTime        @default(now()) @map("created_at")
-  updatedAt              DateTime        @updatedAt @map("updated_at")
-  deletedAt              DateTime?       @map("deleted_at")
+  id                       String           @id @default(uuid()) @db.Uuid
+  organizationId           String           @map("organization_id") @db.Uuid
+  publicId                 String           @map("public_id")
+  category                 EmployeeCategory @default(BILLABLE)
+  clientId                 String?          @map("client_id") @db.Uuid
+  fullName                 String           @map("full_name")
+  email                    String?
+  mobile                   String?
+  roleTitle                String?          @map("role_title")
+  sstReference             String?          @map("sst_reference")
+  joinedOn                 DateTime?        @map("joined_on") @db.Date
+  contractEndDate          DateTime?        @map("contract_end_date") @db.Date
+  projectAccount           String?          @map("project_account")
+  workLocation             String?          @map("work_location")
+  costCenter               String           @map("cost_center")
+  clientReportingManager   String?          @map("client_reporting_manager")
+  accountManagerUserId     String?          @map("account_manager_user_id") @db.Uuid
+  salesOwnerUserId         String?          @map("sales_owner_user_id") @db.Uuid
+  team                     EmployeeTeam?
+  supportFunction          String?          @map("support_function")
+  benchStartDate           DateTime?        @map("bench_start_date") @db.Date
+  interviewsScheduledCount Int              @default(0) @map("interviews_scheduled_count")
+  billingType              BillingType      @default(HOURLY) @map("billing_type")
+  hourlyRate               Decimal?         @map("hourly_rate") @db.Decimal(12, 2)
+  monthlyFixedAmount       Decimal?         @map("monthly_fixed_amount") @db.Decimal(14, 2)
+  maxBillableHours         Decimal?         @map("max_billable_hours") @db.Decimal(7, 2)
+  hoursPerDay              Decimal          @default(8) @map("hours_per_day") @db.Decimal(4, 2)
+  currency                 String           @default("INR")
+  status                   CandidateStatus  @default(ACTIVE)
+  releasedAt               DateTime?        @map("released_at")
+  releasedById             String?          @map("released_by_id") @db.Uuid
+  releaseReason            String?          @map("release_reason")
+  createdAt                DateTime         @default(now()) @map("created_at")
+  updatedAt                DateTime         @updatedAt @map("updated_at")
+  deletedAt                DateTime?        @map("deleted_at")
 
-  organization   Organization     @relation(fields: [organizationId], references: [id])
-  client         Client           @relation(fields: [clientId], references: [id])
-  releasedBy     User?            @relation("CandidateReleaser", fields: [releasedById], references: [id])
-  accountManager User?            @relation("CandidateAccountManager", fields: [accountManagerUserId], references: [id])
+  organization   Organization             @relation(fields: [organizationId], references: [id])
+  client         Client?                  @relation(fields: [clientId], references: [id])
+  releasedBy     User?                    @relation("CandidateReleaser", fields: [releasedById], references: [id])
+  accountManager User?                    @relation("CandidateAccountManager", fields: [accountManagerUserId], references: [id])
+  salesOwner     User?                    @relation("CandidateSalesOwner", fields: [salesOwnerUserId], references: [id])
   leaves         Leave[]
   timesheets     Timesheet[]
   reviews        DeliveryReview[]
   invoices       Invoice[]
+  benchFeedback  CandidateBenchFeedback[]
 
   @@unique([organizationId, publicId])
   @@index([organizationId])
   @@index([organizationId, costCenter])
+  @@index([organizationId, category])
   @@index([clientId])
   @@index([status])
   @@index([accountManagerUserId])
+  @@index([salesOwnerUserId])
   @@map("candidates")
+}
+
+model CandidateBenchFeedback {
+  id             String            @id @default(uuid()) @db.Uuid
+  organizationId String            @map("organization_id") @db.Uuid
+  candidateId    String            @map("candidate_id") @db.Uuid
+  kind           BenchFeedbackKind
+  authorUserId   String            @map("author_user_id") @db.Uuid
+  feedbackDate   DateTime          @map("feedback_date") @db.Date
+  body           String
+  createdAt      DateTime          @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  candidate    Candidate    @relation(fields: [candidateId], references: [id])
+  author       User         @relation("BenchFeedbackAuthor", fields: [authorUserId], references: [id])
+
+  @@index([organizationId])
+  @@index([candidateId, kind, feedbackDate])
+  @@map("candidate_bench_feedback")
 }
 
 model Leave {

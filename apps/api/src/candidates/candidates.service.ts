@@ -3,16 +3,20 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { CandidateStatus, Prisma } from '@prisma/client';
+import {
+  CandidateStatus,
+  EmployeeCategory,
+  Prisma,
+} from '@prisma/client';
 import { paginationMeta, paginationSkip } from '@cdt/shared-types';
 import { PrismaService } from '../prisma/prisma.service';
 import { IdSequenceService } from '../common/id-sequence.service';
 import { AuditService } from '../audit/audit.service';
 import {
   assertClientAccess,
-  emptyIfNoAccess,
+  canAccessCandidate,
+  candidateAccessWhere,
   resolveOwnedClientIds,
-  withClientIdScope,
   withCostCenterFilter,
 } from '../common/client-scope';
 import type { AuthUser } from '../common/decorators/current-user.decorator';
@@ -24,10 +28,18 @@ import {
 } from '../common/dates';
 import { toNumber } from '../common/prisma-error';
 import {
+  CreateBenchFeedbackDto,
   CreateCandidateDto,
   ReleaseCandidateDto,
   UpdateCandidateDto,
 } from './dto/candidates.dto';
+import {
+  computeBenchAging,
+  normalizeEmployeeCategory,
+  type CategoryFieldInput,
+} from './employee-category';
+
+const userBrief = { id: true, fullName: true, email: true } as const;
 
 const candidateInclude = {
   client: {
@@ -38,10 +50,24 @@ const candidateInclude = {
       isActive: true,
     },
   },
-  accountManager: {
-    select: { id: true, fullName: true, email: true },
-  },
+  accountManager: { select: userBrief },
+  salesOwner: { select: userBrief },
 } as const;
+
+const candidateDetailInclude = {
+  ...candidateInclude,
+  benchFeedback: {
+    orderBy: [{ feedbackDate: 'desc' as const }, { createdAt: 'desc' as const }],
+    include: { author: { select: userBrief } },
+  },
+};
+
+type CandidateReader = Pick<AuthUser, 'id' | 'role' | 'organizationId'>;
+
+function isoDate(value: Date | null | undefined): string | null {
+  if (!value) return null;
+  return value.toISOString().slice(0, 10);
+}
 
 @Injectable()
 export class CandidatesService {
@@ -55,10 +81,12 @@ export class CandidatesService {
     organizationId: string;
     id: string;
     status: CandidateStatus;
+    category: EmployeeCategory;
     joinedOn: Date | null;
     contractEndDate: Date | null;
     releasedAt: Date | null;
   }): Promise<string[]> {
+    if (candidate.category !== EmployeeCategory.BILLABLE) return [];
     const due = dueTimesheetMonths(candidate, utcToday());
     if (!due.length) return [];
     const existing = await this.prisma.timesheet.findMany({
@@ -83,6 +111,8 @@ export class CandidatesService {
       hoursPerDay?: Prisma.Decimal | number | null;
       monthlyFixedAmount?: Prisma.Decimal | number | null;
       maxBillableHours?: Prisma.Decimal | number | null;
+      category?: EmployeeCategory;
+      benchStartDate?: Date | null;
     },
   >(row: T, extra?: Record<string, unknown>) {
     return {
@@ -91,6 +121,10 @@ export class CandidatesService {
       hoursPerDay: toNumber(row.hoursPerDay ?? null),
       monthlyFixedAmount: toNumber(row.monthlyFixedAmount ?? null),
       maxBillableHours: toNumber(row.maxBillableHours ?? null),
+      benchAging:
+        row.category === EmployeeCategory.BENCH
+          ? computeBenchAging(row.benchStartDate)
+          : null,
       ...extra,
     };
   }
@@ -112,8 +146,27 @@ export class CandidatesService {
     return { publicId: idOrPublicId, organizationId, deletedAt: null };
   }
 
+  private async loadVisible(
+    user: CandidateReader,
+    idOrPublicId: string,
+    include: Prisma.CandidateInclude,
+  ) {
+    const ownedClientIds = await resolveOwnedClientIds(this.prisma, user);
+    const candidate = await this.prisma.candidate.findFirst({
+      where: this.resolveWhere(user.organizationId, idOrPublicId),
+      include,
+    });
+    if (
+      !candidate ||
+      !canAccessCandidate(user.role, ownedClientIds, candidate)
+    ) {
+      throw new NotFoundException('Candidate not found');
+    }
+    return candidate;
+  }
+
   async findAll(params: {
-    user: Pick<AuthUser, 'id' | 'role' | 'organizationId'>;
+    user: CandidateReader;
     page?: number;
     pageSize?: number;
     clientId?: string;
@@ -121,34 +174,50 @@ export class CandidatesService {
     statuses?: CandidateStatus[];
     q?: string;
     costCenter?: string;
+    category?: EmployeeCategory;
   }) {
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 20;
+    if (
+      params.category &&
+      !Object.values(EmployeeCategory).includes(params.category)
+    ) {
+      throw new BadRequestException('Invalid category');
+    }
     const ownedClientIds = await resolveOwnedClientIds(this.prisma, params.user);
-    if (emptyIfNoAccess(ownedClientIds)) {
+    const access = candidateAccessWhere(
+      params.user.role,
+      ownedClientIds,
+      params.clientId,
+    );
+    if (access === null) {
       return { items: [], meta: paginationMeta(0, page, pageSize) };
     }
-    const clientFilter = withClientIdScope(ownedClientIds, params.clientId);
     const costCenter = withCostCenterFilter(params.costCenter);
     const where: Prisma.CandidateWhereInput = {
       organizationId: params.user.organizationId,
       deletedAt: null,
-      ...(clientFilter ? { clientId: clientFilter } : {}),
-      ...(costCenter ? { costCenter } : {}),
-      ...(params.statuses?.length
-        ? { status: { in: params.statuses } }
-        : params.status
-          ? { status: params.status }
-          : {}),
-      ...(params.q
-        ? {
-            OR: [
-              { fullName: { contains: params.q, mode: 'insensitive' } },
-              { publicId: { contains: params.q, mode: 'insensitive' } },
-              { email: { contains: params.q, mode: 'insensitive' } },
-            ],
-          }
-        : {}),
+      AND: [
+        access,
+        ...(costCenter ? [{ costCenter }] : []),
+        ...(params.category ? [{ category: params.category }] : []),
+        ...(params.statuses?.length
+          ? [{ status: { in: params.statuses } }]
+          : params.status
+            ? [{ status: params.status }]
+            : []),
+        ...(params.q
+          ? [
+              {
+                OR: [
+                  { fullName: { contains: params.q, mode: 'insensitive' as const } },
+                  { publicId: { contains: params.q, mode: 'insensitive' as const } },
+                  { email: { contains: params.q, mode: 'insensitive' as const } },
+                ],
+              },
+            ]
+          : []),
+      ],
     };
     const [total, items] = await this.prisma.$transaction([
       this.prisma.candidate.count({ where }),
@@ -166,23 +235,12 @@ export class CandidatesService {
     };
   }
 
-  async findOne(
-    user: Pick<AuthUser, 'id' | 'role' | 'organizationId'>,
-    idOrPublicId: string,
-  ) {
-    const ownedClientIds = await resolveOwnedClientIds(this.prisma, user);
-    if (emptyIfNoAccess(ownedClientIds)) {
-      throw new NotFoundException('Candidate not found');
-    }
-    const clientFilter = withClientIdScope(ownedClientIds);
-    const candidate = await this.prisma.candidate.findFirst({
-      where: {
-        ...this.resolveWhere(user.organizationId, idOrPublicId),
-        ...(clientFilter ? { clientId: clientFilter } : {}),
-      },
-      include: candidateInclude,
-    });
-    if (!candidate) throw new NotFoundException('Candidate not found');
+  async findOne(user: CandidateReader, idOrPublicId: string) {
+    const candidate = await this.loadVisible(
+      user,
+      idOrPublicId,
+      candidateDetailInclude,
+    );
     const missingTimesheetMonths =
       await this.missingTimesheetMonthsForCandidate(candidate);
     return this.serialize(candidate, { missingTimesheetMonths });
@@ -208,48 +266,89 @@ export class CandidatesService {
     return ownerIds[0] ?? null;
   }
 
-  async create(
-    user: Pick<AuthUser, 'id' | 'role' | 'organizationId'>,
-    dto: CreateCandidateDto,
+  private async assertSalesOwner(
+    organizationId: string,
+    userId: string | null,
   ) {
-    const organizationId = user.organizationId;
-    const ownedClientIds = await resolveOwnedClientIds(this.prisma, user);
-    assertClientAccess(ownedClientIds, dto.clientId);
-    const client = await this.prisma.client.findFirst({
-      where: { id: dto.clientId, organizationId, deletedAt: null },
+    if (!userId) return;
+    const owner = await this.prisma.user.findFirst({
+      where: { id: userId, organizationId, deletedAt: null },
+      select: { id: true },
     });
-    if (!client) throw new NotFoundException('Client not found');
+    if (!owner) {
+      throw new BadRequestException('Sales owner was not found');
+    }
+  }
 
-    const accountManagerUserId = await this.resolveAccountManagerUserId(
-      organizationId,
-      dto.clientId,
-      dto.accountManagerUserId,
-    );
+  private async prepareCategory(
+    user: CandidateReader,
+    input: CategoryFieldInput,
+  ) {
+    const normalized = normalizeEmployeeCategory(input);
+    if (normalized.category === EmployeeCategory.BILLABLE && normalized.clientId) {
+      const ownedClientIds = await resolveOwnedClientIds(this.prisma, user);
+      assertClientAccess(ownedClientIds, normalized.clientId);
+      const client = await this.prisma.client.findFirst({
+        where: {
+          id: normalized.clientId,
+          organizationId: user.organizationId,
+          deletedAt: null,
+        },
+      });
+      if (!client) throw new NotFoundException('Client not found');
+      await this.assertSalesOwner(
+        user.organizationId,
+        normalized.salesOwnerUserId,
+      );
+    }
+    return normalized;
+  }
+
+  async create(user: CandidateReader, dto: CreateCandidateDto) {
+    const organizationId = user.organizationId;
+    const normalized = await this.prepareCategory(user, dto);
+    const billable = normalized.category === EmployeeCategory.BILLABLE;
+    const accountManagerUserId =
+      billable && normalized.clientId
+        ? await this.resolveAccountManagerUserId(
+            organizationId,
+            normalized.clientId,
+            dto.accountManagerUserId,
+          )
+        : null;
 
     const publicId = await this.ids.allocateNext(organizationId, 'CD');
     const candidate = await this.prisma.candidate.create({
       data: {
         organizationId,
         publicId,
-        clientId: dto.clientId,
+        category: normalized.category,
+        clientId: normalized.clientId,
         fullName: dto.fullName.trim(),
         email: dto.email?.trim() || null,
         mobile: dto.mobile?.trim() || null,
-        roleTitle: dto.roleTitle?.trim() || null,
-        sstReference: dto.sstReference?.trim() || null,
+        roleTitle: billable ? dto.roleTitle?.trim() || null : null,
+        sstReference: billable ? dto.sstReference?.trim() || null : null,
         joinedOn: dto.joinedOn ? new Date(dto.joinedOn) : null,
         contractEndDate: dto.contractEndDate
           ? new Date(dto.contractEndDate)
           : null,
-        projectAccount: dto.projectAccount?.trim() || null,
-        workLocation: dto.workLocation?.trim() || null,
+        projectAccount: billable ? dto.projectAccount?.trim() || null : null,
+        workLocation: billable ? dto.workLocation?.trim() || null : null,
         costCenter: dto.costCenter.trim().toUpperCase(),
-        clientReportingManager: dto.clientReportingManager?.trim() || null,
+        clientReportingManager: billable
+          ? dto.clientReportingManager?.trim() || null
+          : null,
         accountManagerUserId,
+        salesOwnerUserId: normalized.salesOwnerUserId,
+        team: normalized.team,
+        supportFunction: normalized.supportFunction,
+        benchStartDate: normalized.benchStartDate,
+        interviewsScheduledCount: normalized.interviewsScheduledCount,
         billingType: dto.billingType ?? 'HOURLY',
-        hourlyRate: dto.hourlyRate ?? null,
-        monthlyFixedAmount: dto.monthlyFixedAmount ?? null,
-        maxBillableHours: dto.maxBillableHours ?? null,
+        hourlyRate: billable ? dto.hourlyRate ?? null : null,
+        monthlyFixedAmount: billable ? dto.monthlyFixedAmount ?? null : null,
+        maxBillableHours: billable ? dto.maxBillableHours ?? null : null,
         hoursPerDay:
           dto.billingType === 'FIXED' ? 8 : (dto.hoursPerDay ?? 8),
         currency: dto.currency?.trim() || 'INR',
@@ -270,87 +369,107 @@ export class CandidatesService {
   }
 
   async update(
-    user: Pick<AuthUser, 'id' | 'role' | 'organizationId'>,
+    user: CandidateReader,
     idOrPublicId: string,
     dto: UpdateCandidateDto,
   ) {
     const organizationId = user.organizationId;
-    const ownedClientIds = await resolveOwnedClientIds(this.prisma, user);
-    const before = await this.findOne(user, idOrPublicId);
-    if (dto.clientId) {
-      assertClientAccess(ownedClientIds, dto.clientId);
-      const client = await this.prisma.client.findFirst({
-        where: { id: dto.clientId, organizationId, deletedAt: null },
-      });
-      if (!client) throw new NotFoundException('Client not found');
-    }
-    const data: Prisma.CandidateUpdateInput = {};
-    if (dto.clientId !== undefined) {
-      data.client = { connect: { id: dto.clientId } };
-    }
+    const before = await this.loadVisible(
+      user,
+      idOrPublicId,
+      candidateDetailInclude,
+    );
+    const category = dto.category ?? before.category;
+    const normalized = await this.prepareCategory(user, {
+      category,
+      clientId: dto.clientId !== undefined ? dto.clientId : before.clientId,
+      team: dto.team !== undefined ? dto.team : before.team,
+      supportFunction:
+        dto.supportFunction !== undefined
+          ? dto.supportFunction
+          : dto.team !== undefined && dto.team !== 'SUPPORT'
+            ? null
+            : before.supportFunction,
+      salesOwnerUserId:
+        dto.salesOwnerUserId !== undefined
+          ? dto.salesOwnerUserId
+          : before.salesOwnerUserId,
+      benchStartDate:
+        dto.benchStartDate !== undefined
+          ? dto.benchStartDate
+          : isoDate(before.benchStartDate),
+      interviewsScheduledCount:
+        dto.interviewsScheduledCount !== undefined
+          ? dto.interviewsScheduledCount
+          : before.interviewsScheduledCount,
+    });
+    const billable = normalized.category === EmployeeCategory.BILLABLE;
+    const data: Prisma.CandidateUncheckedUpdateInput = {
+      category: normalized.category,
+      clientId: normalized.clientId,
+      team: normalized.team,
+      supportFunction: normalized.supportFunction,
+      salesOwnerUserId: normalized.salesOwnerUserId,
+      benchStartDate: normalized.benchStartDate,
+      interviewsScheduledCount: normalized.interviewsScheduledCount,
+    };
     if (dto.fullName !== undefined) data.fullName = dto.fullName.trim();
     if (dto.email !== undefined) data.email = dto.email?.trim() || null;
     if (dto.mobile !== undefined) data.mobile = dto.mobile?.trim() || null;
-    if (dto.roleTitle !== undefined)
-      data.roleTitle = dto.roleTitle?.trim() || null;
-    if (dto.sstReference !== undefined)
-      data.sstReference = dto.sstReference?.trim() || null;
     if (dto.joinedOn !== undefined)
       data.joinedOn = dto.joinedOn ? new Date(dto.joinedOn) : null;
     if (dto.contractEndDate !== undefined)
       data.contractEndDate = dto.contractEndDate
         ? new Date(dto.contractEndDate)
         : null;
-    if (dto.projectAccount !== undefined)
-      data.projectAccount = dto.projectAccount?.trim() || null;
-    if (dto.workLocation !== undefined)
-      data.workLocation = dto.workLocation?.trim() || null;
     if (dto.costCenter !== undefined)
       data.costCenter = dto.costCenter.trim().toUpperCase();
-    if (dto.clientReportingManager !== undefined)
-      data.clientReportingManager =
-        dto.clientReportingManager?.trim() || null;
+    if (dto.status !== undefined) data.status = dto.status;
 
-    const nextClientId = dto.clientId ?? before.clientId;
-    if (
-      dto.accountManagerUserId !== undefined ||
-      dto.clientId !== undefined
-    ) {
-      const resolvedAm = await this.resolveAccountManagerUserId(
-        organizationId,
-        nextClientId,
+    if (billable) {
+      if (dto.roleTitle !== undefined)
+        data.roleTitle = dto.roleTitle?.trim() || null;
+      const requestedAccountManager =
         dto.accountManagerUserId !== undefined
           ? dto.accountManagerUserId
-          : before.accountManagerUserId,
-      );
-      data.accountManager = resolvedAm
-        ? { connect: { id: resolvedAm } }
-        : { disconnect: true };
+          : before.accountManagerUserId;
+      data.accountManagerUserId = normalized.clientId
+        ? await this.resolveAccountManagerUserId(
+            organizationId,
+            normalized.clientId,
+            requestedAccountManager,
+          )
+        : null;
+      if (dto.sstReference !== undefined)
+        data.sstReference = dto.sstReference?.trim() || null;
+      if (dto.projectAccount !== undefined)
+        data.projectAccount = dto.projectAccount?.trim() || null;
+      if (dto.workLocation !== undefined)
+        data.workLocation = dto.workLocation?.trim() || null;
+      if (dto.clientReportingManager !== undefined)
+        data.clientReportingManager =
+          dto.clientReportingManager?.trim() || null;
+      if (dto.hourlyRate !== undefined) data.hourlyRate = dto.hourlyRate;
+      if (dto.billingType !== undefined) data.billingType = dto.billingType;
+      if (dto.monthlyFixedAmount !== undefined)
+        data.monthlyFixedAmount = dto.monthlyFixedAmount;
+      if (dto.maxBillableHours !== undefined)
+        data.maxBillableHours = dto.maxBillableHours;
+      if (dto.hoursPerDay !== undefined) data.hoursPerDay = dto.hoursPerDay;
+      if (dto.currency !== undefined) data.currency = dto.currency.trim() || 'INR';
+    } else {
+      data.roleTitle = null;
+      data.accountManagerUserId = null;
+      data.clientReportingManager = null;
+      data.projectAccount = null;
+      data.workLocation = null;
+      data.sstReference = null;
     }
-    if (dto.hourlyRate !== undefined) {
-      data.hourlyRate = dto.hourlyRate;
-    }
-    if (dto.billingType !== undefined) {
-      data.billingType = dto.billingType;
-    }
-    if (dto.monthlyFixedAmount !== undefined) {
-      data.monthlyFixedAmount = dto.monthlyFixedAmount;
-    }
-    if (dto.maxBillableHours !== undefined) {
-      data.maxBillableHours = dto.maxBillableHours;
-    }
-    if (dto.hoursPerDay !== undefined) {
-      data.hoursPerDay = dto.hoursPerDay;
-    }
-    if (dto.currency !== undefined) {
-      data.currency = dto.currency.trim() || 'INR';
-    }
-    if (dto.status !== undefined) data.status = dto.status;
 
     const candidate = await this.prisma.candidate.update({
       where: { id: before.id },
       data,
-      include: candidateInclude,
+      include: candidateDetailInclude,
     });
     await this.audit.record({
       organizationId,
@@ -362,15 +481,16 @@ export class CandidatesService {
       before,
       after: candidate,
     });
-    return this.serialize(candidate);
+    const missingTimesheetMonths =
+      await this.missingTimesheetMonthsForCandidate(candidate);
+    return this.serialize(candidate, { missingTimesheetMonths });
   }
 
   async release(
-    user: Pick<AuthUser, 'id' | 'role' | 'organizationId'>,
+    user: CandidateReader,
     idOrPublicId: string,
     dto: ReleaseCandidateDto,
   ) {
-    const organizationId = user.organizationId;
     const before = await this.findOne(user, idOrPublicId);
     if (before.status === CandidateStatus.RELEASED) {
       throw new BadRequestException('Candidate is already released');
@@ -387,10 +507,10 @@ export class CandidatesService {
         releasedById: user.id,
         releaseReason: dto.releaseReason?.trim() || null,
       },
-      include: candidateInclude,
+      include: candidateDetailInclude,
     });
     await this.audit.record({
-      organizationId,
+      organizationId: user.organizationId,
       actorUserId: user.id,
       action: 'RELEASE',
       entityType: 'Candidate',
@@ -404,10 +524,39 @@ export class CandidatesService {
     return this.serialize(candidate, { missingTimesheetMonths });
   }
 
-  async softDelete(
-    user: Pick<AuthUser, 'id' | 'role' | 'organizationId'>,
+  async addBenchFeedback(
+    user: CandidateReader,
     idOrPublicId: string,
+    dto: CreateBenchFeedbackDto,
   ) {
+    const before = await this.loadVisible(
+      user,
+      idOrPublicId,
+      candidateDetailInclude,
+    );
+    if (before.category !== EmployeeCategory.BENCH) {
+      throw new BadRequestException(
+        'Bench feedback can only be added for employees on the bench',
+      );
+    }
+    const body = dto.body.trim();
+    if (!body) {
+      throw new BadRequestException('Feedback is required');
+    }
+    await this.prisma.candidateBenchFeedback.create({
+      data: {
+        organizationId: user.organizationId,
+        candidateId: before.id,
+        kind: dto.kind,
+        authorUserId: user.id,
+        feedbackDate: new Date(dto.feedbackDate),
+        body,
+      },
+    });
+    return this.findOne(user, before.id);
+  }
+
+  async softDelete(user: CandidateReader, idOrPublicId: string) {
     const before = await this.findOne(user, idOrPublicId);
     const candidate = await this.prisma.candidate.update({
       where: { id: before.id },
@@ -427,10 +576,7 @@ export class CandidatesService {
     return { success: true };
   }
 
-  async timeline(
-    user: Pick<AuthUser, 'id' | 'role' | 'organizationId'>,
-    idOrPublicId: string,
-  ) {
+  async timeline(user: CandidateReader, idOrPublicId: string) {
     const organizationId = user.organizationId;
     const candidate = await this.findOne(user, idOrPublicId);
     const [leaves, timesheets, reviews] = await Promise.all([

@@ -28,6 +28,12 @@ import { CurrentUser, AuthUser } from '../common/decorators/current-user.decorat
 export class UsersController {
   constructor(private readonly users: UsersService) {}
 
+  @Get('options')
+  @Roles(Role.ADMIN, Role.DELIVERY_OWNER)
+  options(@CurrentUser() user: AuthUser) {
+    return this.users.listOptions(user.organizationId);
+  }
+
   @Get()
   findAll(
     @CurrentUser() user: AuthUser,

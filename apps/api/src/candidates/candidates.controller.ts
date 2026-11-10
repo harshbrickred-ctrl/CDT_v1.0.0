@@ -10,9 +10,10 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { CandidateStatus, Role } from '@prisma/client';
+import { CandidateStatus, EmployeeCategory, Role } from '@prisma/client';
 import { CandidatesService } from './candidates.service';
 import {
+  CreateBenchFeedbackDto,
   CreateCandidateDto,
   ReleaseCandidateDto,
   UpdateCandidateDto,
@@ -39,6 +40,7 @@ export class CandidatesController {
     @Query('statuses') statuses?: string,
     @Query('q') q?: string,
     @Query('costCenter') costCenter?: string,
+    @Query('category') category?: EmployeeCategory,
   ) {
     const statusList = statuses
       ? (statuses
@@ -55,6 +57,7 @@ export class CandidatesController {
       statuses: statusList,
       q,
       costCenter,
+      category,
     });
   }
 
@@ -82,6 +85,15 @@ export class CandidatesController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.candidates.update(user, id, dto);
+  }
+
+  @Post(':id/bench-feedback')
+  addBenchFeedback(
+    @Param('id') id: string,
+    @Body() dto: CreateBenchFeedbackDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.candidates.addBenchFeedback(user, id, dto);
   }
 
   @Post(':id/release')

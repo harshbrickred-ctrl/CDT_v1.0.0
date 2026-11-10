@@ -16,6 +16,7 @@ export type CandidateComboboxProps = {
   status?: string;
   /** Comma-separated or array; when set, overrides status. */
   statuses?: string | string[];
+  category?: string;
   required?: boolean;
   placeholder?: string;
   disabled?: boolean;
@@ -34,6 +35,7 @@ export default function CandidateCombobox({
   onChange,
   status = 'ACTIVE',
   statuses,
+  category,
   required,
   placeholder = 'Search by name or public ID…',
   disabled,
@@ -69,12 +71,13 @@ export default function CandidateCombobox({
   }, [value]);
 
   const { data, isFetching } = useQuery({
-    queryKey: ['candidates', 'combobox', status, statusesParam, debounced],
+    queryKey: ['candidates', 'combobox', status, statusesParam, category, debounced],
     queryFn: () =>
       candidatesApi.list({
         ...(statusesParam
           ? { statuses: statusesParam }
           : { status }),
+        ...(category ? { category } : {}),
         q: debounced || undefined,
         pageSize: 12,
       }),

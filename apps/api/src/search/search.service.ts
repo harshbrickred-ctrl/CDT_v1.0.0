@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
-  emptyIfNoAccess,
+  candidateAccessWhere,
   resolveOwnedClientIds,
   withClientIdScope,
   withCostCenterFilter,
@@ -24,23 +24,27 @@ export class SearchService {
     }
 
     const ownedClientIds = await resolveOwnedClientIds(this.prisma, user);
-    if (emptyIfNoAccess(ownedClientIds)) {
-      return { candidates: [], clients: [] };
-    }
+    const access = candidateAccessWhere(user.role, ownedClientIds);
     const clientFilter = withClientIdScope(ownedClientIds);
     const cc = withCostCenterFilter(costCenter);
 
     const [candidates, clients] = await Promise.all([
-      this.prisma.candidate.findMany({
+      access === null
+        ? Promise.resolve([])
+        : this.prisma.candidate.findMany({
         where: {
           organizationId: user.organizationId,
           deletedAt: null,
-          ...(clientFilter ? { clientId: clientFilter } : {}),
-          ...(cc ? { costCenter: cc } : {}),
-          OR: [
-            { fullName: { contains: query, mode: 'insensitive' } },
-            { publicId: { contains: query, mode: 'insensitive' } },
-            { email: { contains: query, mode: 'insensitive' } },
+          AND: [
+            access,
+            ...(cc ? [{ costCenter: cc }] : []),
+            {
+              OR: [
+                { fullName: { contains: query, mode: 'insensitive' as const } },
+                { publicId: { contains: query, mode: 'insensitive' as const } },
+                { email: { contains: query, mode: 'insensitive' as const } },
+              ],
+            },
           ],
         },
         select: {

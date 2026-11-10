@@ -1,5 +1,10 @@
 import { ForbiddenException } from '@nestjs/common';
-import { ClientOwnershipRole, Prisma, Role } from '@prisma/client';
+import {
+  ClientOwnershipRole,
+  EmployeeCategory,
+  Prisma,
+  Role,
+} from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AuthUser } from './decorators/current-user.decorator';
 
@@ -110,6 +115,61 @@ export function withClientIdScope(
     return requestedClientId;
   }
   return { in: ownedClientIds };
+}
+
+const NON_CLIENT_CATEGORIES: EmployeeCategory[] = [
+  EmployeeCategory.NON_BILLABLE,
+  EmployeeCategory.BENCH,
+];
+
+/**
+ * Candidate list/detail scope.
+ * null means the caller has no visible candidates.
+ * ADMIN is unscoped (optional client filter only).
+ * DELIVERY_OWNER sees owned-client placements plus non-client employees,
+ * unless a specific client was requested.
+ * ACCOUNT_OWNER sees owned-client placements only.
+ */
+export function candidateAccessWhere(
+  role: Role | string,
+  ownedClientIds: string[] | null,
+  requestedClientId?: string,
+): Prisma.CandidateWhereInput | null {
+  if (ownedClientIds === null) {
+    return requestedClientId ? { clientId: requestedClientId } : {};
+  }
+  const seesNonClient =
+    (role === Role.DELIVERY_OWNER || role === 'DELIVERY_OWNER') &&
+    !requestedClientId;
+  if (ownedClientIds.length === 0) {
+    if (!seesNonClient) return null;
+    return { category: { in: NON_CLIENT_CATEGORIES } };
+  }
+  const clientFilter = withClientIdScope(ownedClientIds, requestedClientId);
+  if (requestedClientId || !seesNonClient) {
+    return clientFilter ? { clientId: clientFilter } : { clientId: { in: [] } };
+  }
+  return {
+    OR: [
+      { clientId: clientFilter },
+      { category: { in: NON_CLIENT_CATEGORIES } },
+    ],
+  };
+}
+
+export function canAccessCandidate(
+  role: Role | string,
+  ownedClientIds: string[] | null,
+  candidate: { clientId: string | null; category: EmployeeCategory },
+): boolean {
+  if (ownedClientIds === null) return true;
+  if (candidate.clientId && ownedClientIds.includes(candidate.clientId)) {
+    return true;
+  }
+  return (
+    (role === Role.DELIVERY_OWNER || role === 'DELIVERY_OWNER') &&
+    NON_CLIENT_CATEGORIES.includes(candidate.category)
+  );
 }
 
 /** Restrict via candidate.clientId nested filter. */

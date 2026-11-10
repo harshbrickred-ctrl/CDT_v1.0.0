@@ -2,6 +2,8 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import {
   CandidateStatus,
   ClientFeedback,
+  EmployeeCategory,
+  EmployeeTeam,
   EngagementHealth,
   LeaveStatus,
 } from '@prisma/client';
@@ -17,6 +19,10 @@ import { AuditService } from '../audit/audit.service';
 import { periodFromYearMonth } from '../common/dates';
 import { isUniqueConflict } from '../common/prisma-error';
 import { isCostCenterCode } from '../common/cost-center';
+import {
+  normalizeEmployeeCategory,
+  SUPPORT_FUNCTIONS,
+} from '../candidates/employee-category';
 import {
   ImportBodyDto,
   ImportEntity,
@@ -245,8 +251,6 @@ export class ImportService {
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       const fullName = str(row.fullName);
-      const clientId = str(row.clientId);
-      const clientName = str(row.clientName);
       if (!fullName) {
         errors.push({
           row: i,
@@ -255,81 +259,128 @@ export class ImportService {
         });
         continue;
       }
-      let resolvedClientId = clientId;
-      const clientCode = str(row.clientCode);
-      if (!resolvedClientId && clientName) {
-        const client = await this.prisma.client.findFirst({
-          where: {
-            organizationId,
-            deletedAt: null,
-            nameNormalized: normalizeClientName(clientName),
-          },
-        });
-        if (!client) {
-          errors.push({
-            row: i,
-            field: 'clientName',
-            message: 'Client not found',
-          });
-          continue;
-        }
-        resolvedClientId = client.id;
-      }
-      if (!resolvedClientId && clientCode) {
-        const client = await this.prisma.client.findFirst({
-          where: {
-            organizationId,
-            deletedAt: null,
-            code: clientCode,
-          },
-        });
-        if (!client) {
-          errors.push({
-            row: i,
-            field: 'clientCode',
-            message: 'Client not found',
-          });
-          continue;
-        }
-        resolvedClientId = client.id;
-      }
-      if (!resolvedClientId) {
+      const categoryRaw = str(row.category)?.toUpperCase();
+      if (
+        !categoryRaw ||
+        !Object.values(EmployeeCategory).includes(categoryRaw as EmployeeCategory)
+      ) {
         errors.push({
           row: i,
-          field: 'clientId',
-          message: 'clientId, clientName, or clientCode is required',
+          field: 'category',
+          message: 'category is required and must be BILLABLE, NON_BILLABLE, or BENCH',
         });
         continue;
       }
-      const client = await this.prisma.client.findFirst({
-        where: { id: resolvedClientId, organizationId, deletedAt: null },
-      });
-      if (!client) {
-        errors.push({ row: i, field: 'clientId', message: 'Client not found' });
+      const category = categoryRaw as EmployeeCategory;
+      const disagreement = this.importCategoryDisagreement(category, row);
+      if (disagreement) {
+        errors.push({ row: i, field: disagreement.field, message: disagreement.message });
         continue;
       }
+
+      let resolvedClientId: string | null = null;
+      if (category === EmployeeCategory.BILLABLE) {
+        resolvedClientId = await this.resolveImportClient(organizationId, row, i, errors);
+        if (!resolvedClientId) continue;
+      }
+
+      let salesOwnerUserId: string | null = null;
+      if (category === EmployeeCategory.BILLABLE) {
+        const sales = await this.resolveImportSalesOwner(organizationId, row, i, errors);
+        if (sales === undefined) continue;
+        salesOwnerUserId = sales;
+      }
+
+      const teamRaw = str(row.team)?.toUpperCase();
+      let team: EmployeeTeam | null = null;
+      if (teamRaw) {
+        if (!Object.values(EmployeeTeam).includes(teamRaw as EmployeeTeam)) {
+          errors.push({
+            row: i,
+            field: 'team',
+            message: 'team must be SUPPORT, LEADERSHIP, or DELIVERY',
+          });
+          continue;
+        }
+        team = teamRaw as EmployeeTeam;
+      }
+      const supportFunction = str(row.supportFunction)?.toUpperCase() ?? null;
+      if (
+        supportFunction &&
+        !SUPPORT_FUNCTIONS.includes(supportFunction as (typeof SUPPORT_FUNCTIONS)[number])
+      ) {
+        errors.push({
+          row: i,
+          field: 'supportFunction',
+          message:
+            'supportFunction must be HR, TA, ACCOUNTS, ADMIN, or FINANCE',
+        });
+        continue;
+      }
+      const interviews = num(row.interviewsScheduledCount);
+      if (
+        interviews !== undefined &&
+        (!Number.isInteger(interviews) || interviews < 0)
+      ) {
+        errors.push({
+          row: i,
+          field: 'interviewsScheduledCount',
+          message: 'interviewsScheduledCount must be a whole number of 0 or more',
+        });
+        continue;
+      }
+
+      let normalized;
+      try {
+        normalized = normalizeEmployeeCategory({
+          category,
+          clientId: resolvedClientId,
+          team,
+          supportFunction,
+          salesOwnerUserId,
+          benchStartDate: str(row.benchStartDate) ?? null,
+          interviewsScheduledCount: interviews,
+        });
+      } catch (e) {
+        errors.push({
+          row: i,
+          field: 'category',
+          message: e instanceof BadRequestException ? e.message : 'Invalid category fields',
+        });
+        continue;
+      }
+
       const costCenter = resolveImportCostCenter(row, i, errors);
       if (!costCenter) continue;
+      const billable = normalized.category === EmployeeCategory.BILLABLE;
       if (!commit) continue;
       const publicId = await this.ids.allocateNext(organizationId, 'CD');
       const candidate = await this.prisma.candidate.create({
         data: {
           organizationId,
           publicId,
-          clientId: resolvedClientId,
+          category: normalized.category,
+          clientId: normalized.clientId,
           fullName,
           email: str(row.email) ?? null,
           mobile: str(row.mobile) ?? null,
-          roleTitle: str(row.roleTitle) ?? null,
-          sstReference: str(row.sstReference) ?? null,
+          roleTitle: billable ? str(row.roleTitle) ?? null : null,
+          sstReference: billable ? str(row.sstReference) ?? null : null,
           joinedOn: str(row.joinedOn) ? new Date(str(row.joinedOn)!) : null,
           contractEndDate: str(row.contractEndDate)
             ? new Date(str(row.contractEndDate)!)
             : null,
-          projectAccount: str(row.projectAccount) ?? null,
-          workLocation: str(row.workLocation) ?? null,
+          projectAccount: billable ? str(row.projectAccount) ?? null : null,
+          workLocation: billable ? str(row.workLocation) ?? null : null,
           costCenter,
-          clientReportingManager: str(row.clientReportingManager) ?? null,
+          clientReportingManager: billable
+            ? str(row.clientReportingManager) ?? null
+            : null,
+          salesOwnerUserId: normalized.salesOwnerUserId,
+          team: normalized.team,
+          supportFunction: normalized.supportFunction,
+          benchStartDate: normalized.benchStartDate,
+          interviewsScheduledCount: normalized.interviewsScheduledCount,
           status: CandidateStatus.ACTIVE,
         },
       });
@@ -347,6 +398,176 @@ export class ImportService {
       created += 1;
     }
     return created;
+  }
+
+  private importCategoryDisagreement(
+    category: EmployeeCategory,
+    row: Record<string, unknown>,
+  ): { field: string; message: string } | null {
+    const has = (key: string) => {
+      const value = row[key];
+      if (value === null || value === undefined) return false;
+      if (typeof value === 'string' && !value.trim()) return false;
+      return true;
+    };
+    const clientFields = [
+      'clientId',
+      'clientName',
+      'clientCode',
+      'salesOwnerUserId',
+      'salesOwnerEmail',
+    ];
+    const benchFields = ['benchStartDate', 'interviewsScheduledCount'];
+    if (category !== EmployeeCategory.BILLABLE) {
+      const field = clientFields.find((key) => has(key));
+      if (field) {
+        return {
+          field,
+          message: `${field} is only allowed when category is BILLABLE`,
+        };
+      }
+    }
+    if (category !== EmployeeCategory.BENCH) {
+      const field = benchFields.find((key) => has(key));
+      if (field) {
+        return {
+          field,
+          message: `${field} is only allowed when category is BENCH`,
+        };
+      }
+    }
+    if (category === EmployeeCategory.BILLABLE && (has('team') || has('supportFunction'))) {
+      return {
+        field: has('team') ? 'team' : 'supportFunction',
+        message: 'team and supportFunction are not allowed when category is BILLABLE',
+      };
+    }
+    return null;
+  }
+
+  private async resolveImportClient(
+    organizationId: string,
+    row: Record<string, unknown>,
+    rowIndex: number,
+    errors: ImportRowError[],
+  ): Promise<string | null> {
+    let resolvedClientId = str(row.clientId);
+    const clientName = str(row.clientName);
+    const clientCode = str(row.clientCode);
+    if (!resolvedClientId && clientName) {
+      const client = await this.prisma.client.findFirst({
+        where: {
+          organizationId,
+          deletedAt: null,
+          nameNormalized: normalizeClientName(clientName),
+        },
+      });
+      if (!client) {
+        errors.push({ row: rowIndex, field: 'clientName', message: 'Client not found' });
+        return null;
+      }
+      resolvedClientId = client.id;
+    }
+    if (!resolvedClientId && clientCode) {
+      const client = await this.prisma.client.findFirst({
+        where: { organizationId, deletedAt: null, code: clientCode },
+      });
+      if (!client) {
+        errors.push({ row: rowIndex, field: 'clientCode', message: 'Client not found' });
+        return null;
+      }
+      resolvedClientId = client.id;
+    }
+    if (!resolvedClientId) {
+      errors.push({
+        row: rowIndex,
+        field: 'clientId',
+        message: 'clientId, clientName, or clientCode is required for BILLABLE',
+      });
+      return null;
+    }
+    if (
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        resolvedClientId,
+      )
+    ) {
+      errors.push({
+        row: rowIndex,
+        field: 'clientId',
+        message: 'clientId must be a client id',
+      });
+      return null;
+    }
+    const client = await this.prisma.client.findFirst({
+      where: { id: resolvedClientId, organizationId, deletedAt: null },
+    });
+    if (!client) {
+      errors.push({ row: rowIndex, field: 'clientId', message: 'Client not found' });
+      return null;
+    }
+    return resolvedClientId;
+  }
+
+  /** undefined means the row already has an error. null means no sales owner. */
+  private async resolveImportSalesOwner(
+    organizationId: string,
+    row: Record<string, unknown>,
+    rowIndex: number,
+    errors: ImportRowError[],
+  ): Promise<string | null | undefined> {
+    const salesOwnerUserId = str(row.salesOwnerUserId);
+    if (
+      salesOwnerUserId &&
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        salesOwnerUserId,
+      )
+    ) {
+      errors.push({
+        row: rowIndex,
+        field: 'salesOwnerUserId',
+        message: 'salesOwnerUserId must be a user id',
+      });
+      return undefined;
+    }
+    const salesOwnerEmail = str(row.salesOwnerEmail)?.toLowerCase();
+    if (!salesOwnerUserId && !salesOwnerEmail) return null;
+    const byId = salesOwnerUserId
+      ? await this.prisma.user.findFirst({
+          where: { id: salesOwnerUserId, organizationId, deletedAt: null },
+          select: { id: true, email: true },
+        })
+      : null;
+    if (salesOwnerUserId && !byId) {
+      errors.push({
+        row: rowIndex,
+        field: 'salesOwnerUserId',
+        message: 'Sales owner was not found',
+      });
+      return undefined;
+    }
+    const byEmail = salesOwnerEmail
+      ? await this.prisma.user.findFirst({
+          where: { organizationId, email: salesOwnerEmail, deletedAt: null },
+          select: { id: true },
+        })
+      : null;
+    if (salesOwnerEmail && !byEmail) {
+      errors.push({
+        row: rowIndex,
+        field: 'salesOwnerEmail',
+        message: 'Sales owner was not found',
+      });
+      return undefined;
+    }
+    if (byId && byEmail && byId.id !== byEmail.id) {
+      errors.push({
+        row: rowIndex,
+        field: 'salesOwnerEmail',
+        message: 'salesOwnerUserId and salesOwnerEmail refer to different users',
+      });
+      return undefined;
+    }
+    return byId?.id ?? byEmail?.id ?? null;
   }
 
   private async importLeaves(
@@ -492,6 +713,17 @@ export class ImportService {
       });
       if (!candidate) {
         errors.push({ row: i, field: 'candidateId', message: 'Candidate not found' });
+        continue;
+      }
+      if (
+        candidate.status !== CandidateStatus.ACTIVE ||
+        candidate.category !== EmployeeCategory.BILLABLE
+      ) {
+        errors.push({
+          row: i,
+          field: 'candidateId',
+          message: 'Timesheets can only be filled for active billable employees',
+        });
         continue;
       }
       const existing = await this.prisma.timesheet.findUnique({
@@ -663,6 +895,17 @@ export class ImportService {
       });
       if (!candidate) {
         errors.push({ row: i, field: 'candidateId', message: 'Candidate not found' });
+        continue;
+      }
+      if (
+        candidate.status !== CandidateStatus.ACTIVE ||
+        candidate.category !== EmployeeCategory.BILLABLE
+      ) {
+        errors.push({
+          row: i,
+          field: 'candidateId',
+          message: 'Delivery reviews can only be created for active billable employees',
+        });
         continue;
       }
       const existing = await this.prisma.deliveryReview.findUnique({

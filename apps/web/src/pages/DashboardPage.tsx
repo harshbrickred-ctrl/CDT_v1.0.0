@@ -285,6 +285,12 @@ export default function DashboardPage() {
         icon: kpiIcons.users,
       },
       {
+        id: 'bench',
+        label: 'Bench',
+        value: summary?.benchHeadcount ?? 0,
+        icon: kpiIcons.users,
+      },
+      {
         id: 'on-track',
         label: 'On Track Engagements',
         value: summary?.onTrackEngagements ?? 0,

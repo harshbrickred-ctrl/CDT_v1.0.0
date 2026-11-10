@@ -1,5 +1,6 @@
 import {
   CandidateStatus,
+  EmployeeCategory,
   EngagementHealth,
   InvoiceStatus,
   Prisma,
@@ -123,6 +124,10 @@ export async function fetchDashboardCharts(
     params.clientId,
     params.costCenter,
   );
+  const billableCandidate: Prisma.CandidateWhereInput = {
+    ...candidateBase,
+    category: EmployeeCategory.BILLABLE,
+  };
   const clientFilter = withClientIdScope(
     params.ownedClientIds ?? null,
     params.clientId,
@@ -145,7 +150,7 @@ export async function fetchDashboardCharts(
           engagementHealth: params.health ?? {
             in: [EngagementHealth.AT_RISK, EngagementHealth.ESCALATED],
           },
-          candidate: candidateBase,
+          candidate: billableCandidate,
         };
 
   const [
@@ -170,6 +175,7 @@ export async function fetchDashboardCharts(
             organizationId: params.organizationId,
             deletedAt: null,
             status: CandidateStatus.ACTIVE,
+            category: EmployeeCategory.BILLABLE,
             ...(cc ? { costCenter: cc } : {}),
           },
           select: { id: true },
@@ -300,7 +306,7 @@ export async function fetchDashboardCharts(
   const revenueByClientMap = new Map<string, { name: string; revenue: number }>();
   for (const row of revenueByClientRaw) {
     const candidate = candidateClient.get(row.candidateId);
-    if (!candidate?.client) continue;
+    if (!candidate?.client || !candidate.clientId) continue;
     const amount = toNumber(row._sum.amount) ?? 0;
     const existing = revenueByClientMap.get(candidate.clientId);
     if (existing) {

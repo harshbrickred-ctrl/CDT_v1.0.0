@@ -24,6 +24,7 @@ import {
 } from '../common/client-scope';
 import type { AuthUser } from '../common/decorators/current-user.decorator';
 import { toNumber } from '../common/prisma-error';
+import { assertActiveBillable } from '../candidates/employee-category';
 import { GenerateInvoiceDto, RejectInvoiceDto } from './dto/invoices.dto';
 import { periodFromYearMonth } from '../common/dates';
 
@@ -202,6 +203,7 @@ export class InvoicesService {
     if (timesheet.invoice) {
       throw new ConflictException('An invoice already exists for this timesheet');
     }
+    assertActiveBillable(timesheet.candidate, 'invoice');
 
     const billingType = timesheet.candidate.billingType ?? BillingType.HOURLY;
     const hourlyRate = toNumber(timesheet.candidate.hourlyRate);

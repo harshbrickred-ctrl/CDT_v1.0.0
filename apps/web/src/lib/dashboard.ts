@@ -19,6 +19,7 @@ export function normalizeDashboardSummary(
   return {
     month: raw.month ?? null,
     activeCandidates: raw.activeCandidates ?? 0,
+    benchHeadcount: raw.benchHeadcount ?? 0,
     totalCandidates: raw.totalCandidates ?? 0,
     onTrackEngagements:
       raw.onTrackEngagements ?? breakdown.onTrack ?? 0,

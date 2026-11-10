@@ -3,6 +3,7 @@ import {
   ApprovalStatus,
   CandidateStatus,
   ClientFeedback,
+  EmployeeCategory,
   EngagementHealth,
   InvoiceStatus,
   LeaveStatus,
@@ -126,6 +127,13 @@ export class DashboardService {
       ...candidateBase,
       status: CandidateStatus.ACTIVE,
     };
+    const billableCandidate: Prisma.CandidateWhereInput = {
+      ...candidateBase,
+      category: EmployeeCategory.BILLABLE,
+    };
+    const seesBench =
+      params.user.role === Role.ADMIN ||
+      params.user.role === Role.DELIVERY_OWNER;
 
     const monthScope = month ? { yearMonth: month } : {};
     const invoiceBase = this.invoiceWhere(candidateBase, month);
@@ -149,6 +157,7 @@ export class DashboardService {
       paidAgg,
       outstandingAgg,
       paidInvoicesForTat,
+      benchHeadcount,
     ] = await Promise.all([
       this.prisma.candidate.count({ where: activeWhere }),
       this.prisma.candidate.count({ where: candidateBase }),
@@ -188,7 +197,7 @@ export class DashboardService {
           deletedAt: null,
           ...monthScope,
           ...(params.health ? { engagementHealth: params.health } : {}),
-          candidate: candidateBase,
+          candidate: billableCandidate,
         },
         select: {
           engagementHealth: true,
@@ -202,7 +211,7 @@ export class DashboardService {
           organizationId,
           deletedAt: null,
           ...monthScope,
-          candidate: candidateBase,
+          candidate: billableCandidate,
         },
         select: {
           attendancePct: true,
@@ -226,6 +235,7 @@ export class DashboardService {
               organizationId,
               deletedAt: null,
               status: CandidateStatus.ACTIVE,
+              category: EmployeeCategory.BILLABLE,
               ...(cc ? { costCenter: cc } : {}),
             },
             select: { id: true },
@@ -271,6 +281,17 @@ export class DashboardService {
         },
         select: { sentAt: true, paidAt: true },
       }),
+      seesBench
+        ? this.prisma.candidate.count({
+            where: {
+              organizationId,
+              deletedAt: null,
+              status: CandidateStatus.ACTIVE,
+              category: EmployeeCategory.BENCH,
+              ...(cc ? { costCenter: cc } : {}),
+            },
+          })
+        : Promise.resolve(0),
     ]);
 
     const healthBreakdown = {
@@ -315,6 +336,7 @@ export class DashboardService {
     const utilByClient = new Map<string, number[]>();
     for (const t of timesheetsInMonth) {
       const cid = t.candidate.clientId;
+      if (!cid) continue;
       const pct = toNumber(t.attendancePct);
       if (pct === null) continue;
       const arr = utilByClient.get(cid) ?? [];
@@ -358,7 +380,7 @@ export class DashboardService {
         organizationId,
         deletedAt: null,
         candidate: {
-          ...candidateBase,
+          ...billableCandidate,
           status: { in: [CandidateStatus.ACTIVE, CandidateStatus.RELEASED] },
         },
       },
@@ -374,7 +396,7 @@ export class DashboardService {
 
     const timesheetEligible = await this.prisma.candidate.findMany({
       where: {
-        ...candidateBase,
+        ...billableCandidate,
         status: { in: [CandidateStatus.ACTIVE, CandidateStatus.RELEASED] },
       },
       select: {
@@ -410,6 +432,7 @@ export class DashboardService {
     return {
       month,
       activeCandidates,
+      benchHeadcount,
       totalCandidates,
       onTrackEngagements: healthBreakdown.onTrack,
       atRiskEngagements: healthBreakdown.atRisk,
@@ -448,6 +471,7 @@ export class DashboardService {
     return {
       month,
       activeCandidates: 0,
+      benchHeadcount: 0,
       totalCandidates: 0,
       onTrackEngagements: 0,
       atRiskEngagements: 0,
@@ -516,6 +540,7 @@ export class DashboardService {
         organizationId: user.organizationId,
         deletedAt: null,
         status: CandidateStatus.ACTIVE,
+        category: EmployeeCategory.BILLABLE,
         ...(clientFilter ? { clientId: clientFilter } : {}),
         ...(cc ? { costCenter: cc } : {}),
       },
@@ -586,6 +611,7 @@ export class DashboardService {
         detailMonth: params.detailMonth,
         ownedClientIds,
         costCenter: params.costCenter,
+        role: params.user.role,
       });
     } catch (e) {
       if (

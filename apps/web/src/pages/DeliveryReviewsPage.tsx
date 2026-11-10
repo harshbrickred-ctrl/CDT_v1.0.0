@@ -347,6 +347,7 @@ export default function DeliveryReviewsPage() {
                 setForm({ ...form, candidateId: c?.id ?? '' });
               }}
               status="ACTIVE"
+              category="BILLABLE"
             />
           </div>
 

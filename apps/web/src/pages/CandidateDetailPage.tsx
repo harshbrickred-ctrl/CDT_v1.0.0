@@ -8,6 +8,7 @@ import {
   leavesApi,
   timesheetsApi,
 } from '../lib/api';
+import type { BenchFeedback, BenchFeedbackKind, Candidate } from '../lib/types';
 import { clientFeedbackLabel, formatDate, formatPct } from '../lib/format';
 import { COST_CENTER_OPTIONS, labelFromOptions } from '../lib/masterLists';
 import { useAuth } from '../context/AuthContext';
@@ -21,6 +22,7 @@ import Spinner from '../components/ui/Spinner';
 import Card from '../components/ui/Card';
 import Tabs from '../components/ui/Tabs';
 import Alert from '../components/ui/Alert';
+import Input from '../components/ui/Input';
 import {
   btnDanger,
   btnPrimary,
@@ -34,6 +36,35 @@ import {
 
 type Tab = 'leave' | 'timesheets' | 'reviews' | 'timeline';
 
+function todayIso() {
+  const now = new Date();
+  const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(now.getUTCDate()).padStart(2, '0');
+  return `${now.getUTCFullYear()}-${month}-${day}`;
+}
+
+function agingLabel(candidate: Candidate) {
+  const aging = candidate.benchAging;
+  if (!aging) return '—';
+  const months = aging.months === 1 ? '1 month' : `${aging.months} months`;
+  const days = aging.days === 1 ? '1 day' : `${aging.days} days`;
+  return `${months}, ${days}`;
+}
+
+const TEAM_LABEL: Record<string, string> = {
+  SUPPORT: 'Support',
+  LEADERSHIP: 'Leadership Team',
+  DELIVERY: 'Delivery Team',
+};
+
+const SUPPORT_ROLE_LABEL: Record<string, string> = {
+  HR: 'HR',
+  TA: 'TA',
+  ACCOUNTS: 'Accounts',
+  ADMIN: 'Admin',
+  FINANCE: 'Finance',
+};
+
 export default function CandidateDetailPage() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
@@ -45,6 +76,10 @@ export default function CandidateDetailPage() {
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [feedbackKind, setFeedbackKind] =
+    useState<BenchFeedbackKind>('DELIVERY_MANAGER');
+  const [feedbackDate, setFeedbackDate] = useState(todayIso);
+  const [feedbackBody, setFeedbackBody] = useState('');
   const canManage =
     user?.role === 'ADMIN' || user?.role === 'DELIVERY_OWNER';
 
@@ -114,6 +149,31 @@ export default function CandidateDetailPage() {
     onError: (err) => setError(apiErrorMessage(err)),
   });
 
+  const feedbackMut = useMutation({
+    mutationFn: () =>
+      candidatesApi.addBenchFeedback(candidateKey, {
+        kind: feedbackKind,
+        feedbackDate,
+        body: feedbackBody,
+      }),
+    onSuccess: async () => {
+      setFeedbackBody('');
+      setError(null);
+      await qc.invalidateQueries({ queryKey: ['candidates'] });
+    },
+    onError: (err) => setError(apiErrorMessage(err)),
+  });
+
+  function onFeedback(e: FormEvent) {
+    e.preventDefault();
+    if (!feedbackBody.trim()) {
+      setError('Feedback is required.');
+      return;
+    }
+    setError(null);
+    feedbackMut.mutate();
+  }
+
   function onRelease(e: FormEvent) {
     e.preventDefault();
     if (!effectiveDate) {
@@ -147,6 +207,8 @@ export default function CandidateDetailPage() {
   ];
 
   const missingMonths = candidate.missingTimesheetMonths ?? [];
+  const category = candidate.category ?? 'BILLABLE';
+  const feedback = candidate.benchFeedback ?? [];
 
   return (
     <div>
@@ -212,7 +274,7 @@ export default function CandidateDetailPage() {
         </Alert>
       )}
 
-      {missingMonths.length > 0 && (
+      {category === 'BILLABLE' && missingMonths.length > 0 && (
         <Alert tone="warning" className="mb-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span>
@@ -229,11 +291,66 @@ export default function CandidateDetailPage() {
       <div className="mb-6 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
         <PublicId value={candidate.publicId} />
         <span>·</span>
-        <span>{candidate.client?.name ?? candidate.clientName ?? '—'}</span>
+        <span>
+          {category === 'BILLABLE'
+            ? (candidate.client?.name ?? candidate.clientName ?? '—')
+            : category === 'BENCH'
+              ? 'Bench'
+              : 'Non-billable'}
+        </span>
+        <StatusPill
+          status={category}
+          label={
+            category === 'NON_BILLABLE'
+              ? 'Non-billable'
+              : category === 'BENCH'
+                ? 'Bench'
+                : 'Billable'
+          }
+        />
         <StatusPill status={candidate.status} />
         {candidate.health && <HealthBadge health={candidate.health} />}
       </div>
 
+      {category !== 'BILLABLE' ? (
+        <Card accent className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <Field label="Employee ID" value={<PublicId value={candidate.publicId} />} />
+          <Field label="Cost Center" value={labelFromOptions(COST_CENTER_OPTIONS, candidate.costCenter)} />
+          <Field
+            label="Team"
+            value={
+              candidate.team
+                ? (TEAM_LABEL[candidate.team] ?? candidate.team)
+                : 'Not Applicable'
+            }
+          />
+          {candidate.team && (
+            <Field
+              label="Role"
+              value={
+                candidate.supportFunction
+                  ? (SUPPORT_ROLE_LABEL[candidate.supportFunction] ??
+                    candidate.supportFunction)
+                  : 'Not Applicable'
+              }
+            />
+          )}
+          <Field label="Joined on" value={formatDate(candidate.joinedOn)} />
+          <Field label="Email" value={candidate.email ?? '—'} />
+          <Field label="Mobile" value={candidate.mobile ?? '—'} />
+          <Field label="Employment status" value={<StatusPill status={candidate.status} />} />
+          {category === 'BENCH' && (
+            <>
+              <Field label="Bench start" value={formatDate(candidate.benchStartDate)} />
+              <Field label="Bench aging" value={agingLabel(candidate)} />
+              <Field
+                label="Interviews scheduled till date"
+                value={String(candidate.interviewsScheduledCount ?? 0)}
+              />
+            </>
+          )}
+        </Card>
+      ) : (
       <Card accent className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -287,6 +404,14 @@ export default function CandidateDetailPage() {
           </p>
           <p className="mt-1 text-sm font-medium">
             {candidate.accountManager?.fullName ?? '—'}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Sales owner
+          </p>
+          <p className="mt-1 text-sm font-medium">
+            {candidate.salesOwner?.fullName ?? '—'}
           </p>
         </div>
         <div>
@@ -378,6 +503,65 @@ export default function CandidateDetailPage() {
           <p className="mt-1 text-sm font-medium">{candidate.mobile ?? '—'}</p>
         </div>
       </Card>
+      )}
+
+      {category === 'BENCH' && (
+        <div className="mb-6 grid gap-4 lg:grid-cols-2">
+          <FeedbackTimeline
+            title="Delivery manager feedback"
+            entries={feedback.filter(
+              (entry) => entry.kind === 'DELIVERY_MANAGER',
+            )}
+          />
+          <FeedbackTimeline
+            title="Account owner feedback"
+            entries={feedback.filter((entry) => entry.kind === 'ACCOUNT_OWNER')}
+          />
+          <form onSubmit={onFeedback} className="space-y-3 lg:col-span-2">
+            <p className="text-sm font-medium">Add feedback</p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div>
+                <label className={labelClass} htmlFor="bench-kind">
+                  Kind
+                </label>
+                <select
+                  id="bench-kind"
+                  className={fieldClass}
+                  value={feedbackKind}
+                  onChange={(e) =>
+                    setFeedbackKind(e.target.value as BenchFeedbackKind)
+                  }
+                >
+                  <option value="DELIVERY_MANAGER">Delivery manager</option>
+                  <option value="ACCOUNT_OWNER">Account owner</option>
+                </select>
+              </div>
+              <Input
+                id="bench-feedback-date"
+                label="Date"
+                type="date"
+                required
+                value={feedbackDate}
+                onChange={(e) => setFeedbackDate(e.target.value)}
+              />
+              <Input
+                id="bench-feedback-body"
+                label="Feedback"
+                required
+                value={feedbackBody}
+                onChange={(e) => setFeedbackBody(e.target.value)}
+              />
+            </div>
+            <button
+              type="submit"
+              className={btnPrimary}
+              disabled={feedbackMut.isPending}
+            >
+              {feedbackMut.isPending ? 'Saving…' : 'Add entry'}
+            </button>
+          </form>
+        </div>
+      )}
 
       <Tabs tabs={tabs} active={tab} onChange={(id) => setTab(id as Tab)} />
 
@@ -549,6 +733,52 @@ export default function CandidateDetailPage() {
         </form>
       </Dialog>
     </div>
+  );
+}
+
+function Field({
+  label,
+  value,
+}: {
+  label: string;
+  value: React.ReactNode;
+}) {
+  return (
+    <div>
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-1 text-sm font-medium">{value}</p>
+    </div>
+  );
+}
+
+function FeedbackTimeline({
+  title,
+  entries,
+}: {
+  title: string;
+  entries: BenchFeedback[];
+}) {
+  return (
+    <Card>
+      <p className="text-sm font-medium">{title}</p>
+      {entries.length === 0 ? (
+        <p className="mt-3 text-sm text-muted-foreground">No entries yet.</p>
+      ) : (
+        <ol className="mt-3 space-y-3">
+          {entries.map((entry) => (
+            <li key={entry.id} className="border-t border-border/70 pt-3">
+              <p className="text-xs text-muted-foreground">
+                {formatDate(entry.feedbackDate)}
+                {entry.author?.fullName ? ` · ${entry.author.fullName}` : ''}
+              </p>
+              <p className="mt-1 text-sm">{entry.body}</p>
+            </li>
+          ))}
+        </ol>
+      )}
+    </Card>
   );
 }
 

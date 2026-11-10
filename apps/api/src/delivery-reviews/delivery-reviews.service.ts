@@ -19,6 +19,7 @@ import {
 } from '../common/client-scope';
 import type { AuthUser } from '../common/decorators/current-user.decorator';
 import { throwConflictIfUnique, toNumber } from '../common/prisma-error';
+import { assertActiveBillable } from '../candidates/employee-category';
 import { UpsertDeliveryReviewDto } from './dto/delivery-reviews.dto';
 
 const reviewInclude = {
@@ -152,6 +153,7 @@ export class DeliveryReviewsService {
       where: { id: dto.candidateId, organizationId, deletedAt: null },
     });
     if (!candidate) throw new NotFoundException('Candidate not found');
+    assertActiveBillable(candidate, 'delivery-review');
 
     const timesheet = await this.prisma.timesheet.findFirst({
       where: {

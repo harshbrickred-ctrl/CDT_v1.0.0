@@ -147,6 +147,14 @@ export const candidatesApi = {
     body: { contractEndDate: string; releaseReason?: string },
   ) => postOne<Candidate>(`/candidates/${id}/release`, body),
   remove: (id: string) => deleteOne(`/candidates/${id}`),
+  addBenchFeedback: (
+    id: string,
+    body: {
+      kind: 'DELIVERY_MANAGER' | 'ACCOUNT_OWNER';
+      feedbackDate: string;
+      body: string;
+    },
+  ) => postOne<Candidate>(`/candidates/${id}/bench-feedback`, body),
   timeline: (id: string) =>
     getList<TimelineEvent>(`/candidates/${id}/timeline`).catch(() => ({
       items: [] as TimelineEvent[],
@@ -196,6 +204,10 @@ export const deliveryReviewsApi = {
 
 export const usersApi = {
   list: (params?: Record<string, unknown>) => getList<UserRow>('/users', params),
+  options: () =>
+    getOne<Array<{ id: string; fullName: string; email: string }>>(
+      '/users/options',
+    ),
   create: (body: Record<string, unknown>) => postOne<UserRow>('/users', body),
   update: (id: string, body: Record<string, unknown>) =>
     patchOne<UserRow>(`/users/${id}`, body),

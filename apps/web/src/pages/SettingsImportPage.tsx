@@ -69,15 +69,27 @@ function toImportBody(
   throw new Error('Expected an array of rows or { entity, rows } / { clients|candidates }');
 }
 
+const EMPLOYEE_TEMPLATE_NOTE = `Employees require category: BILLABLE, NON_BILLABLE, or BENCH.
+BILLABLE: clientName, clientCode, or clientId. Optional salesOwnerEmail or salesOwnerUserId, plus roleTitle, joinedOn, costCenter, projectAccount, workLocation, clientReportingManager.
+NON_BILLABLE: team is required (SUPPORT, LEADERSHIP, or DELIVERY). supportFunction/role values: HR, TA, ACCOUNTS, ADMIN, or FINANCE. Required when team is SUPPORT; optional (omit for Not Applicable) for Leadership and Delivery. Do not send a client, roleTitle, or bench columns.
+BENCH: benchStartDate (defaults to today if omitted). team is optional. Role uses the same rules as non-billable. interviewsScheduledCount is optional (default 0). Do not send a client or roleTitle.
+A row is rejected when its category and columns disagree.`;
+
 function samplePayload(mode: 'json' | 'csv', kind: EntityKind) {
   if (mode === 'json') {
     return kind === 'clients'
       ? '{\n  "clients": [{ "name": "Acme", "code": "ACME" }]\n}'
-      : '{\n  "candidates": [{ "fullName": "Alex", "clientName": "Acme", "joinedOn": "2026-07-01" }]\n}';
+      : `{
+  "candidates": [
+    { "category": "BILLABLE", "fullName": "Alex", "clientName": "Acme", "salesOwnerEmail": "sales@brickred.com", "joinedOn": "2026-07-01" },
+    { "category": "NON_BILLABLE", "fullName": "Priya", "team": "SUPPORT", "supportFunction": "HR", "joinedOn": "2026-08-01" },
+    { "category": "BENCH", "fullName": "Sam", "team": "DELIVERY", "benchStartDate": "2026-09-01", "interviewsScheduledCount": 2 }
+  ]
+}`;
   }
   return kind === 'clients'
     ? 'name,code\nAcme,ACME'
-    : 'fullName,clientName,joinedOn\nAlex Employee,Acme,2026-07-01';
+    : 'category,fullName,clientName,salesOwnerEmail,team,supportFunction,benchStartDate,interviewsScheduledCount,joinedOn\nBILLABLE,Alex Employee,Acme,sales@brickred.com,,,,,2026-07-01\nNON_BILLABLE,Priya,,,SUPPORT,HR,,,2026-08-01\nBENCH,Sam,,,DELIVERY,,2026-09-01,2,2026-09-01';
 }
 
 export default function SettingsImportPage() {
@@ -185,9 +197,10 @@ export default function SettingsImportPage() {
               onChange={(e) => setRaw(e.target.value)}
               spellCheck={false}
             />
-            <p className="mt-1 text-xs text-muted-foreground">
-              Employees: use <code>clientName</code>, <code>clientCode</code>, or{' '}
-              <code>clientId</code>.
+            <p className="mt-1 whitespace-pre-line text-xs text-muted-foreground">
+              {kind === 'candidates'
+                ? EMPLOYEE_TEMPLATE_NOTE
+                : 'Clients: name is required. code is optional.'}
             </p>
           </div>
 

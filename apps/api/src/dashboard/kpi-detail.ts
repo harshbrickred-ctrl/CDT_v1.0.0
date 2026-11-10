@@ -2,11 +2,13 @@ import {
   ApprovalStatus,
   CandidateStatus,
   ClientFeedback,
+  EmployeeCategory,
   EngagementHealth,
   InvoiceStatus,
   LeaveStatus,
   Prisma,
   PrismaClient,
+  Role,
 } from '@prisma/client';
 import { toNumber } from '../common/prisma-error';
 import {
@@ -29,6 +31,7 @@ const INVOICED_STATUSES: InvoiceStatus[] = [
 export const DASHBOARD_KPI_IDS = [
   'total',
   'active',
+  'bench',
   'on-track',
   'at-risk',
   'escalations',
@@ -156,11 +159,36 @@ export async function fetchKpiDetail(
     detailMonth?: string;
     ownedClientIds?: string[] | null;
     costCenter?: string;
+    role?: Role | string;
   },
 ): Promise<KpiDetailResult> {
   const kpi = params.kpi as DashboardKpiId;
   if (!DASHBOARD_KPI_IDS.includes(kpi)) {
     throw new Error(`Unknown KPI: ${params.kpi}`);
+  }
+
+  if (kpi === 'bench') {
+    const seesBench =
+      params.role === Role.ADMIN || params.role === Role.DELIVERY_OWNER;
+    const cc = withCostCenterFilter(params.costCenter);
+    return candidateRows(
+      kpi,
+      'Bench',
+      seesBench
+        ? await prisma.candidate.findMany({
+            where: {
+              organizationId: params.organizationId,
+              deletedAt: null,
+              status: CandidateStatus.ACTIVE,
+              category: EmployeeCategory.BENCH,
+              ...(cc ? { costCenter: cc } : {}),
+            },
+            select: candidateSelect,
+            orderBy: { fullName: 'asc' },
+            take: 200,
+          })
+        : [],
+    );
   }
 
   const ownedClientIds = params.ownedClientIds ?? null;
@@ -186,6 +214,10 @@ export async function fetchKpiDetail(
     params.clientId,
     params.costCenter,
   );
+  const billableCandidate: Prisma.CandidateWhereInput = {
+    ...candidateBase,
+    category: EmployeeCategory.BILLABLE,
+  };
 
   switch (kpi) {
     case 'active':
@@ -257,7 +289,7 @@ export async function fetchKpiDetail(
           ...monthScope,
           ...(engagementHealth ? { engagementHealth } : {}),
           ...(kpi === 'feedback' ? { clientFeedback: ClientFeedback.GOOD } : {}),
-          candidate: candidateBase,
+          candidate: billableCandidate,
         },
         include: {
           candidate: {
@@ -489,7 +521,7 @@ export async function fetchKpiDetail(
             : kpi === 'approved-ts'
               ? { approvalStatus: ApprovalStatus.APPROVED }
               : {}),
-          candidate: candidateBase,
+          candidate: kpi === 'pending-ts' ? candidateBase : billableCandidate,
         },
         include: {
           candidate: {
@@ -547,7 +579,7 @@ export async function fetchKpiDetail(
       const [eligibleCandidates, timesheets] = await Promise.all([
         prisma.candidate.findMany({
           where: {
-            ...candidateBase,
+            ...billableCandidate,
             status: {
               in: [CandidateStatus.ACTIVE, CandidateStatus.RELEASED],
             },
@@ -565,7 +597,7 @@ export async function fetchKpiDetail(
             organizationId: params.organizationId,
             deletedAt: null,
             candidate: {
-              ...candidateBase,
+              ...billableCandidate,
               status: {
                 in: [CandidateStatus.ACTIVE, CandidateStatus.RELEASED],
               },

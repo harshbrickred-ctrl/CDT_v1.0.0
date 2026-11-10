@@ -207,7 +207,8 @@ export default function BulkFillTimesheetsDialog({
     queryFn: () =>
       candidatesApi.list({
         clientId,
-        statuses: 'ACTIVE,RELEASED',
+        status: 'ACTIVE',
+        category: 'BILLABLE',
         pageSize: 200,
       }),
     enabled: open && mode === 'by-client' && Boolean(clientId),

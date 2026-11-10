@@ -4,6 +4,12 @@ export type EngagementHealth = 'ON_TRACK' | 'AT_RISK' | 'ESCALATED';
 
 export type CandidateStatus = 'ACTIVE' | 'RELEASED';
 
+export type EmployeeCategory = 'BILLABLE' | 'NON_BILLABLE' | 'BENCH';
+
+export type EmployeeTeam = 'SUPPORT' | 'LEADERSHIP' | 'DELIVERY';
+
+export type BenchFeedbackKind = 'DELIVERY_MANAGER' | 'ACCOUNT_OWNER';
+
 export type ApprovalStatus =
   | 'DRAFT'
   | 'PENDING'
@@ -37,10 +43,25 @@ export interface Client {
   accountOwners?: ClientOwnerUser[];
 }
 
+export interface BenchFeedback {
+  id: string;
+  kind: BenchFeedbackKind | string;
+  feedbackDate: string;
+  body: string;
+  createdAt?: string;
+  authorUserId?: string;
+  author?: {
+    id: string;
+    fullName: string;
+    email?: string;
+  } | null;
+}
+
 export interface Candidate {
   id: string;
   publicId: string;
   fullName: string;
+  category?: EmployeeCategory | string;
   email?: string | null;
   mobile?: string | null;
   roleTitle?: string | null;
@@ -56,6 +77,18 @@ export interface Candidate {
     fullName: string;
     email?: string;
   } | null;
+  salesOwnerUserId?: string | null;
+  salesOwner?: {
+    id: string;
+    fullName: string;
+    email?: string;
+  } | null;
+  team?: EmployeeTeam | string | null;
+  supportFunction?: string | null;
+  benchStartDate?: string | null;
+  interviewsScheduledCount?: number | null;
+  benchAging?: { days: number; months: number } | null;
+  benchFeedback?: BenchFeedback[];
   hourlyRate?: number | null;
   hoursPerDay?: number | null;
   billingType?: 'HOURLY' | 'FIXED' | string;
@@ -63,7 +96,7 @@ export interface Candidate {
   maxBillableHours?: number | null;
   currency?: string | null;
   status: CandidateStatus | string;
-  clientId: string;
+  clientId?: string | null;
   client?: Client | null;
   clientName?: string | null;
   sstReference?: string | null;
@@ -285,6 +318,7 @@ export interface DashboardCharts {
 export type DashboardKpiId =
   | 'total'
   | 'active'
+  | 'bench'
   | 'on-track'
   | 'at-risk'
   | 'escalations'
@@ -331,6 +365,7 @@ export interface DashboardKpiDetail {
 export interface DashboardSummaryRaw {
   month?: string | null;
   activeCandidates?: number;
+  benchHeadcount?: number;
   totalCandidates?: number;
   onTrackEngagements?: number;
   atRiskEngagements?: number;
@@ -365,6 +400,7 @@ export interface DashboardSummaryRaw {
 export interface DashboardSummary {
   month: string | null;
   activeCandidates: number;
+  benchHeadcount: number;
   totalCandidates: number;
   onTrackEngagements: number;
   atRiskEngagements: number;

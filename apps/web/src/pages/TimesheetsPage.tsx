@@ -659,8 +659,9 @@ export default function TimesheetsPage() {
         <form onSubmit={onSubmit} className="space-y-4">
           <CandidateCombobox
             required
-            statuses={['ACTIVE', 'RELEASED']}
-            placeholder="Search active or released employees…"
+            status="ACTIVE"
+            category="BILLABLE"
+            placeholder="Search active billable employees…"
             value={form.candidateId}
             selected={selectedCandidate}
             onChange={(c) => {
