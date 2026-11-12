@@ -10,7 +10,12 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { CandidateStatus, EmployeeCategory, Role } from '@prisma/client';
+import {
+  CandidateStatus,
+  EmployeeCategory,
+  EmployeeTeam,
+  Role,
+} from '@prisma/client';
 import { CandidatesService } from './candidates.service';
 import {
   CreateBenchFeedbackDto,
@@ -41,6 +46,8 @@ export class CandidatesController {
     @Query('q') q?: string,
     @Query('costCenter') costCenter?: string,
     @Query('category') category?: EmployeeCategory,
+    @Query('team') team?: EmployeeTeam,
+    @Query('supportFunction') supportFunction?: string,
   ) {
     const statusList = statuses
       ? (statuses
@@ -58,6 +65,8 @@ export class CandidatesController {
       q,
       costCenter,
       category,
+      team,
+      supportFunction,
     });
   }
 

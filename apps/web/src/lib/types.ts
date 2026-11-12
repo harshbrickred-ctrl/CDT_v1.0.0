@@ -77,6 +77,12 @@ export interface Candidate {
     fullName: string;
     email?: string;
   } | null;
+  deliveryOwnerUserId?: string | null;
+  deliveryOwner?: {
+    id: string;
+    fullName: string;
+    email?: string;
+  } | null;
   salesOwnerUserId?: string | null;
   salesOwner?: {
     id: string;
@@ -88,6 +94,7 @@ export interface Candidate {
   benchStartDate?: string | null;
   interviewsScheduledCount?: number | null;
   interviewsClearedCount?: number | null;
+  interviewRemark?: string | null;
   benchAging?: { days: number; months: number } | null;
   benchFeedback?: BenchFeedback[];
   hourlyRate?: number | null;

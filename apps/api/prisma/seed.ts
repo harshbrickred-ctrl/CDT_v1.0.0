@@ -91,7 +91,6 @@ type DemoCandidateSpec = {
   workLocation?: 'ONSITE' | 'REMOTE' | 'HYBRID';
   costCenter?: 'BRICKRED' | 'AGYOM';
   salesOwner?: 'am' | 'dm' | 'admin';
-  clientReportingManager?: string;
   contractEndsInDays?: number;
   releasedThisMonth?: boolean;
   releaseReason?: string;
@@ -163,7 +162,7 @@ async function seedDemoPortfolio(
     clientByCode.set(c.code, row);
   }
 
-  // Delivery Owner owns all demo clients; Account Owner owns a subset.
+  // Delivery Owner and Account Owner on all demo clients (required for billable employees).
   for (const row of clientByCode.values()) {
     await prisma.clientOwnership.upsert({
       where: {
@@ -181,10 +180,6 @@ async function seedDemoPortfolio(
         ownershipRole: ClientOwnershipRole.DELIVERY_OWNER,
       },
     });
-  }
-  for (const code of ['ACME', 'GLOBEX', 'INITECH'] as const) {
-    const row = clientByCode.get(code);
-    if (!row) continue;
     await prisma.clientOwnership.upsert({
       where: {
         clientId_userId_ownershipRole: {
@@ -484,7 +479,6 @@ async function seedDemoPortfolio(
       status: CandidateStatus.ACTIVE,
       workLocation: 'HYBRID',
       salesOwner: 'am',
-      clientReportingManager: 'Jordan Blake',
       contractEndsInDays: 45,
       timesheet: 'approved',
       utilization: 97.0,
@@ -761,6 +755,8 @@ async function seedDemoPortfolio(
       status: spec.status,
       accountManagerUserId:
         category === EmployeeCategory.BILLABLE ? users.am.id : null,
+      deliveryOwnerUserId:
+        category === EmployeeCategory.BILLABLE ? users.dm.id : null,
       salesOwnerUserId,
       team: spec.team ?? null,
       supportFunction: spec.supportFunction ?? null,
@@ -794,7 +790,7 @@ async function seedDemoPortfolio(
         spec.contractEndsInDays != null
           ? addDays(today, spec.contractEndsInDays)
           : null,
-      clientReportingManager: spec.clientReportingManager ?? null,
+      clientReportingManager: null,
       workLocation: spec.workLocation ?? 'REMOTE',
       projectAccount: client?.name ?? null,
       releasedAt,

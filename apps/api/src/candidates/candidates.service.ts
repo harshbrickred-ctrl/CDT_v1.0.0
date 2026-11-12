@@ -5,7 +5,9 @@ import {
 } from '@nestjs/common';
 import {
   CandidateStatus,
+  ClientOwnershipRole,
   EmployeeCategory,
+  EmployeeTeam,
   Prisma,
 } from '@prisma/client';
 import { paginationMeta, paginationSkip } from '@cdt/shared-types';
@@ -51,6 +53,7 @@ const candidateInclude: Prisma.CandidateInclude = {
     },
   },
   accountManager: { select: userBrief },
+  deliveryOwner: { select: userBrief },
   salesOwner: { select: userBrief },
   benchFeedback: {
     orderBy: [{ feedbackDate: 'desc' }, { createdAt: 'desc' }],
@@ -176,6 +179,8 @@ export class CandidatesService {
     q?: string;
     costCenter?: string;
     category?: EmployeeCategory;
+    team?: EmployeeTeam;
+    supportFunction?: string;
   }) {
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 20;
@@ -184,6 +189,19 @@ export class CandidatesService {
       !Object.values(EmployeeCategory).includes(params.category)
     ) {
       throw new BadRequestException('Invalid category');
+    }
+    if (
+      params.team &&
+      !Object.values(EmployeeTeam).includes(params.team)
+    ) {
+      throw new BadRequestException('Invalid team');
+    }
+    const supportFunction = params.supportFunction?.trim().toUpperCase() || undefined;
+    if (
+      supportFunction &&
+      !['HR', 'TA', 'ACCOUNTS', 'ADMIN', 'FINANCE'].includes(supportFunction)
+    ) {
+      throw new BadRequestException('Invalid role');
     }
     const ownedClientIds = await resolveOwnedClientIds(this.prisma, params.user);
     const access = candidateAccessWhere(
@@ -202,6 +220,8 @@ export class CandidatesService {
         access,
         ...(costCenter ? [{ costCenter }] : []),
         ...(params.category ? [{ category: params.category }] : []),
+        ...(params.team ? [{ team: params.team }] : []),
+        ...(supportFunction ? [{ supportFunction }] : []),
         ...(params.statuses?.length
           ? [{ status: { in: params.statuses } }]
           : params.status
@@ -247,24 +267,40 @@ export class CandidatesService {
     return this.serialize(candidate, { missingTimesheetMonths });
   }
 
-  private async resolveAccountManagerUserId(
+  private async resolveRequiredClientOwnerUserId(
     organizationId: string,
     clientId: string,
+    ownershipRole: ClientOwnershipRole,
     requestedId?: string | null,
-  ): Promise<string | null> {
+  ): Promise<string> {
     const owners = await this.prisma.clientOwnership.findMany({
       where: {
         organizationId,
         clientId,
-        ownershipRole: 'ACCOUNT_OWNER',
+        ownershipRole,
       },
       select: { userId: true },
       orderBy: { createdAt: 'asc' },
     });
     const ownerIds = owners.map((o) => o.userId);
-    if (!ownerIds.length) return null;
-    if (requestedId && ownerIds.includes(requestedId)) return requestedId;
-    return ownerIds[0] ?? null;
+    const label =
+      ownershipRole === ClientOwnershipRole.DELIVERY_OWNER
+        ? 'Delivery owner'
+        : 'Account owner';
+    if (!ownerIds.length) {
+      throw new BadRequestException(
+        `Client has no ${label.toLowerCase()} assigned`,
+      );
+    }
+    if (requestedId) {
+      if (!ownerIds.includes(requestedId)) {
+        throw new BadRequestException(
+          `${label} must be assigned to the selected client`,
+        );
+      }
+      return requestedId;
+    }
+    return ownerIds[0]!;
   }
 
   private async assertSalesOwner(
@@ -311,10 +347,20 @@ export class CandidatesService {
     const billable = normalized.category === EmployeeCategory.BILLABLE;
     const accountManagerUserId =
       billable && normalized.clientId
-        ? await this.resolveAccountManagerUserId(
+        ? await this.resolveRequiredClientOwnerUserId(
             organizationId,
             normalized.clientId,
+            ClientOwnershipRole.ACCOUNT_OWNER,
             dto.accountManagerUserId,
+          )
+        : null;
+    const deliveryOwnerUserId =
+      billable && normalized.clientId
+        ? await this.resolveRequiredClientOwnerUserId(
+            organizationId,
+            normalized.clientId,
+            ClientOwnershipRole.DELIVERY_OWNER,
+            dto.deliveryOwnerUserId,
           )
         : null;
 
@@ -337,16 +383,16 @@ export class CandidatesService {
         projectAccount: billable ? dto.projectAccount?.trim() || null : null,
         workLocation: billable ? dto.workLocation?.trim() || null : null,
         costCenter: dto.costCenter.trim().toUpperCase(),
-        clientReportingManager: billable
-          ? dto.clientReportingManager?.trim() || null
-          : null,
+        clientReportingManager: null,
         accountManagerUserId,
+        deliveryOwnerUserId,
         salesOwnerUserId: normalized.salesOwnerUserId,
         team: normalized.team,
         supportFunction: normalized.supportFunction,
         benchStartDate: normalized.benchStartDate,
         interviewsScheduledCount: normalized.interviewsScheduledCount,
         interviewsClearedCount: normalized.interviewsClearedCount,
+        interviewRemark: normalized.interviewRemark,
         billingType: dto.billingType ?? 'HOURLY',
         hourlyRate: billable ? dto.hourlyRate ?? null : null,
         monthlyFixedAmount: billable ? dto.monthlyFixedAmount ?? null : null,
@@ -408,6 +454,10 @@ export class CandidatesService {
         dto.interviewsClearedCount !== undefined
           ? dto.interviewsClearedCount
           : before.interviewsClearedCount,
+      interviewRemark:
+        dto.interviewRemark !== undefined
+          ? dto.interviewRemark
+          : before.interviewRemark,
     });
     const billable = normalized.category === EmployeeCategory.BILLABLE;
     const data: Prisma.CandidateUncheckedUpdateInput = {
@@ -419,6 +469,7 @@ export class CandidatesService {
       benchStartDate: normalized.benchStartDate,
       interviewsScheduledCount: normalized.interviewsScheduledCount,
       interviewsClearedCount: normalized.interviewsClearedCount,
+      interviewRemark: normalized.interviewRemark,
     };
     if (dto.fullName !== undefined) data.fullName = dto.fullName.trim();
     if (dto.email !== undefined) data.email = dto.email?.trim() || null;
@@ -440,22 +491,32 @@ export class CandidatesService {
         dto.accountManagerUserId !== undefined
           ? dto.accountManagerUserId
           : before.accountManagerUserId;
-      data.accountManagerUserId = normalized.clientId
-        ? await this.resolveAccountManagerUserId(
-            organizationId,
-            normalized.clientId,
-            requestedAccountManager,
-          )
-        : null;
+      const requestedDeliveryOwner =
+        dto.deliveryOwnerUserId !== undefined
+          ? dto.deliveryOwnerUserId
+          : before.deliveryOwnerUserId;
+      if (!normalized.clientId) {
+        throw new BadRequestException('A billable employee requires a client');
+      }
+      data.accountManagerUserId = await this.resolveRequiredClientOwnerUserId(
+        organizationId,
+        normalized.clientId,
+        ClientOwnershipRole.ACCOUNT_OWNER,
+        requestedAccountManager,
+      );
+      data.deliveryOwnerUserId = await this.resolveRequiredClientOwnerUserId(
+        organizationId,
+        normalized.clientId,
+        ClientOwnershipRole.DELIVERY_OWNER,
+        requestedDeliveryOwner,
+      );
+      data.clientReportingManager = null;
       if (dto.sstReference !== undefined)
         data.sstReference = dto.sstReference?.trim() || null;
       if (dto.projectAccount !== undefined)
         data.projectAccount = dto.projectAccount?.trim() || null;
       if (dto.workLocation !== undefined)
         data.workLocation = dto.workLocation?.trim() || null;
-      if (dto.clientReportingManager !== undefined)
-        data.clientReportingManager =
-          dto.clientReportingManager?.trim() || null;
       if (dto.hourlyRate !== undefined) data.hourlyRate = dto.hourlyRate;
       if (dto.billingType !== undefined) data.billingType = dto.billingType;
       if (dto.monthlyFixedAmount !== undefined)
@@ -467,6 +528,7 @@ export class CandidatesService {
     } else {
       data.roleTitle = null;
       data.accountManagerUserId = null;
+      data.deliveryOwnerUserId = null;
       data.clientReportingManager = null;
       data.projectAccount = null;
       data.workLocation = null;

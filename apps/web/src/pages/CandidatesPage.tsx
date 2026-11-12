@@ -6,7 +6,6 @@ import {
   candidatesApi,
   clientsApi,
   lookupsApi,
-  usersApi,
 } from '../lib/api';
 import { scopeClientsForUser } from '../lib/client-scope';
 import { formatDate } from '../lib/format';
@@ -113,14 +112,14 @@ const emptyForm = {
   costCenter: 'BRICKRED',
   projectAccount: '',
   roleTitle: '',
-  clientReportingManager: '',
   accountManagerUserId: '',
-  salesOwnerUserId: '',
+  deliveryOwnerUserId: '',
   team: '' as '' | EmployeeTeam,
   supportFunction: '',
   benchStartDate: '',
   interviewsScheduledCount: '0',
   interviewsClearedCount: '0',
+  interviewRemark: '',
   billingType: 'HOURLY',
   hourlyRate: '',
   monthlyFixedAmount: '',
@@ -160,6 +159,7 @@ function optionalFields(form: typeof emptyForm) {
       benchStartDate: form.benchStartDate || todayIso(),
       interviewsScheduledCount: Number(form.interviewsScheduledCount || 0),
       interviewsClearedCount: Number(form.interviewsClearedCount || 0),
+      interviewRemark: form.interviewRemark || null,
     };
   }
   return {
@@ -167,9 +167,8 @@ function optionalFields(form: typeof emptyForm) {
     roleTitle: form.roleTitle || undefined,
     clientId: form.clientId,
     projectAccount: form.projectAccount || undefined,
-    clientReportingManager: form.clientReportingManager || undefined,
     accountManagerUserId: form.accountManagerUserId || null,
-    salesOwnerUserId: form.salesOwnerUserId || null,
+    deliveryOwnerUserId: form.deliveryOwnerUserId || null,
     billingType: form.billingType as 'HOURLY' | 'FIXED',
     hourlyRate: form.hourlyRate ? Number(form.hourlyRate) : undefined,
     monthlyFixedAmount: form.monthlyFixedAmount
@@ -199,9 +198,8 @@ function candidateToForm(c: Candidate): typeof emptyForm {
     costCenter: c.costCenter || 'BRICKRED',
     projectAccount: c.projectAccount ?? '',
     roleTitle: c.roleTitle ?? '',
-    clientReportingManager: c.clientReportingManager ?? '',
     accountManagerUserId: c.accountManagerUserId ?? c.accountManager?.id ?? '',
-    salesOwnerUserId: c.salesOwnerUserId ?? c.salesOwner?.id ?? '',
+    deliveryOwnerUserId: c.deliveryOwnerUserId ?? c.deliveryOwner?.id ?? '',
     team: (c.team as EmployeeTeam) || '',
     supportFunction: c.supportFunction ?? '',
     benchStartDate: c.benchStartDate
@@ -217,6 +215,7 @@ function candidateToForm(c: Candidate): typeof emptyForm {
       c.interviewsClearedCount != null
         ? String(c.interviewsClearedCount)
         : '0',
+    interviewRemark: c.interviewRemark ?? '',
     billingType: (c.billingType as string) || 'HOURLY',
     hourlyRate: c.hourlyRate != null ? String(c.hourlyRate) : '',
     monthlyFixedAmount:
@@ -246,6 +245,8 @@ export default function CandidatesPage() {
   const [status, setStatus] = useState('ACTIVE');
   const [category, setCategory] = useState<'' | EmployeeCategory>('');
   const [clientId, setClientId] = useState('');
+  const [teamFilter, setTeamFilter] = useState<'' | EmployeeTeam>('');
+  const [roleFilter, setRoleFilter] = useState('');
   const [q, setQ] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [editingCandidate, setEditingCandidate] = useState<Candidate | null>(
@@ -309,21 +310,37 @@ export default function CandidatesPage() {
   );
 
   const accountOwnersForClient = selectedClient?.accountOwners ?? [];
+  const deliveryOwnersForClient = selectedClient?.deliveryOwners ?? [];
 
-  const usersQuery = useQuery({
-    queryKey: ['users', 'options'],
-    queryFn: () => usersApi.options(),
-    enabled: formOpen && form.category === 'BILLABLE' && canManage,
-  });
-  const salesOwners = usersQuery.data ?? [];
+  const showTeamFilters =
+    category === 'NON_BILLABLE' || category === 'BENCH';
 
   const listQuery = useQuery({
-    queryKey: ['candidates', { status, category, clientId, q, costCenterParam }],
+    queryKey: [
+      'candidates',
+      {
+        status,
+        category,
+        clientId,
+        teamFilter,
+        roleFilter,
+        q,
+        costCenterParam,
+      },
+    ],
     queryFn: () =>
       candidatesApi.list({
         status: status || undefined,
         category: category || undefined,
-        clientId: category === 'BILLABLE' || category === '' ? clientId || undefined : undefined,
+        clientId:
+          category === 'BILLABLE' || category === ''
+            ? clientId || undefined
+            : undefined,
+        team: showTeamFilters ? teamFilter || undefined : undefined,
+        supportFunction:
+          showTeamFilters && teamFilter
+            ? roleFilter || undefined
+            : undefined,
         q: q || undefined,
         costCenter: costCenterParam,
         pageSize: 100,
@@ -413,7 +430,10 @@ export default function CandidatesPage() {
       ...prev,
       category: next,
       clientId: next === 'BILLABLE' ? prev.clientId : '',
-      salesOwnerUserId: next === 'BILLABLE' ? prev.salesOwnerUserId : '',
+      accountManagerUserId:
+        next === 'BILLABLE' ? prev.accountManagerUserId : '',
+      deliveryOwnerUserId:
+        next === 'BILLABLE' ? prev.deliveryOwnerUserId : '',
       team: next === 'BILLABLE' ? '' : prev.team,
       roleTitle: next === 'BILLABLE' ? prev.roleTitle : '',
       supportFunction: next === 'BILLABLE' ? '' : prev.supportFunction,
@@ -423,22 +443,29 @@ export default function CandidatesPage() {
         next === 'BENCH' ? prev.interviewsScheduledCount || '0' : '0',
       interviewsClearedCount:
         next === 'BENCH' ? prev.interviewsClearedCount || '0' : '0',
+      interviewRemark: next === 'BENCH' ? prev.interviewRemark : '',
     }));
+  }
+
+  function pickOwnerId(
+    owners: { id: string }[],
+    previousId: string,
+  ): string {
+    if (owners.length === 1) return owners[0].id;
+    if (owners.some((o) => o.id === previousId)) return previousId;
+    return owners[0]?.id ?? '';
   }
 
   function onClientChange(nextClientId: string) {
     const client =
       scopedClients.find((c) => c.id === nextClientId) ?? null;
     const aos = client?.accountOwners ?? [];
+    const dos = client?.deliveryOwners ?? [];
     setForm((prev) => ({
       ...prev,
       clientId: nextClientId,
-      accountManagerUserId:
-        aos.length === 1
-          ? aos[0].id
-          : aos.some((a) => a.id === prev.accountManagerUserId)
-            ? prev.accountManagerUserId
-            : '',
+      accountManagerUserId: pickOwnerId(aos, prev.accountManagerUserId),
+      deliveryOwnerUserId: pickOwnerId(dos, prev.deliveryOwnerUserId),
     }));
   }
 
@@ -467,7 +494,16 @@ export default function CandidatesPage() {
             key={tab.id || 'all'}
             type="button"
             className={category === tab.id ? btnPrimary : btnSecondary}
-            onClick={() => setCategory(tab.id)}
+            onClick={() => {
+              setCategory(tab.id);
+              if (tab.id !== 'NON_BILLABLE' && tab.id !== 'BENCH') {
+                setTeamFilter('');
+                setRoleFilter('');
+              }
+              if (tab.id === 'NON_BILLABLE' || tab.id === 'BENCH') {
+                setClientId('');
+              }
+            }}
           >
             {tab.label}
           </button>
@@ -517,6 +553,50 @@ export default function CandidatesPage() {
               {scopedClients.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        {showTeamFilters && (
+          <div>
+            <label className={labelClass} htmlFor="cand-team-filter">
+              Team
+            </label>
+            <select
+              id="cand-team-filter"
+              className={fieldClass}
+              value={teamFilter}
+              onChange={(e) => {
+                const next = e.target.value as '' | EmployeeTeam;
+                setTeamFilter(next);
+                if (!next) setRoleFilter('');
+              }}
+            >
+              <option value="">All teams</option>
+              {TEAM_OPTIONS.map((team) => (
+                <option key={team.value} value={team.value}>
+                  {team.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        {showTeamFilters && teamFilter && (
+          <div>
+            <label className={labelClass} htmlFor="cand-role-filter">
+              Role
+            </label>
+            <select
+              id="cand-role-filter"
+              className={fieldClass}
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+            >
+              <option value="">All roles</option>
+              {SUPPORT_ROLE_OPTIONS.map((role) => (
+                <option key={role.value} value={role.value}>
+                  {role.label}
                 </option>
               ))}
             </select>
@@ -685,12 +765,8 @@ export default function CandidatesPage() {
               {(selectedCandidate.category ?? 'BILLABLE') === 'BILLABLE' && (
               <>
               <DetailField
-                label="Client reporting manager"
-                value={selectedCandidate.clientReportingManager}
-              />
-              <DetailField
-                label="Sales owner"
-                value={selectedCandidate.salesOwner?.fullName}
+                label="Delivery owner"
+                value={selectedCandidate.deliveryOwner?.fullName}
               />
               <DetailField
                 label="Account owner"
@@ -755,6 +831,10 @@ export default function CandidatesPage() {
                     value={selectedCandidate.interviewsClearedCount ?? 0}
                   />
                   <DetailField
+                    label="Interview remark"
+                    value={selectedCandidate.interviewRemark}
+                  />
+                  <DetailField
                     label="Delivery Manager Feedback"
                     value={
                       latestBenchFeedback(
@@ -772,6 +852,18 @@ export default function CandidatesPage() {
                       ) ?? '—'
                     }
                   />
+                  <div className="sm:col-span-2">
+                    <p className="text-xs text-muted-foreground">
+                      View full history and add feedback on the{' '}
+                      <Link
+                        to={`/employees/${selectedCandidate.id}`}
+                        className="font-medium text-foreground underline-offset-2 hover:underline"
+                      >
+                        employee profile
+                      </Link>
+                      .
+                    </p>
+                  </div>
                 </>
               )}
               <DetailField
@@ -1009,6 +1101,21 @@ export default function CandidatesPage() {
                     })
                   }
                 />
+                <div className="sm:col-span-2">
+                  <label className={labelClass} htmlFor="cand-interview-remark">
+                    Interview remark
+                  </label>
+                  <textarea
+                    id="cand-interview-remark"
+                    className={fieldClass}
+                    rows={3}
+                    value={form.interviewRemark}
+                    onChange={(e) =>
+                      setForm({ ...form, interviewRemark: e.target.value })
+                    }
+                    placeholder="Notes on interview responses…"
+                  />
+                </div>
               </>
             )}
 
@@ -1024,27 +1131,23 @@ export default function CandidatesPage() {
             )}
 
             {form.category === 'BILLABLE' && (
-            <Input
-              id="cand-crm"
-              label="Client reporting manager"
-              value={form.clientReportingManager}
-              onChange={(e) =>
-                setForm({ ...form, clientReportingManager: e.target.value })
-              }
-            />
-            )}
-
-            {form.category === 'BILLABLE' && (
             <Select
-              id="cand-sales"
-              label="Sales owner"
-              value={form.salesOwnerUserId}
+              id="cand-do"
+              label="Delivery owner *"
+              required
+              value={form.deliveryOwnerUserId}
               onChange={(e) =>
-                setForm({ ...form, salesOwnerUserId: e.target.value })
+                setForm({ ...form, deliveryOwnerUserId: e.target.value })
               }
             >
-              <option value="">{NA}</option>
-              {salesOwners.map((u) => (
+              <option value="">
+                {!form.clientId
+                  ? 'Select a client first'
+                  : deliveryOwnersForClient.length
+                    ? 'Select delivery owner'
+                    : 'No delivery owners on this client'}
+              </option>
+              {deliveryOwnersForClient.map((u) => (
                 <option key={u.id} value={u.id}>
                   {u.fullName}
                 </option>
@@ -1055,14 +1158,19 @@ export default function CandidatesPage() {
             {form.category === 'BILLABLE' && (
             <Select
               id="cand-am"
-              label="Account owner"
+              label="Account owner *"
+              required
               value={form.accountManagerUserId}
               onChange={(e) =>
                 setForm({ ...form, accountManagerUserId: e.target.value })
               }
             >
               <option value="">
-                {form.clientId ? NA : 'Select a client first'}
+                {!form.clientId
+                  ? 'Select a client first'
+                  : accountOwnersForClient.length
+                    ? 'Select account owner'
+                    : 'No account owners on this client'}
               </option>
               {accountOwnersForClient.map((u) => (
                 <option key={u.id} value={u.id}>

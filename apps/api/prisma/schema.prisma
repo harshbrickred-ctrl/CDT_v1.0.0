@@ -119,6 +119,7 @@ model User {
   timesheetsApproved Timesheet[]      @relation("TimesheetApprover")
   candidatesReleased Candidate[]      @relation("CandidateReleaser")
   candidatesManaged  Candidate[]      @relation("CandidateAccountManager")
+  candidatesDeliveryOwned Candidate[] @relation("CandidateDeliveryOwner")
   candidatesSold     Candidate[]      @relation("CandidateSalesOwner")
   reviewsWritten     DeliveryReview[] @relation("Reviewer")
   invoicesGenerated  Invoice[]        @relation("InvoiceGenerator")
@@ -205,12 +206,14 @@ model Candidate {
   costCenter               String           @map("cost_center")
   clientReportingManager   String?          @map("client_reporting_manager")
   accountManagerUserId     String?          @map("account_manager_user_id") @db.Uuid
+  deliveryOwnerUserId      String?          @map("delivery_owner_user_id") @db.Uuid
   salesOwnerUserId         String?          @map("sales_owner_user_id") @db.Uuid
   team                     EmployeeTeam?
   supportFunction          String?          @map("support_function")
   benchStartDate           DateTime?        @map("bench_start_date") @db.Date
   interviewsScheduledCount Int              @default(0) @map("interviews_scheduled_count")
   interviewsClearedCount   Int              @default(0) @map("interviews_cleared_count")
+  interviewRemark          String?          @map("interview_remark")
   billingType              BillingType      @default(HOURLY) @map("billing_type")
   hourlyRate               Decimal?         @map("hourly_rate") @db.Decimal(12, 2)
   monthlyFixedAmount       Decimal?         @map("monthly_fixed_amount") @db.Decimal(14, 2)
@@ -229,6 +232,7 @@ model Candidate {
   client         Client?                  @relation(fields: [clientId], references: [id])
   releasedBy     User?                    @relation("CandidateReleaser", fields: [releasedById], references: [id])
   accountManager User?                    @relation("CandidateAccountManager", fields: [accountManagerUserId], references: [id])
+  deliveryOwner  User?                    @relation("CandidateDeliveryOwner", fields: [deliveryOwnerUserId], references: [id])
   salesOwner     User?                    @relation("CandidateSalesOwner", fields: [salesOwnerUserId], references: [id])
   leaves         Leave[]
   timesheets     Timesheet[]
@@ -243,6 +247,7 @@ model Candidate {
   @@index([clientId])
   @@index([status])
   @@index([accountManagerUserId])
+  @@index([deliveryOwnerUserId])
   @@index([salesOwnerUserId])
   @@map("candidates")
 }

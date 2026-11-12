@@ -5,7 +5,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, ClientOwnershipRole, Role } from '@prisma/client';
+import {
+  ClientOwnershipRole,
+  EmployeeCategory,
+  Prisma,
+  Role,
+} from '@prisma/client';
 import { normalizeClientName } from '@cdt/shared-utils';
 import { paginationMeta, paginationSkip } from '@cdt/shared-types';
 import { PrismaService } from '../prisma/prisma.service';
@@ -157,40 +162,66 @@ export class ClientsService {
             })),
           });
         }
-        await this.syncCandidateAccountManagers(tx, organizationId, clientId);
+        await this.syncCandidateOwners(
+          tx,
+          organizationId,
+          clientId,
+          ClientOwnershipRole.ACCOUNT_OWNER,
+        );
+      }
+      if (deliveryOwnerUserIds !== undefined) {
+        await this.syncCandidateOwners(
+          tx,
+          organizationId,
+          clientId,
+          ClientOwnershipRole.DELIVERY_OWNER,
+        );
       }
     });
   }
 
-  private async syncCandidateAccountManagers(
+  private async syncCandidateOwners(
     tx: Prisma.TransactionClient,
     organizationId: string,
     clientId: string,
+    ownershipRole: ClientOwnershipRole,
   ) {
-    const aos = await tx.clientOwnership.findMany({
-      where: {
-        clientId,
-        ownershipRole: ClientOwnershipRole.ACCOUNT_OWNER,
-      },
+    const owners = await tx.clientOwnership.findMany({
+      where: { clientId, ownershipRole },
       select: { userId: true },
       orderBy: { createdAt: 'asc' },
     });
-    const aoIds = aos.map((a) => a.userId);
-    const primaryAo = aoIds[0] ?? null;
+    const ownerIds = owners.map((a) => a.userId);
+    const primary = ownerIds[0] ?? null;
+    const field =
+      ownershipRole === ClientOwnershipRole.ACCOUNT_OWNER
+        ? 'accountManagerUserId'
+        : 'deliveryOwnerUserId';
 
     const candidates = await tx.candidate.findMany({
-      where: { organizationId, clientId, deletedAt: null },
-      select: { id: true, accountManagerUserId: true },
+      where: {
+        organizationId,
+        clientId,
+        deletedAt: null,
+        category: EmployeeCategory.BILLABLE,
+      },
+      select: {
+        id: true,
+        accountManagerUserId: true,
+        deliveryOwnerUserId: true,
+      },
     });
 
     for (const c of candidates) {
-      const stillValid =
-        c.accountManagerUserId != null &&
-        aoIds.includes(c.accountManagerUserId);
+      const current =
+        ownershipRole === ClientOwnershipRole.ACCOUNT_OWNER
+          ? c.accountManagerUserId
+          : c.deliveryOwnerUserId;
+      const stillValid = current != null && ownerIds.includes(current);
       if (!stillValid) {
         await tx.candidate.update({
           where: { id: c.id },
-          data: { accountManagerUserId: primaryAo },
+          data: { [field]: primary },
         });
       }
     }

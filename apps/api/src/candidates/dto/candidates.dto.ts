@@ -83,12 +83,18 @@ export class CreateCandidateDto {
   @IsIn(['BRICKRED', 'AGYOM'])
   costCenter!: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    description:
+      'Required for BILLABLE. Must be a Delivery Owner assigned to the selected client.',
+  })
   @IsOptional()
-  @IsString()
-  clientReportingManager?: string;
+  @IsUUID()
+  deliveryOwnerUserId?: string | null;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    description:
+      'Required for BILLABLE. Must be an Account Owner assigned to the selected client.',
+  })
   @IsOptional()
   @IsUUID()
   accountManagerUserId?: string | null;
@@ -125,6 +131,13 @@ export class CreateCandidateDto {
   @IsInt()
   @Min(0)
   interviewsClearedCount?: number;
+
+  @ApiPropertyOptional({
+    description: 'Remark for bench interview responses',
+  })
+  @IsOptional()
+  @IsString()
+  interviewRemark?: string | null;
 
   @ApiPropertyOptional({ description: 'Hourly billing rate in candidate currency' })
   @IsOptional()
@@ -226,8 +239,8 @@ export class UpdateCandidateDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
-  clientReportingManager?: string | null;
+  @IsUUID()
+  deliveryOwnerUserId?: string | null;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -265,6 +278,11 @@ export class UpdateCandidateDto {
   @IsInt()
   @Min(0)
   interviewsClearedCount?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  interviewRemark?: string | null;
 
   @ApiPropertyOptional()
   @IsOptional()

@@ -24,6 +24,7 @@ export type CategoryFieldInput = {
   benchStartDate?: string | Date | null;
   interviewsScheduledCount?: number | null;
   interviewsClearedCount?: number | null;
+  interviewRemark?: string | null;
 };
 
 export type NormalizedEmployeeCategory = {
@@ -35,6 +36,7 @@ export type NormalizedEmployeeCategory = {
   benchStartDate: Date | null;
   interviewsScheduledCount: number;
   interviewsClearedCount: number;
+  interviewRemark: string | null;
 };
 
 function blankToNull(value: string | null | undefined): string | null {
@@ -125,6 +127,7 @@ export function normalizeEmployeeCategory(
       benchStartDate: null,
       interviewsScheduledCount: 0,
       interviewsClearedCount: 0,
+      interviewRemark: null,
     };
   }
 
@@ -143,6 +146,7 @@ export function normalizeEmployeeCategory(
       benchStartDate: null,
       interviewsScheduledCount: 0,
       interviewsClearedCount: 0,
+      interviewRemark: null,
     };
   }
 
@@ -177,6 +181,7 @@ export function normalizeEmployeeCategory(
       benchStartDate,
       interviewsScheduledCount: interviews,
       interviewsClearedCount: cleared,
+      interviewRemark: blankToNull(input.interviewRemark),
     };
   }
 

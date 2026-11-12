@@ -76,10 +76,7 @@ export default function CandidateDetailPage() {
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [feedbackKind, setFeedbackKind] =
-    useState<BenchFeedbackKind>('DELIVERY_MANAGER');
-  const [feedbackDate, setFeedbackDate] = useState(todayIso);
-  const [feedbackBody, setFeedbackBody] = useState('');
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
   const canManage =
     user?.role === 'ADMIN' || user?.role === 'DELIVERY_OWNER';
 
@@ -150,29 +147,17 @@ export default function CandidateDetailPage() {
   });
 
   const feedbackMut = useMutation({
-    mutationFn: () =>
-      candidatesApi.addBenchFeedback(candidateKey, {
-        kind: feedbackKind,
-        feedbackDate,
-        body: feedbackBody,
-      }),
+    mutationFn: (payload: {
+      kind: BenchFeedbackKind;
+      feedbackDate: string;
+      body: string;
+    }) => candidatesApi.addBenchFeedback(candidateKey, payload),
     onSuccess: async () => {
-      setFeedbackBody('');
-      setError(null);
+      setFeedbackError(null);
       await qc.invalidateQueries({ queryKey: ['candidates'] });
     },
-    onError: (err) => setError(apiErrorMessage(err)),
+    onError: (err) => setFeedbackError(apiErrorMessage(err)),
   });
-
-  function onFeedback(e: FormEvent) {
-    e.preventDefault();
-    if (!feedbackBody.trim()) {
-      setError('Feedback is required.');
-      return;
-    }
-    setError(null);
-    feedbackMut.mutate();
-  }
 
   function onRelease(e: FormEvent) {
     e.preventDefault();
@@ -351,6 +336,14 @@ export default function CandidateDetailPage() {
                 label="Interviews cleared till date"
                 value={String(candidate.interviewsClearedCount ?? 0)}
               />
+              <Field
+                label="Interview remark"
+                value={
+                  candidate.interviewRemark?.trim()
+                    ? candidate.interviewRemark
+                    : '—'
+                }
+              />
             </>
           )}
         </Card>
@@ -396,10 +389,10 @@ export default function CandidateDetailPage() {
         </div>
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Client reporting manager
+            Delivery owner
           </p>
           <p className="mt-1 text-sm font-medium">
-            {candidate.clientReportingManager ?? '—'}
+            {candidate.deliveryOwner?.fullName ?? '—'}
           </p>
         </div>
         <div>
@@ -408,14 +401,6 @@ export default function CandidateDetailPage() {
           </p>
           <p className="mt-1 text-sm font-medium">
             {candidate.accountManager?.fullName ?? '—'}
-          </p>
-        </div>
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Sales owner
-          </p>
-          <p className="mt-1 text-sm font-medium">
-            {candidate.salesOwner?.fullName ?? '—'}
           </p>
         </div>
         <div>
@@ -510,60 +495,34 @@ export default function CandidateDetailPage() {
       )}
 
       {category === 'BENCH' && (
-        <div className="mb-6 grid gap-4 lg:grid-cols-2">
-          <FeedbackTimeline
-            title="Delivery Manager Feedback"
-            entries={feedback.filter(
-              (entry) => entry.kind === 'DELIVERY_MANAGER',
-            )}
-          />
-          <FeedbackTimeline
-            title="Account Manager Feedback"
-            entries={feedback.filter((entry) => entry.kind === 'ACCOUNT_OWNER')}
-          />
-          <form onSubmit={onFeedback} className="space-y-3 lg:col-span-2">
-            <p className="text-sm font-medium">Add feedback</p>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div>
-                <label className={labelClass} htmlFor="bench-kind">
-                  Kind
-                </label>
-                <select
-                  id="bench-kind"
-                  className={fieldClass}
-                  value={feedbackKind}
-                  onChange={(e) =>
-                    setFeedbackKind(e.target.value as BenchFeedbackKind)
-                  }
-                >
-                  <option value="DELIVERY_MANAGER">Delivery Manager</option>
-                  <option value="ACCOUNT_OWNER">Account Manager</option>
-                </select>
-              </div>
-              <Input
-                id="bench-feedback-date"
-                label="Date"
-                type="date"
-                required
-                value={feedbackDate}
-                onChange={(e) => setFeedbackDate(e.target.value)}
-              />
-              <Input
-                id="bench-feedback-body"
-                label="Feedback"
-                required
-                value={feedbackBody}
-                onChange={(e) => setFeedbackBody(e.target.value)}
-              />
-            </div>
-            <button
-              type="submit"
-              className={btnPrimary}
-              disabled={feedbackMut.isPending}
-            >
-              {feedbackMut.isPending ? 'Saving…' : 'Add entry'}
-            </button>
-          </form>
+        <div className="mb-6 space-y-4">
+          {feedbackError && <Alert tone="error">{feedbackError}</Alert>}
+          <div className="grid gap-4 lg:grid-cols-2">
+            <FeedbackTimeline
+              title="Delivery Manager Feedback"
+              kind="DELIVERY_MANAGER"
+              entries={feedback.filter(
+                (entry) => entry.kind === 'DELIVERY_MANAGER',
+              )}
+              canManage={canManage}
+              isPending={feedbackMut.isPending}
+              onAdd={async (payload) => {
+                setFeedbackError(null);
+                await feedbackMut.mutateAsync(payload);
+              }}
+            />
+            <FeedbackTimeline
+              title="Account Manager Feedback"
+              kind="ACCOUNT_OWNER"
+              entries={feedback.filter((entry) => entry.kind === 'ACCOUNT_OWNER')}
+              canManage={canManage}
+              isPending={feedbackMut.isPending}
+              onAdd={async (payload) => {
+                setFeedbackError(null);
+                await feedbackMut.mutateAsync(payload);
+              }}
+            />
+          </div>
         </div>
       )}
 
@@ -759,16 +718,55 @@ function Field({
 
 function FeedbackTimeline({
   title,
+  kind,
   entries,
+  canManage,
+  isPending,
+  onAdd,
 }: {
   title: string;
+  kind: BenchFeedbackKind;
   entries: BenchFeedback[];
+  canManage: boolean;
+  isPending: boolean;
+  onAdd: (payload: {
+    kind: BenchFeedbackKind;
+    feedbackDate: string;
+    body: string;
+  }) => Promise<void>;
 }) {
+  const [feedbackDate, setFeedbackDate] = useState(todayIso);
+  const [body, setBody] = useState('');
+  const [localError, setLocalError] = useState<string | null>(null);
+  const addLabel =
+    kind === 'DELIVERY_MANAGER'
+      ? 'Add Delivery Manager feedback'
+      : 'Add Account Manager feedback';
+  const formId = `bench-feedback-${kind.toLowerCase()}`;
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!body.trim()) {
+      setLocalError('Feedback is required.');
+      return;
+    }
+    setLocalError(null);
+    try {
+      await onAdd({ kind, feedbackDate, body: body.trim() });
+      setBody('');
+    } catch {
+      /* parent surfaces API error */
+    }
+  }
+
   return (
     <Card>
       <p className="text-sm font-medium">{title}</p>
       {entries.length === 0 ? (
-        <p className="mt-3 text-sm text-muted-foreground">No entries yet.</p>
+        <p className="mt-3 text-sm text-muted-foreground">
+          No entries yet.
+          {canManage ? ' Add the first entry below.' : ''}
+        </p>
       ) : (
         <ol className="mt-3 space-y-3">
           {entries.map((entry) => (
@@ -777,10 +775,44 @@ function FeedbackTimeline({
                 {formatDate(entry.feedbackDate)}
                 {entry.author?.fullName ? ` · ${entry.author.fullName}` : ''}
               </p>
-              <p className="mt-1 text-sm">{entry.body}</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm">{entry.body}</p>
             </li>
           ))}
         </ol>
+      )}
+      {canManage && (
+        <form onSubmit={onSubmit} className="mt-4 space-y-3 border-t border-border/70 pt-4">
+          {localError && <Alert tone="error">{localError}</Alert>}
+          <Input
+            id={`${formId}-date`}
+            label="Date"
+            type="date"
+            required
+            value={feedbackDate}
+            onChange={(e) => setFeedbackDate(e.target.value)}
+          />
+          <div>
+            <label className={labelClass} htmlFor={`${formId}-body`}>
+              Feedback
+            </label>
+            <textarea
+              id={`${formId}-body`}
+              className={fieldClass}
+              rows={3}
+              required
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              placeholder="Write feedback for this employee…"
+            />
+          </div>
+          <button
+            type="submit"
+            className={btnPrimary}
+            disabled={isPending}
+          >
+            {isPending ? 'Saving…' : addLabel}
+          </button>
+        </form>
       )}
     </Card>
   );

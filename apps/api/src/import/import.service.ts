@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import {
   CandidateStatus,
   ClientFeedback,
+  ClientOwnershipRole,
   EmployeeCategory,
   EmployeeTeam,
   EngagementHealth,
@@ -285,10 +286,23 @@ export class ImportService {
       }
 
       let salesOwnerUserId: string | null = null;
+      let accountManagerUserId: string | null = null;
+      let deliveryOwnerUserId: string | null = null;
       if (category === EmployeeCategory.BILLABLE) {
         const sales = await this.resolveImportSalesOwner(organizationId, row, i, errors);
         if (sales === undefined) continue;
         salesOwnerUserId = sales;
+        if (!resolvedClientId) continue;
+        const owners = await this.resolveImportClientOwners(
+          organizationId,
+          resolvedClientId,
+          row,
+          i,
+          errors,
+        );
+        if (!owners) continue;
+        accountManagerUserId = owners.accountManagerUserId;
+        deliveryOwnerUserId = owners.deliveryOwnerUserId;
       }
 
       const teamRaw = str(row.team)?.toUpperCase();
@@ -353,6 +367,7 @@ export class ImportService {
           benchStartDate: str(row.benchStartDate) ?? null,
           interviewsScheduledCount: interviews,
           interviewsClearedCount: interviewsCleared,
+          interviewRemark: str(row.interviewRemark) ?? null,
         });
       } catch (e) {
         errors.push({
@@ -386,15 +401,16 @@ export class ImportService {
           projectAccount: billable ? str(row.projectAccount) ?? null : null,
           workLocation: billable ? str(row.workLocation) ?? null : null,
           costCenter,
-          clientReportingManager: billable
-            ? str(row.clientReportingManager) ?? null
-            : null,
+          clientReportingManager: null,
+          accountManagerUserId,
+          deliveryOwnerUserId,
           salesOwnerUserId: normalized.salesOwnerUserId,
           team: normalized.team,
           supportFunction: normalized.supportFunction,
           benchStartDate: normalized.benchStartDate,
           interviewsScheduledCount: normalized.interviewsScheduledCount,
           interviewsClearedCount: normalized.interviewsClearedCount,
+          interviewRemark: normalized.interviewRemark,
           status: CandidateStatus.ACTIVE,
         },
       });
@@ -430,11 +446,17 @@ export class ImportService {
       'clientCode',
       'salesOwnerUserId',
       'salesOwnerEmail',
+      'accountManagerUserId',
+      'accountManagerEmail',
+      'deliveryOwnerUserId',
+      'deliveryOwnerEmail',
+      'clientReportingManager',
     ];
     const benchFields = [
       'benchStartDate',
       'interviewsScheduledCount',
       'interviewsClearedCount',
+      'interviewRemark',
     ];
     if (category !== EmployeeCategory.BILLABLE) {
       const field = clientFields.find((key) => has(key));
@@ -586,6 +608,85 @@ export class ImportService {
       return undefined;
     }
     return byId?.id ?? byEmail?.id ?? null;
+  }
+
+  /** null means the row already has an error. */
+  private async resolveImportClientOwners(
+    organizationId: string,
+    clientId: string,
+    row: Record<string, unknown>,
+    rowIndex: number,
+    errors: ImportRowError[],
+  ): Promise<{
+    accountManagerUserId: string;
+    deliveryOwnerUserId: string;
+  } | null> {
+    const resolveOne = async (
+      role: ClientOwnershipRole,
+      idKey: string,
+      emailKey: string,
+      label: string,
+    ): Promise<string | null> => {
+      const ownerships = await this.prisma.clientOwnership.findMany({
+        where: { organizationId, clientId, ownershipRole: role },
+        select: { userId: true },
+        orderBy: { createdAt: 'asc' },
+      });
+      const ownerIds = ownerships.map((o) => o.userId);
+      if (!ownerIds.length) {
+        errors.push({
+          row: rowIndex,
+          field: idKey,
+          message: `Client has no ${label.toLowerCase()} assigned`,
+        });
+        return null;
+      }
+      const requestedId = str(row[idKey]);
+      const requestedEmail = str(row[emailKey])?.toLowerCase();
+      if (requestedId) {
+        if (!ownerIds.includes(requestedId)) {
+          errors.push({
+            row: rowIndex,
+            field: idKey,
+            message: `${label} must be assigned to the selected client`,
+          });
+          return null;
+        }
+        return requestedId;
+      }
+      if (requestedEmail) {
+        const byEmail = await this.prisma.user.findFirst({
+          where: { organizationId, email: requestedEmail, deletedAt: null },
+          select: { id: true },
+        });
+        if (!byEmail || !ownerIds.includes(byEmail.id)) {
+          errors.push({
+            row: rowIndex,
+            field: emailKey,
+            message: `${label} must be assigned to the selected client`,
+          });
+          return null;
+        }
+        return byEmail.id;
+      }
+      return ownerIds[0]!;
+    };
+
+    const accountManagerUserId = await resolveOne(
+      ClientOwnershipRole.ACCOUNT_OWNER,
+      'accountManagerUserId',
+      'accountManagerEmail',
+      'Account owner',
+    );
+    if (!accountManagerUserId) return null;
+    const deliveryOwnerUserId = await resolveOne(
+      ClientOwnershipRole.DELIVERY_OWNER,
+      'deliveryOwnerUserId',
+      'deliveryOwnerEmail',
+      'Delivery owner',
+    );
+    if (!deliveryOwnerUserId) return null;
+    return { accountManagerUserId, deliveryOwnerUserId };
   }
 
   private async importLeaves(
