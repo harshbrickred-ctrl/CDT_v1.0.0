@@ -329,6 +329,18 @@ export class ImportService {
         });
         continue;
       }
+      const interviewsCleared = num(row.interviewsClearedCount);
+      if (
+        interviewsCleared !== undefined &&
+        (!Number.isInteger(interviewsCleared) || interviewsCleared < 0)
+      ) {
+        errors.push({
+          row: i,
+          field: 'interviewsClearedCount',
+          message: 'interviewsClearedCount must be a whole number of 0 or more',
+        });
+        continue;
+      }
 
       let normalized;
       try {
@@ -340,6 +352,7 @@ export class ImportService {
           salesOwnerUserId,
           benchStartDate: str(row.benchStartDate) ?? null,
           interviewsScheduledCount: interviews,
+          interviewsClearedCount: interviewsCleared,
         });
       } catch (e) {
         errors.push({
@@ -381,6 +394,7 @@ export class ImportService {
           supportFunction: normalized.supportFunction,
           benchStartDate: normalized.benchStartDate,
           interviewsScheduledCount: normalized.interviewsScheduledCount,
+          interviewsClearedCount: normalized.interviewsClearedCount,
           status: CandidateStatus.ACTIVE,
         },
       });
@@ -417,7 +431,11 @@ export class ImportService {
       'salesOwnerUserId',
       'salesOwnerEmail',
     ];
-    const benchFields = ['benchStartDate', 'interviewsScheduledCount'];
+    const benchFields = [
+      'benchStartDate',
+      'interviewsScheduledCount',
+      'interviewsClearedCount',
+    ];
     if (category !== EmployeeCategory.BILLABLE) {
       const field = clientFields.find((key) => has(key));
       if (field) {

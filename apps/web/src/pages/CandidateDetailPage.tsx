@@ -347,6 +347,10 @@ export default function CandidateDetailPage() {
                 label="Interviews scheduled till date"
                 value={String(candidate.interviewsScheduledCount ?? 0)}
               />
+              <Field
+                label="Interviews cleared till date"
+                value={String(candidate.interviewsClearedCount ?? 0)}
+              />
             </>
           )}
         </Card>
@@ -508,13 +512,13 @@ export default function CandidateDetailPage() {
       {category === 'BENCH' && (
         <div className="mb-6 grid gap-4 lg:grid-cols-2">
           <FeedbackTimeline
-            title="Delivery manager feedback"
+            title="Delivery Manager Feedback"
             entries={feedback.filter(
               (entry) => entry.kind === 'DELIVERY_MANAGER',
             )}
           />
           <FeedbackTimeline
-            title="Account owner feedback"
+            title="Account Manager Feedback"
             entries={feedback.filter((entry) => entry.kind === 'ACCOUNT_OWNER')}
           />
           <form onSubmit={onFeedback} className="space-y-3 lg:col-span-2">
@@ -532,8 +536,8 @@ export default function CandidateDetailPage() {
                     setFeedbackKind(e.target.value as BenchFeedbackKind)
                   }
                 >
-                  <option value="DELIVERY_MANAGER">Delivery manager</option>
-                  <option value="ACCOUNT_OWNER">Account owner</option>
+                  <option value="DELIVERY_MANAGER">Delivery Manager</option>
+                  <option value="ACCOUNT_OWNER">Account Manager</option>
                 </select>
               </div>
               <Input

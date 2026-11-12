@@ -15,7 +15,13 @@ import {
   labelFromOptions,
   WORK_LOCATION_OPTIONS,
 } from '../lib/masterLists';
-import type { Candidate, EmployeeCategory, EmployeeTeam } from '../lib/types';
+import type {
+  BenchFeedback,
+  BenchFeedbackKind,
+  Candidate,
+  EmployeeCategory,
+  EmployeeTeam,
+} from '../lib/types';
 import { useAuth } from '../context/AuthContext';
 import { useCostCenter } from '../context/CostCenterContext';
 import PageHeader from '../components/ui/PageHeader';
@@ -91,6 +97,15 @@ function todayIso() {
   return `${now.getUTCFullYear()}-${month}-${day}`;
 }
 
+function latestBenchFeedback(
+  entries: BenchFeedback[] | undefined,
+  kind: BenchFeedbackKind,
+): string | null {
+  if (!entries?.length) return null;
+  const match = entries.find((entry) => entry.kind === kind);
+  return match?.body?.trim() || null;
+}
+
 const emptyForm = {
   category: 'BILLABLE' as EmployeeCategory,
   fullName: '',
@@ -105,6 +120,7 @@ const emptyForm = {
   supportFunction: '',
   benchStartDate: '',
   interviewsScheduledCount: '0',
+  interviewsClearedCount: '0',
   billingType: 'HOURLY',
   hourlyRate: '',
   monthlyFixedAmount: '',
@@ -143,6 +159,7 @@ function optionalFields(form: typeof emptyForm) {
       supportFunction: form.team ? form.supportFunction || null : null,
       benchStartDate: form.benchStartDate || todayIso(),
       interviewsScheduledCount: Number(form.interviewsScheduledCount || 0),
+      interviewsClearedCount: Number(form.interviewsClearedCount || 0),
     };
   }
   return {
@@ -195,6 +212,10 @@ function candidateToForm(c: Candidate): typeof emptyForm {
     interviewsScheduledCount:
       c.interviewsScheduledCount != null
         ? String(c.interviewsScheduledCount)
+        : '0',
+    interviewsClearedCount:
+      c.interviewsClearedCount != null
+        ? String(c.interviewsClearedCount)
         : '0',
     billingType: (c.billingType as string) || 'HOURLY',
     hourlyRate: c.hourlyRate != null ? String(c.hourlyRate) : '',
@@ -400,6 +421,8 @@ export default function CandidatesPage() {
         next === 'BENCH' ? prev.benchStartDate || todayIso() : '',
       interviewsScheduledCount:
         next === 'BENCH' ? prev.interviewsScheduledCount || '0' : '0',
+      interviewsClearedCount:
+        next === 'BENCH' ? prev.interviewsClearedCount || '0' : '0',
     }));
   }
 
@@ -722,10 +745,34 @@ export default function CandidatesPage() {
                 value={formatDate(selectedCandidate.joinedOn)}
               />
               {selectedCandidate.category === 'BENCH' && (
-                <DetailField
-                  label="Interviews scheduled"
-                  value={selectedCandidate.interviewsScheduledCount ?? 0}
-                />
+                <>
+                  <DetailField
+                    label="Interviews scheduled"
+                    value={selectedCandidate.interviewsScheduledCount ?? 0}
+                  />
+                  <DetailField
+                    label="Interviews cleared"
+                    value={selectedCandidate.interviewsClearedCount ?? 0}
+                  />
+                  <DetailField
+                    label="Delivery Manager Feedback"
+                    value={
+                      latestBenchFeedback(
+                        selectedCandidate.benchFeedback,
+                        'DELIVERY_MANAGER',
+                      ) ?? '—'
+                    }
+                  />
+                  <DetailField
+                    label="Account Manager Feedback"
+                    value={
+                      latestBenchFeedback(
+                        selectedCandidate.benchFeedback,
+                        'ACCOUNT_OWNER',
+                      ) ?? '—'
+                    }
+                  />
+                </>
               )}
               <DetailField
                 label="Employment status"
@@ -944,6 +991,21 @@ export default function CandidatesPage() {
                     setForm({
                       ...form,
                       interviewsScheduledCount: e.target.value,
+                    })
+                  }
+                />
+                <Input
+                  id="cand-interviews-cleared"
+                  label="Interviews cleared till date"
+                  type="number"
+                  min={0}
+                  step={1}
+                  required
+                  value={form.interviewsClearedCount}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      interviewsClearedCount: e.target.value,
                     })
                   }
                 />

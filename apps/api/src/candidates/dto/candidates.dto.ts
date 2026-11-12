@@ -120,6 +120,12 @@ export class CreateCandidateDto {
   @Min(0)
   interviewsScheduledCount?: number;
 
+  @ApiPropertyOptional({ default: 0 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  interviewsClearedCount?: number;
+
   @ApiPropertyOptional({ description: 'Hourly billing rate in candidate currency' })
   @IsOptional()
   @IsNumber()
@@ -253,6 +259,12 @@ export class UpdateCandidateDto {
   @IsInt()
   @Min(0)
   interviewsScheduledCount?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  interviewsClearedCount?: number;
 
   @ApiPropertyOptional()
   @IsOptional()

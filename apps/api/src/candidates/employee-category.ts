@@ -23,6 +23,7 @@ export type CategoryFieldInput = {
   salesOwnerUserId?: string | null;
   benchStartDate?: string | Date | null;
   interviewsScheduledCount?: number | null;
+  interviewsClearedCount?: number | null;
 };
 
 export type NormalizedEmployeeCategory = {
@@ -33,6 +34,7 @@ export type NormalizedEmployeeCategory = {
   salesOwnerUserId: string | null;
   benchStartDate: Date | null;
   interviewsScheduledCount: number;
+  interviewsClearedCount: number;
 };
 
 function blankToNull(value: string | null | undefined): string | null {
@@ -122,6 +124,7 @@ export function normalizeEmployeeCategory(
       salesOwnerUserId: blankToNull(input.salesOwnerUserId),
       benchStartDate: null,
       interviewsScheduledCount: 0,
+      interviewsClearedCount: 0,
     };
   }
 
@@ -139,6 +142,7 @@ export function normalizeEmployeeCategory(
       salesOwnerUserId: null,
       benchStartDate: null,
       interviewsScheduledCount: 0,
+      interviewsClearedCount: 0,
     };
   }
 
@@ -153,6 +157,17 @@ export function normalizeEmployeeCategory(
         'Interviews scheduled must be a whole number of 0 or more',
       );
     }
+    const cleared = input.interviewsClearedCount ?? 0;
+    if (!Number.isInteger(cleared) || cleared < 0) {
+      throw new BadRequestException(
+        'Interviews cleared must be a whole number of 0 or more',
+      );
+    }
+    if (cleared > interviews) {
+      throw new BadRequestException(
+        'Interviews cleared cannot exceed interviews scheduled',
+      );
+    }
     return {
       category,
       clientId: null,
@@ -161,6 +176,7 @@ export function normalizeEmployeeCategory(
       salesOwnerUserId: null,
       benchStartDate,
       interviewsScheduledCount: interviews,
+      interviewsClearedCount: cleared,
     };
   }
 

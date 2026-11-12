@@ -210,6 +210,7 @@ model Candidate {
   supportFunction          String?          @map("support_function")
   benchStartDate           DateTime?        @map("bench_start_date") @db.Date
   interviewsScheduledCount Int              @default(0) @map("interviews_scheduled_count")
+  interviewsClearedCount   Int              @default(0) @map("interviews_cleared_count")
   billingType              BillingType      @default(HOURLY) @map("billing_type")
   hourlyRate               Decimal?         @map("hourly_rate") @db.Decimal(12, 2)
   monthlyFixedAmount       Decimal?         @map("monthly_fixed_amount") @db.Decimal(14, 2)

@@ -41,7 +41,7 @@ import {
 
 const userBrief = { id: true, fullName: true, email: true } as const;
 
-const candidateInclude = {
+const candidateInclude: Prisma.CandidateInclude = {
   client: {
     select: {
       id: true,
@@ -52,14 +52,15 @@ const candidateInclude = {
   },
   accountManager: { select: userBrief },
   salesOwner: { select: userBrief },
-} as const;
-
-const candidateDetailInclude = {
-  ...candidateInclude,
   benchFeedback: {
-    orderBy: [{ feedbackDate: 'desc' as const }, { createdAt: 'desc' as const }],
+    orderBy: [{ feedbackDate: 'desc' }, { createdAt: 'desc' }],
+    take: 20,
     include: { author: { select: userBrief } },
   },
+};
+
+const candidateDetailInclude: Prisma.CandidateInclude = {
+  ...candidateInclude,
 };
 
 type CandidateReader = Pick<AuthUser, 'id' | 'role' | 'organizationId'>;
@@ -345,6 +346,7 @@ export class CandidatesService {
         supportFunction: normalized.supportFunction,
         benchStartDate: normalized.benchStartDate,
         interviewsScheduledCount: normalized.interviewsScheduledCount,
+        interviewsClearedCount: normalized.interviewsClearedCount,
         billingType: dto.billingType ?? 'HOURLY',
         hourlyRate: billable ? dto.hourlyRate ?? null : null,
         monthlyFixedAmount: billable ? dto.monthlyFixedAmount ?? null : null,
@@ -402,6 +404,10 @@ export class CandidatesService {
         dto.interviewsScheduledCount !== undefined
           ? dto.interviewsScheduledCount
           : before.interviewsScheduledCount,
+      interviewsClearedCount:
+        dto.interviewsClearedCount !== undefined
+          ? dto.interviewsClearedCount
+          : before.interviewsClearedCount,
     });
     const billable = normalized.category === EmployeeCategory.BILLABLE;
     const data: Prisma.CandidateUncheckedUpdateInput = {
@@ -412,6 +418,7 @@ export class CandidatesService {
       salesOwnerUserId: normalized.salesOwnerUserId,
       benchStartDate: normalized.benchStartDate,
       interviewsScheduledCount: normalized.interviewsScheduledCount,
+      interviewsClearedCount: normalized.interviewsClearedCount,
     };
     if (dto.fullName !== undefined) data.fullName = dto.fullName.trim();
     if (dto.email !== undefined) data.email = dto.email?.trim() || null;

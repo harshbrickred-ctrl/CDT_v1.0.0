@@ -87,6 +87,7 @@ type DemoCandidateSpec = {
   supportFunction?: string;
   benchStartDateOffsetDays?: number;
   interviewsScheduledCount?: number;
+  interviewsClearedCount?: number;
   workLocation?: 'ONSITE' | 'REMOTE' | 'HYBRID';
   costCenter?: 'BRICKRED' | 'AGYOM';
   salesOwner?: 'am' | 'dm' | 'admin';
@@ -640,6 +641,7 @@ async function seedDemoPortfolio(
       workLocation: 'REMOTE',
       benchStartDateOffsetDays: -40,
       interviewsScheduledCount: 3,
+      interviewsClearedCount: 2,
       benchFeedback: true,
       status: CandidateStatus.ACTIVE,
       timesheet: 'none',
@@ -655,6 +657,7 @@ async function seedDemoPortfolio(
       workLocation: 'ONSITE',
       benchStartDateOffsetDays: -12,
       interviewsScheduledCount: 1,
+      interviewsClearedCount: 1,
       benchFeedback: true,
       status: CandidateStatus.ACTIVE,
       timesheet: 'none',
@@ -669,6 +672,7 @@ async function seedDemoPortfolio(
       workLocation: 'HYBRID',
       benchStartDateOffsetDays: -5,
       interviewsScheduledCount: 0,
+      interviewsClearedCount: 0,
       status: CandidateStatus.ACTIVE,
       timesheet: 'none',
       review: null,
@@ -764,6 +768,10 @@ async function seedDemoPortfolio(
       interviewsScheduledCount:
         category === EmployeeCategory.BENCH
           ? (spec.interviewsScheduledCount ?? 0)
+          : 0,
+      interviewsClearedCount:
+        category === EmployeeCategory.BENCH
+          ? (spec.interviewsClearedCount ?? 0)
           : 0,
       billingType:
         category === EmployeeCategory.BILLABLE

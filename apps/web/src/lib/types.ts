@@ -87,6 +87,7 @@ export interface Candidate {
   supportFunction?: string | null;
   benchStartDate?: string | null;
   interviewsScheduledCount?: number | null;
+  interviewsClearedCount?: number | null;
   benchAging?: { days: number; months: number } | null;
   benchFeedback?: BenchFeedback[];
   hourlyRate?: number | null;
