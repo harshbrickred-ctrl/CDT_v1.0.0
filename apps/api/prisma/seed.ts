@@ -1,16 +1,20 @@
 import {
   ApprovalStatus,
+  BenchFeedbackKind,
   BillingType,
   CandidateStatus,
   ClientFeedback,
   ClientOwnershipRole,
+  EmployeeCategory,
+  EmployeeTeam,
   EngagementHealth,
   InvoiceStatus,
   LeaveStatus,
   PrismaClient,
+  Role,
 } from '@prisma/client';
 import { computeInvoiceBilling, formatPublicId } from '@cdt/shared-utils';
-import { seedFoundation } from './seed-foundation';
+import { seedFoundation, upsertUser } from './seed-foundation';
 
 const prisma = new PrismaClient();
 
@@ -73,18 +77,32 @@ async function bumpIdSequence(
 
 type DemoCandidateSpec = {
   publicId: string;
-  clientCode: string;
+  /** Required for BILLABLE; omit for NON_BILLABLE / BENCH. */
+  clientCode?: string;
   fullName: string;
-  roleTitle: string;
+  roleTitle?: string;
   status: CandidateStatus;
+  category?: EmployeeCategory;
+  team?: EmployeeTeam;
+  supportFunction?: string;
+  benchStartDateOffsetDays?: number;
+  interviewsScheduledCount?: number;
+  workLocation?: 'ONSITE' | 'REMOTE' | 'HYBRID';
+  costCenter?: 'BRICKRED' | 'AGYOM';
+  salesOwner?: 'am' | 'dm' | 'admin';
+  clientReportingManager?: string;
+  contractEndsInDays?: number;
   releasedThisMonth?: boolean;
+  releaseReason?: string;
   onLeaveToday?: boolean;
   pendingLeave?: boolean;
+  rejectedLeave?: boolean;
   unpaidLeave?: boolean;
+  leaveTypeCode?: string;
   billingType?: BillingType;
   monthlyFixedAmount?: number;
   maxBillableHours?: number;
-  timesheet?: 'approved' | 'pending' | 'none';
+  timesheet?: 'approved' | 'pending' | 'rejected' | 'none';
   utilization?: number;
   review?: {
     health: EngagementHealth;
@@ -92,6 +110,8 @@ type DemoCandidateSpec = {
   } | null;
   /** Skip previous-month review to surface overdue KPI. */
   skipPrevReview?: boolean;
+  /** Seed DM + AO bench feedback rows. */
+  benchFeedback?: boolean;
 };
 
 async function seedDemoPortfolio(
@@ -249,6 +269,8 @@ async function seedDemoPortfolio(
       roleTitle: 'Full Stack Developer',
       status: CandidateStatus.RELEASED,
       releasedThisMonth: true,
+      releaseReason: 'PROJECT_END',
+      workLocation: 'ONSITE',
       timesheet: 'none',
       review: null,
     },
@@ -337,6 +359,8 @@ async function seedDemoPortfolio(
       roleTitle: 'Support Engineer',
       status: CandidateStatus.RELEASED,
       releasedThisMonth: true,
+      releaseReason: 'CLIENT_REQUEST',
+      workLocation: 'HYBRID',
       timesheet: 'none',
       review: null,
     },
@@ -446,6 +470,8 @@ async function seedDemoPortfolio(
       roleTitle: 'SQL Developer',
       status: CandidateStatus.RELEASED,
       releasedThisMonth: true,
+      releaseReason: 'OTHER',
+      workLocation: 'REMOTE',
       timesheet: 'none',
       review: null,
     },
@@ -455,24 +481,321 @@ async function seedDemoPortfolio(
       fullName: 'Yara Haddad',
       roleTitle: 'Mobile Developer',
       status: CandidateStatus.ACTIVE,
+      workLocation: 'HYBRID',
+      salesOwner: 'am',
+      clientReportingManager: 'Jordan Blake',
+      contractEndsInDays: 45,
       timesheet: 'approved',
       utilization: 97.0,
       review: { health: EngagementHealth.ON_TRACK, feedback: ClientFeedback.GOOD },
     },
+
+    // Coverage — rejected timesheet + rejected leave + EARNED leave type
+    {
+      publicId: formatPublicId('CD', 26),
+      clientCode: 'ACME',
+      fullName: 'Zane Ortiz',
+      roleTitle: 'API Engineer',
+      status: CandidateStatus.ACTIVE,
+      workLocation: 'ONSITE',
+      timesheet: 'rejected',
+      utilization: 70.0,
+      rejectedLeave: true,
+      leaveTypeCode: 'EARNED',
+      review: { health: EngagementHealth.AT_RISK, feedback: ClientFeedback.AVERAGE },
+    },
+
+    // Coverage — remaining leave types on active billables
+    {
+      publicId: formatPublicId('CD', 27),
+      clientCode: 'GLOBEX',
+      fullName: 'Ava Patel',
+      roleTitle: 'Cloud Engineer',
+      status: CandidateStatus.ACTIVE,
+      workLocation: 'REMOTE',
+      timesheet: 'approved',
+      utilization: 85.0,
+      pendingLeave: true,
+      leaveTypeCode: 'LOP',
+      review: { health: EngagementHealth.ON_TRACK, feedback: ClientFeedback.GOOD },
+    },
+    {
+      publicId: formatPublicId('CD', 28),
+      clientCode: 'STARK',
+      fullName: 'Blake Morgan',
+      roleTitle: 'iOS Developer',
+      status: CandidateStatus.ACTIVE,
+      workLocation: 'HYBRID',
+      timesheet: 'pending',
+      utilization: 80.0,
+      pendingLeave: true,
+      leaveTypeCode: 'PATERNITY',
+      review: { health: EngagementHealth.ON_TRACK, feedback: ClientFeedback.AVERAGE },
+    },
+    {
+      publicId: formatPublicId('CD', 29),
+      clientCode: 'UMBRELLA',
+      fullName: 'Clara Jensen',
+      roleTitle: 'Nurse Systems Analyst',
+      status: CandidateStatus.ACTIVE,
+      workLocation: 'ONSITE',
+      timesheet: 'approved',
+      utilization: 82.0,
+      pendingLeave: true,
+      leaveTypeCode: 'MATERNITY',
+      review: { health: EngagementHealth.ON_TRACK, feedback: ClientFeedback.GOOD },
+    },
+
+    // Non-billable — SUPPORT functions + Leadership + Delivery
+    {
+      publicId: formatPublicId('CD', 30),
+      fullName: 'Deepti Nair',
+      category: EmployeeCategory.NON_BILLABLE,
+      team: EmployeeTeam.SUPPORT,
+      supportFunction: 'HR',
+      costCenter: 'BRICKRED',
+      workLocation: 'HYBRID',
+      status: CandidateStatus.ACTIVE,
+      timesheet: 'none',
+      review: null,
+    },
+    {
+      publicId: formatPublicId('CD', 31),
+      fullName: 'Ethan Cole',
+      category: EmployeeCategory.NON_BILLABLE,
+      team: EmployeeTeam.SUPPORT,
+      supportFunction: 'TA',
+      costCenter: 'BRICKRED',
+      workLocation: 'REMOTE',
+      status: CandidateStatus.ACTIVE,
+      timesheet: 'none',
+      review: null,
+    },
+    {
+      publicId: formatPublicId('CD', 32),
+      fullName: 'Fatima Noor',
+      category: EmployeeCategory.NON_BILLABLE,
+      team: EmployeeTeam.SUPPORT,
+      supportFunction: 'ACCOUNTS',
+      costCenter: 'AGYOM',
+      workLocation: 'ONSITE',
+      status: CandidateStatus.ACTIVE,
+      timesheet: 'none',
+      review: null,
+    },
+    {
+      publicId: formatPublicId('CD', 33),
+      fullName: 'Gavin Reed',
+      category: EmployeeCategory.NON_BILLABLE,
+      team: EmployeeTeam.SUPPORT,
+      supportFunction: 'ADMIN',
+      costCenter: 'BRICKRED',
+      workLocation: 'ONSITE',
+      status: CandidateStatus.ACTIVE,
+      timesheet: 'none',
+      review: null,
+    },
+    {
+      publicId: formatPublicId('CD', 34),
+      fullName: 'Helena Vu',
+      category: EmployeeCategory.NON_BILLABLE,
+      team: EmployeeTeam.SUPPORT,
+      supportFunction: 'FINANCE',
+      costCenter: 'AGYOM',
+      workLocation: 'HYBRID',
+      status: CandidateStatus.ACTIVE,
+      timesheet: 'none',
+      review: null,
+    },
+    {
+      publicId: formatPublicId('CD', 35),
+      fullName: 'Ian Brooks',
+      category: EmployeeCategory.NON_BILLABLE,
+      team: EmployeeTeam.LEADERSHIP,
+      costCenter: 'BRICKRED',
+      workLocation: 'REMOTE',
+      status: CandidateStatus.ACTIVE,
+      timesheet: 'none',
+      review: null,
+    },
+    {
+      publicId: formatPublicId('CD', 36),
+      fullName: 'Jade Kim',
+      category: EmployeeCategory.NON_BILLABLE,
+      team: EmployeeTeam.DELIVERY,
+      costCenter: 'AGYOM',
+      workLocation: 'HYBRID',
+      status: CandidateStatus.ACTIVE,
+      timesheet: 'none',
+      review: null,
+    },
+
+    // Bench — with / without interviews + feedback
+    {
+      publicId: formatPublicId('CD', 37),
+      fullName: 'Kenji Sato',
+      category: EmployeeCategory.BENCH,
+      team: EmployeeTeam.DELIVERY,
+      costCenter: 'BRICKRED',
+      workLocation: 'REMOTE',
+      benchStartDateOffsetDays: -40,
+      interviewsScheduledCount: 3,
+      benchFeedback: true,
+      status: CandidateStatus.ACTIVE,
+      timesheet: 'none',
+      review: null,
+    },
+    {
+      publicId: formatPublicId('CD', 38),
+      fullName: 'Lila Costa',
+      category: EmployeeCategory.BENCH,
+      team: EmployeeTeam.SUPPORT,
+      supportFunction: 'TA',
+      costCenter: 'AGYOM',
+      workLocation: 'ONSITE',
+      benchStartDateOffsetDays: -12,
+      interviewsScheduledCount: 1,
+      benchFeedback: true,
+      status: CandidateStatus.ACTIVE,
+      timesheet: 'none',
+      review: null,
+    },
+    {
+      publicId: formatPublicId('CD', 39),
+      fullName: 'Marco Rossi',
+      category: EmployeeCategory.BENCH,
+      team: EmployeeTeam.LEADERSHIP,
+      costCenter: 'BRICKRED',
+      workLocation: 'HYBRID',
+      benchStartDateOffsetDays: -5,
+      interviewsScheduledCount: 0,
+      status: CandidateStatus.ACTIVE,
+      timesheet: 'none',
+      review: null,
+    },
   ];
+
+  // Inactive client so Clients UI can show both active/inactive.
+  await prisma.client.upsert({
+    where: {
+      organizationId_nameNormalized: {
+        organizationId,
+        nameNormalized: normalizeName('Archived Cobalt Corp'),
+      },
+    },
+    update: {
+      name: 'Archived Cobalt Corp',
+      code: 'COBALT',
+      costCenter: 'BRICKRED',
+      isActive: false,
+      deletedAt: null,
+    },
+    create: {
+      organizationId,
+      name: 'Archived Cobalt Corp',
+      nameNormalized: normalizeName('Archived Cobalt Corp'),
+      code: 'COBALT',
+      costCenter: 'BRICKRED',
+      isActive: false,
+    },
+  });
+
+  // Inactive demo user for Users list coverage.
+  const inactiveUser = await upsertUser(prisma, {
+    organizationId,
+    email: 'inactive.do@brickred.local',
+    fullName: 'Inactive Delivery Owner',
+    role: Role.DELIVERY_OWNER,
+    password: process.env.SEED_DEMO_PASSWORD || process.env.SEED_ADMIN_PASSWORD || 'Admin@123',
+  });
+  await prisma.user.update({
+    where: { id: inactiveUser.id },
+    data: { isActive: false },
+  });
 
   let leaveSeq = 1;
   let tsSeq = 1;
   let delSeq = 1;
 
   for (const spec of specs) {
-    const client = clientByCode.get(spec.clientCode);
-    if (!client) throw new Error(`Missing client ${spec.clientCode}`);
+    const category = spec.category ?? EmployeeCategory.BILLABLE;
+    const client = spec.clientCode ? clientByCode.get(spec.clientCode) : null;
+    if (category === EmployeeCategory.BILLABLE && !client) {
+      throw new Error(`Missing client ${spec.clientCode} for ${spec.publicId}`);
+    }
 
     const releasedAt =
       spec.status === CandidateStatus.RELEASED && spec.releasedThisMonth
         ? addDays(periodStart, 10)
         : null;
+
+    const salesOwnerUserId =
+      spec.salesOwner === 'admin'
+        ? users.admin.id
+        : spec.salesOwner === 'dm'
+          ? users.dm.id
+          : spec.salesOwner === 'am'
+            ? users.am.id
+            : category === EmployeeCategory.BILLABLE
+              ? users.dm.id
+              : null;
+
+    const costCenter =
+      spec.costCenter ?? client?.costCenter ?? 'BRICKRED';
+    const benchStartDate =
+      category === EmployeeCategory.BENCH
+        ? addDays(today, spec.benchStartDateOffsetDays ?? -14)
+        : null;
+
+    const candidateFields = {
+      category,
+      clientId: client?.id ?? null,
+      fullName: spec.fullName,
+      roleTitle: category === EmployeeCategory.BILLABLE ? (spec.roleTitle ?? null) : null,
+      email: `${spec.fullName.toLowerCase().replace(/\s+/g, '.')}@demo.local`,
+      mobile: `+9198${String(Number(spec.publicId.replace(/\D/g, ''))).padStart(8, '0')}`,
+      status: spec.status,
+      accountManagerUserId:
+        category === EmployeeCategory.BILLABLE ? users.am.id : null,
+      salesOwnerUserId,
+      team: spec.team ?? null,
+      supportFunction: spec.supportFunction ?? null,
+      benchStartDate,
+      interviewsScheduledCount:
+        category === EmployeeCategory.BENCH
+          ? (spec.interviewsScheduledCount ?? 0)
+          : 0,
+      billingType:
+        category === EmployeeCategory.BILLABLE
+          ? (spec.billingType ?? BillingType.HOURLY)
+          : BillingType.HOURLY,
+      hourlyRate: category === EmployeeCategory.BILLABLE ? 1000 : null,
+      monthlyFixedAmount:
+        category === EmployeeCategory.BILLABLE
+          ? (spec.monthlyFixedAmount ?? null)
+          : null,
+      maxBillableHours:
+        category === EmployeeCategory.BILLABLE
+          ? (spec.maxBillableHours ?? null)
+          : null,
+      hoursPerDay: 8,
+      currency: 'INR',
+      costCenter,
+      joinedOn: addDays(periodStart, -120),
+      contractEndDate:
+        spec.contractEndsInDays != null
+          ? addDays(today, spec.contractEndsInDays)
+          : null,
+      clientReportingManager: spec.clientReportingManager ?? null,
+      workLocation: spec.workLocation ?? 'REMOTE',
+      projectAccount: client?.name ?? null,
+      releasedAt,
+      releasedById: releasedAt ? users.dm.id : null,
+      releaseReason: releasedAt
+        ? (spec.releaseReason ?? 'PROJECT_END')
+        : null,
+      deletedAt: null,
+    };
 
     const candidate = await prisma.candidate.upsert({
       where: {
@@ -481,54 +804,45 @@ async function seedDemoPortfolio(
           publicId: spec.publicId,
         },
       },
-      update: {
-        clientId: client.id,
-        fullName: spec.fullName,
-        roleTitle: spec.roleTitle,
-        email: `${spec.fullName.toLowerCase().replace(/\s+/g, '.')}@demo.local`,
-        status: spec.status,
-        accountManagerUserId: users.am.id,
-        billingType: spec.billingType ?? BillingType.HOURLY,
-        hourlyRate: 1000,
-        monthlyFixedAmount: spec.monthlyFixedAmount ?? null,
-        maxBillableHours: spec.maxBillableHours ?? null,
-        hoursPerDay: 8,
-        currency: 'INR',
-        costCenter: client.costCenter,
-        joinedOn: addDays(periodStart, -120),
-        releasedAt,
-        releasedById: releasedAt ? users.dm.id : null,
-        releaseReason: releasedAt ? 'PROJECT_END' : null,
-        deletedAt: null,
-      },
+      update: candidateFields,
       create: {
         organizationId,
         publicId: spec.publicId,
-        clientId: client.id,
-        fullName: spec.fullName,
-        roleTitle: spec.roleTitle,
-        email: `${spec.fullName.toLowerCase().replace(/\s+/g, '.')}@demo.local`,
-        status: spec.status,
-        accountManagerUserId: users.am.id,
-        billingType: spec.billingType ?? BillingType.HOURLY,
-        hourlyRate: 1000,
-        monthlyFixedAmount: spec.monthlyFixedAmount ?? null,
-        maxBillableHours: spec.maxBillableHours ?? null,
-        hoursPerDay: 8,
-        currency: 'INR',
-        costCenter: client.costCenter,
-        joinedOn: addDays(periodStart, -120),
-        releasedAt,
-        releasedById: releasedAt ? users.dm.id : null,
-        releaseReason: releasedAt ? 'PROJECT_END' : null,
-        workLocation: 'REMOTE',
-        projectAccount: client.name,
+        ...candidateFields,
       },
     });
 
+    if (spec.benchFeedback && category === EmployeeCategory.BENCH) {
+      await prisma.candidateBenchFeedback.deleteMany({
+        where: { candidateId: candidate.id },
+      });
+      await prisma.candidateBenchFeedback.createMany({
+        data: [
+          {
+            organizationId,
+            candidateId: candidate.id,
+            kind: BenchFeedbackKind.DELIVERY_MANAGER,
+            authorUserId: users.dm.id,
+            feedbackDate: addDays(today, -7),
+            body: 'Strong delivery profile; targeting mid-size React engagements.',
+          },
+          {
+            organizationId,
+            candidateId: candidate.id,
+            kind: BenchFeedbackKind.ACCOUNT_OWNER,
+            authorUserId: users.am.id,
+            feedbackDate: addDays(today, -3),
+            body: 'Client intros scheduled; keep interview pipeline warm.',
+          },
+        ],
+      });
+    }
+
     if (spec.onLeaveToday && spec.status === CandidateStatus.ACTIVE) {
       const publicId = formatPublicId('LV', leaveSeq++);
-      const leaveTypeCode = spec.unpaidLeave ? 'UNPAID' : 'CASUAL';
+      const leaveTypeCode = spec.unpaidLeave
+        ? 'UNPAID'
+        : (spec.leaveTypeCode ?? 'CASUAL');
       await prisma.leave.upsert({
         where: { organizationId_publicId: { organizationId, publicId } },
         update: {
@@ -542,6 +856,8 @@ async function seedDemoPortfolio(
           requestedById: users.dm.id,
           approverId: users.dm.id,
           approvedAt: addDays(today, -3),
+          rejectedAt: null,
+          rejectionReason: null,
           deletedAt: null,
         },
         create: {
@@ -563,45 +879,96 @@ async function seedDemoPortfolio(
 
     if (spec.pendingLeave && spec.status === CandidateStatus.ACTIVE) {
       const publicId = formatPublicId('LV', leaveSeq++);
+      const leaveTypeCode = spec.leaveTypeCode ?? 'SICK';
       await prisma.leave.upsert({
         where: { organizationId_publicId: { organizationId, publicId } },
         update: {
           candidateId: candidate.id,
-          leaveTypeCode: 'SICK',
+          leaveTypeCode,
           startDate: addDays(today, 3),
           endDate: addDays(today, 4),
           days: 2,
           status: LeaveStatus.PENDING,
-          reason: 'Medical appointment',
+          reason: `Pending ${leaveTypeCode.toLowerCase()} leave request`,
           requestedById: users.dm.id,
           approverId: null,
           approvedAt: null,
+          rejectedAt: null,
+          rejectionReason: null,
           deletedAt: null,
         },
         create: {
           organizationId,
           publicId,
           candidateId: candidate.id,
-          leaveTypeCode: 'SICK',
+          leaveTypeCode,
           startDate: addDays(today, 3),
           endDate: addDays(today, 4),
           days: 2,
           status: LeaveStatus.PENDING,
-          reason: 'Medical appointment',
+          reason: `Pending ${leaveTypeCode.toLowerCase()} leave request`,
           requestedById: users.dm.id,
         },
       });
     }
 
-    if (spec.timesheet && spec.timesheet !== 'none' && spec.status === CandidateStatus.ACTIVE) {
+    if (spec.rejectedLeave && spec.status === CandidateStatus.ACTIVE) {
+      const publicId = formatPublicId('LV', leaveSeq++);
+      const leaveTypeCode = spec.leaveTypeCode ?? 'EARNED';
+      await prisma.leave.upsert({
+        where: { organizationId_publicId: { organizationId, publicId } },
+        update: {
+          candidateId: candidate.id,
+          leaveTypeCode,
+          startDate: addDays(today, 10),
+          endDate: addDays(today, 12),
+          days: 3,
+          status: LeaveStatus.REJECTED,
+          reason: 'Peak delivery week conflict',
+          requestedById: users.dm.id,
+          approverId: users.am.id,
+          approvedAt: null,
+          rejectedAt: addDays(today, -1),
+          rejectionReason: 'Client sprint in progress; defer leave',
+          deletedAt: null,
+        },
+        create: {
+          organizationId,
+          publicId,
+          candidateId: candidate.id,
+          leaveTypeCode,
+          startDate: addDays(today, 10),
+          endDate: addDays(today, 12),
+          days: 3,
+          status: LeaveStatus.REJECTED,
+          reason: 'Peak delivery week conflict',
+          requestedById: users.dm.id,
+          approverId: users.am.id,
+          rejectedAt: addDays(today, -1),
+          rejectionReason: 'Client sprint in progress; defer leave',
+        },
+      });
+    }
+
+    if (
+      spec.timesheet &&
+      spec.timesheet !== 'none' &&
+      spec.status === CandidateStatus.ACTIVE &&
+      category === EmployeeCategory.BILLABLE
+    ) {
       const publicId = formatPublicId('TSH', tsSeq++);
       const workingDays = 22;
       const leaveDays = spec.onLeaveToday ? 2 : 0;
-      const lopDays = spec.unpaidLeave ? leaveDays : 0;
+      const lopDays = spec.unpaidLeave || spec.leaveTypeCode === 'LOP' ? leaveDays || 1 : 0;
       const daysWorked = workingDays - leaveDays;
       const attendancePct =
         spec.utilization ?? Math.round((daysWorked / workingDays) * 1000) / 10;
-      const approved = spec.timesheet === 'approved';
+      const approvalStatus =
+        spec.timesheet === 'approved'
+          ? ApprovalStatus.APPROVED
+          : spec.timesheet === 'rejected'
+            ? ApprovalStatus.REJECTED
+            : ApprovalStatus.PENDING;
 
       const data = {
         organizationId,
@@ -614,11 +981,15 @@ async function seedDemoPortfolio(
         lopDays,
         daysWorked,
         attendancePct,
-        approvalStatus: approved
-          ? ApprovalStatus.APPROVED
-          : ApprovalStatus.PENDING,
-        approvedById: approved ? users.dm.id : null,
-        remarks: approved ? 'Looks good' : 'Awaiting manager sign-off',
+        approvalStatus,
+        approvedById:
+          approvalStatus === ApprovalStatus.PENDING ? null : users.dm.id,
+        remarks:
+          approvalStatus === ApprovalStatus.APPROVED
+            ? 'Looks good'
+            : approvalStatus === ApprovalStatus.REJECTED
+              ? 'Hours do not match client attendance log'
+              : 'Awaiting manager sign-off',
         deletedAt: null,
       };
 
@@ -646,7 +1017,11 @@ async function seedDemoPortfolio(
       }
     }
 
-    if (spec.review && spec.status === CandidateStatus.ACTIVE) {
+    if (
+      spec.review &&
+      spec.status === CandidateStatus.ACTIVE &&
+      category === EmployeeCategory.BILLABLE
+    ) {
       const publicId = formatPublicId('DEL', delSeq++);
       const data = {
         organizationId,
@@ -690,7 +1065,11 @@ async function seedDemoPortfolio(
     }
 
     // Previous-month review for most actives (so overdue alert only fires for skipPrevReview)
-    if (spec.status === CandidateStatus.ACTIVE && !spec.skipPrevReview) {
+    if (
+      spec.status === CandidateStatus.ACTIVE &&
+      !spec.skipPrevReview &&
+      category === EmployeeCategory.BILLABLE
+    ) {
       const publicId = formatPublicId('DEL', delSeq++);
       const data = {
         organizationId,
@@ -730,21 +1109,56 @@ async function seedDemoPortfolio(
     }
   }
 
-  await bumpIdSequence(organizationId, 'CD', 26);
+  await bumpIdSequence(organizationId, 'CD', specs.length + 1);
   await bumpIdSequence(organizationId, 'LV', leaveSeq);
   await bumpIdSequence(organizationId, 'TSH', tsSeq);
   await bumpIdSequence(organizationId, 'DEL', delSeq);
 
+  // Sample audit trail so Audit page is non-empty.
+  const sampleCandidate = await prisma.candidate.findFirst({
+    where: { organizationId, publicId: formatPublicId('CD', 1) },
+  });
+  if (sampleCandidate) {
+    await prisma.auditLog.create({
+      data: {
+        organizationId,
+        entityType: 'Candidate',
+        entityId: sampleCandidate.id,
+        entityPublicId: sampleCandidate.publicId,
+        action: 'SEED_UPSERT',
+        actorUserId: users.admin.id,
+        afterJson: {
+          fullName: sampleCandidate.fullName,
+          status: sampleCandidate.status,
+          category: sampleCandidate.category,
+        },
+        ip: '127.0.0.1',
+        userAgent: 'cdt-seed/coverage',
+      },
+    });
+  }
+
   return {
     month,
-    clients: clients.length,
+    clients: clients.length + 1,
     candidates: specs.length,
+    billable: specs.filter(
+      (s) => (s.category ?? EmployeeCategory.BILLABLE) === EmployeeCategory.BILLABLE,
+    ).length,
+    nonBillable: specs.filter((s) => s.category === EmployeeCategory.NON_BILLABLE)
+      .length,
+    bench: specs.filter((s) => s.category === EmployeeCategory.BENCH).length,
     active: specs.filter((s) => s.status === CandidateStatus.ACTIVE).length,
     onLeaveToday: specs.filter((s) => s.onLeaveToday).length,
     pendingLeave: specs.filter((s) => s.pendingLeave).length,
+    rejectedLeave: specs.filter((s) => s.rejectedLeave).length,
+    rejectedTimesheets: specs.filter((s) => s.timesheet === 'rejected').length,
     released: specs.filter((s) => s.releasedThisMonth).length,
     missingTs: specs.filter(
-      (s) => s.status === CandidateStatus.ACTIVE && s.timesheet === 'none',
+      (s) =>
+        s.status === CandidateStatus.ACTIVE &&
+        (s.category ?? EmployeeCategory.BILLABLE) === EmployeeCategory.BILLABLE &&
+        s.timesheet === 'none',
     ).length,
     overdueReviews: specs.filter((s) => s.skipPrevReview).length,
   };
@@ -921,6 +1335,114 @@ async function seedDemoInvoices(
           publicId,
           timesheetId: ts.id,
           ...data,
+        },
+      });
+    }
+    upserted++;
+  }
+
+  // Prior-month paid invoice for revenue-trend charts.
+  const prevMonth = previousYearMonth(month);
+  const prevBounds = periodBounds(prevMonth);
+  const prevCandidate = approvedTimesheets[0]?.candidate;
+  if (prevCandidate) {
+    const prevTsPublicId = formatPublicId('TSH', 900);
+    const prevTsData = {
+      organizationId,
+      candidateId: prevCandidate.id,
+      yearMonth: prevMonth,
+      periodStart: prevBounds.periodStart,
+      periodEnd: prevBounds.periodEnd,
+      workingDays: 22,
+      leaveDays: 0,
+      lopDays: 0,
+      daysWorked: 22,
+      attendancePct: 100,
+      approvalStatus: ApprovalStatus.APPROVED,
+      approvedById: users.dm.id,
+      remarks: 'Prior month seed',
+      deletedAt: null,
+    };
+    let prevTs = await prisma.timesheet.findUnique({
+      where: {
+        candidateId_yearMonth: {
+          candidateId: prevCandidate.id,
+          yearMonth: prevMonth,
+        },
+      },
+      include: { invoice: true },
+    });
+    if (!prevTs) {
+      prevTs = await prisma.timesheet.create({
+        data: { ...prevTsData, publicId: prevTsPublicId },
+        include: { invoice: true },
+      });
+    } else {
+      prevTs = await prisma.timesheet.update({
+        where: { id: prevTs.id },
+        data: prevTsData,
+        include: { invoice: true },
+      });
+    }
+
+    const billingType = prevCandidate.billingType ?? BillingType.HOURLY;
+    const hourlyRate = Number(prevCandidate.hourlyRate) || 1000;
+    const hoursPerDay = Number(prevCandidate.hoursPerDay) || 8;
+    const monthlyFixedAmount =
+      prevCandidate.monthlyFixedAmount != null
+        ? Number(prevCandidate.monthlyFixedAmount)
+        : null;
+    const maxBillableHours =
+      prevCandidate.maxBillableHours != null
+        ? Number(prevCandidate.maxBillableHours)
+        : null;
+    const billing = computeInvoiceBilling({
+      billingType,
+      hourlyRate,
+      hoursPerDay,
+      monthlyFixedAmount,
+      maxBillableHours,
+      workingDays: 22,
+      lopDays: 0,
+    });
+    const prevInvPublicId = prevTs.invoice?.publicId ?? formatPublicId('INV', invSeq++);
+    const prevInvData = {
+      organizationId,
+      candidateId: prevCandidate.id,
+      yearMonth: prevMonth,
+      billingType,
+      hourlyRate,
+      hoursPerDay,
+      monthlyFixedAmount,
+      maxBillableHours,
+      daysWorked: 22,
+      workingDays: 22,
+      lopDays: 0,
+      billableDays: billing.billableDays,
+      rawHours: billing.rawHours,
+      billableHours: billing.billableHours,
+      amount: billing.amount,
+      currency: prevCandidate.currency || 'INR',
+      status: InvoiceStatus.PAID,
+      generatedById: users.dm.id,
+      reviewedById: users.am.id,
+      reviewedAt: addDays(prevBounds.periodEnd, 2),
+      sentAt: addDays(prevBounds.periodEnd, 3),
+      dueDate: addDays(prevBounds.periodEnd, 18),
+      paidAt: addDays(prevBounds.periodEnd, 10),
+      rejectionReason: null,
+    };
+    if (prevTs.invoice) {
+      await prisma.invoice.update({
+        where: { id: prevTs.invoice.id },
+        data: prevInvData,
+      });
+    } else {
+      await prisma.invoice.create({
+        data: {
+          publicId: prevInvPublicId,
+          timesheetId: prevTs.id,
+          ...prevInvData,
         },
       });
     }
