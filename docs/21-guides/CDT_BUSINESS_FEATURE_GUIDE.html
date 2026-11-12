@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>CDT — Business Feature Guide</title>
+  <style>
+    :root {
+      --ink: #1a2332;
+      --muted: #5a6678;
+      --line: #d7dde6;
+      --paper: #f7f5f1;
+      --card: #ffffff;
+      --brand: #c45c26;
+      --brand-dark: #9a4318;
+      --navy: #1e2a3a;
+      --navy-2: #2b3b50;
+      --teal: #1f6f6a;
+      --green: #2f6b4f;
+      --amber: #b8860b;
+      --red: #a33b3b;
+      --blue: #355f8a;
+    }
+    * { box-sizing: border-box; }
+    @page { size: A4; margin: 14mm 12mm; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      font-size: 11pt;
+      line-height: 1.45;
+    }
+    .page-break { page-break-before: always; break-before: page; }
+    .cover {
+      min-height: 250mm;
+      padding: 28mm 18mm 18mm;
+      background:
+        linear-gradient(165deg, #1a2332 0%, #2b3b50 48%, #1f6f6a 140%);
+      color: #f4f1ea;
+      position: relative;
+      overflow: hidden;
+    }
+    .cover::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
+      background-size: 28px 28px;
+      opacity: 0.35;
+    }
+    .cover-inner { position: relative; z-index: 1; max-width: 170mm; }
+    .eyebrow {
+      display: inline-block;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      font-size: 10pt;
+      color: #f0c4a8;
+      border: 1px solid rgba(240,196,168,0.45);
+      padding: 6px 12px;
+      margin-bottom: 22px;
+    }
+    .cover h1 {
+      font-family: Georgia, "Times New Roman", serif;
+      font-weight: 600;
+      font-size: 34pt;
+      line-height: 1.15;
+      margin: 0 0 14px;
+    }
+    .cover .lede {
+      font-size: 13pt;
+      color: #d7dde6;
+      max-width: 150mm;
+      margin-bottom: 28px;
+    }
+    .cover-meta {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      max-width: 150mm;
+    }
+    .cover-chip {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.14);
+      padding: 12px 14px;
+    }
+    .cover-chip strong { display: block; color: #f0c4a8; font-size: 9pt; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 4px; }
+    .section { padding: 8mm 8mm 4mm; }
+    h2 {
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 18pt;
+      color: var(--navy);
+      margin: 0 0 10px;
+      padding-bottom: 6px;
+      border-bottom: 3px solid var(--brand);
+      display: inline-block;
+      min-width: 40%;
+    }
+    h3 {
+      font-size: 12.5pt;
+      color: var(--navy-2);
+      margin: 16px 0 8px;
+    }
+    p { margin: 0 0 10px; color: var(--ink); }
+    .muted { color: var(--muted); }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin: 12px 0 16px;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin: 12px 0 16px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-top: 4px solid var(--brand);
+      padding: 12px 14px;
+      box-shadow: 0 1px 0 rgba(26,35,50,0.04);
+    }
+    .card.admin { border-top-color: var(--navy); }
+    .card.delivery { border-top-color: var(--brand); }
+    .card.account { border-top-color: var(--teal); }
+    .card h4 {
+      margin: 0 0 6px;
+      font-size: 11.5pt;
+      color: var(--navy);
+    }
+    .card .role-code {
+      font-size: 8.5pt;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 8px 0 14px;
+      background: var(--card);
+      font-size: 10pt;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      padding: 7px 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      background: var(--navy);
+      color: #fff;
+      font-weight: 600;
+    }
+    tr:nth-child(even) td { background: #faf8f5; }
+    .feature {
+      background: var(--card);
+      border: 1px solid var(--line);
+      padding: 12px 14px;
+      margin: 0 0 10px;
+      border-left: 4px solid var(--teal);
+    }
+    .feature h3 { margin-top: 0; }
+    .feature .purpose {
+      color: var(--muted);
+      font-size: 10pt;
+      margin-bottom: 6px;
+    }
+    .steps {
+      margin: 6px 0 0;
+      padding-left: 18px;
+    }
+    .steps li { margin-bottom: 3px; }
+    .diagram {
+      background: var(--card);
+      border: 1px solid var(--line);
+      padding: 14px;
+      margin: 12px 0 16px;
+    }
+    .diagram-title {
+      font-size: 9pt;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+    .flow {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      justify-content: center;
+    }
+    .flow .node {
+      background: var(--navy);
+      color: #fff;
+      padding: 8px 10px;
+      font-size: 9pt;
+      text-align: center;
+      min-width: 78px;
+      border-radius: 2px;
+    }
+    .flow .node.alt { background: var(--brand); }
+    .flow .node.ok { background: var(--green); }
+    .flow .node.warn { background: var(--amber); color: #1a2332; }
+    .flow .node.info { background: var(--teal); }
+    .flow .arrow {
+      color: var(--brand);
+      font-weight: 700;
+      font-size: 14pt;
+    }
+    .pill-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+    .pill {
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 4px 10px;
+      font-size: 9.5pt;
+      border-radius: 999px;
+    }
+    .pill.on { border-color: #9cc5a8; background: #eef7f1; color: var(--green); }
+    .pill.risk { border-color: #e2c57a; background: #fff8e8; color: #8a6500; }
+    .pill.esc { border-color: #e0a6a6; background: #fceded; color: var(--red); }
+    .path-box {
+      background: linear-gradient(180deg, #fff 0%, #f3f6f8 100%);
+      border: 1px solid var(--line);
+      padding: 12px 14px;
+      margin-bottom: 12px;
+    }
+    .path-box h3 {
+      margin: 0 0 8px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--line);
+    }
+    .ol-tight { margin: 0; padding-left: 18px; }
+    .ol-tight li { margin-bottom: 4px; }
+    .footer-note {
+      margin-top: 16px;
+      font-size: 9pt;
+      color: var(--muted);
+      border-top: 1px solid var(--line);
+      padding-top: 8px;
+    }
+    .two-col {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 12px;
+      align-items: start;
+    }
+    svg.flow-svg { width: 100%; height: auto; display: block; }
+    .stat {
+      text-align: center;
+      background: var(--card);
+      border: 1px solid var(--line);
+      padding: 12px 8px;
+    }
+    .stat .num {
+      font-family: Georgia, serif;
+      font-size: 22pt;
+      color: var(--brand);
+      line-height: 1;
+    }
+    .stat .label {
+      font-size: 9pt;
+      color: var(--muted);
+      margin-top: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- COVER -->
+  <section class="cover">
+    <div class="cover-inner">
+      <div class="eyebrow">Client Delivery &amp; Resource Tracker</div>
+      <h1>Business Feature Guide</h1>
+      <p class="lede">
+        A clear, visual walkthrough of what CDT does, who uses it, and the happy path from employee placement through leave, timesheets, engagement health, and invoicing.
+      </p>
+      <div class="cover-meta">
+        <div class="cover-chip">
+          <strong>Audience</strong>
+          Delivery leads, account leads, operations, non-technical stakeholders
+        </div>
+        <div class="cover-chip">
+          <strong>Product promise</strong>
+          Shared web SoR that replaces the delivery Excel workbook
+        </div>
+        <div class="cover-chip">
+          <strong>Roles</strong>
+          Admin · Delivery Owner · Account Owner
+        </div>
+        <div class="cover-chip">
+          <strong>Core loop</strong>
+          Employees → Leave → Timesheet → Review → Invoice → Dashboard
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ROLES -->
+  <section class="section page-break">
+    <h2>1. Roles at a glance</h2>
+    <p class="muted">You only see screens and actions your role allows. If something is missing, ask an Admin.</p>
+
+    <div class="grid-3">
+      <div class="card admin">
+        <div class="role-code">ADMIN</div>
+        <h4>System Admin</h4>
+        <p>Users, lookups, import, audit, and full domain access. Opens the month cleanly for the team.</p>
+      </div>
+      <div class="card delivery">
+        <div class="role-code">DELIVERY_OWNER</div>
+        <h4>Delivery Owner</h4>
+        <p>Employees &amp; clients, timesheet entry, delivery reviews, generate invoices, dashboard chase-downs.</p>
+      </div>
+      <div class="card account">
+        <div class="role-code">ACCOUNT_OWNER</div>
+        <h4>Account Owner</h4>
+        <p>Approvals inbox for leave &amp; timesheets; invoice review lifecycle; commercial bench feedback.</p>
+      </div>
+    </div>
+
+    <div class="diagram">
+      <div class="diagram-title">Who owns which stage</div>
+      <svg class="flow-svg" viewBox="0 0 740 170" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Role ownership diagram">
+        <rect x="10" y="20" width="140" height="56" rx="4" fill="#1e2a3a"/>
+        <text x="80" y="42" text-anchor="middle" fill="#f0c4a8" font-size="11" font-family="Segoe UI, Arial">ADMIN</text>
+        <text x="80" y="60" text-anchor="middle" fill="#fff" font-size="12" font-family="Segoe UI, Arial">Setup &amp; control</text>
+
+        <rect x="190" y="20" width="160" height="56" rx="4" fill="#c45c26"/>
+        <text x="270" y="42" text-anchor="middle" fill="#ffe8da" font-size="11" font-family="Segoe UI, Arial">DELIVERY OWNER</text>
+        <text x="270" y="60" text-anchor="middle" fill="#fff" font-size="12" font-family="Segoe UI, Arial">Operate delivery</text>
+
+        <rect x="390" y="20" width="160" height="56" rx="4" fill="#1f6f6a"/>
+        <text x="470" y="42" text-anchor="middle" fill="#d7f0ee" font-size="11" font-family="Segoe UI, Arial">ACCOUNT OWNER</text>
+        <text x="470" y="60" text-anchor="middle" fill="#fff" font-size="12" font-family="Segoe UI, Arial">Approve &amp; bill</text>
+
+        <rect x="590" y="20" width="140" height="56" rx="4" fill="#2f6b4f"/>
+        <text x="660" y="42" text-anchor="middle" fill="#d9f0e3" font-size="11" font-family="Segoe UI, Arial">EVERYONE</text>
+        <text x="660" y="60" text-anchor="middle" fill="#fff" font-size="12" font-family="Segoe UI, Arial">Shared dashboard</text>
+
+        <path d="M150 48 H190" stroke="#c45c26" stroke-width="2" marker-end="url(#arrow)"/>
+        <path d="M350 48 H390" stroke="#1f6f6a" stroke-width="2"/>
+        <path d="M550 48 H590" stroke="#2f6b4f" stroke-width="2"/>
+
+        <rect x="20" y="100" width="700" height="50" rx="4" fill="#f7f5f1" stroke="#d7dde6"/>
+        <text x="370" y="130" text-anchor="middle" fill="#1a2332" font-size="13" font-family="Segoe UI, Arial">
+          Demo: admin@sst.local · dm@brickred.local · am@brickred.local
+        </text>
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L6,3 L0,6 Z" fill="#c45c26"/>
+          </marker>
+        </defs>
+      </svg>
+    </div>
+
+    <table>
+      <thead>
+        <tr><th>Email (typical seed)</th><th>Role</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>admin@sst.local</td><td>Admin</td></tr>
+        <tr><td>dm@brickred.local</td><td>Delivery Owner</td></tr>
+        <tr><td>am@brickred.local</td><td>Account Owner</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- CONCEPTS -->
+  <section class="section page-break">
+    <h2>2. Common concepts</h2>
+    <div class="grid-3" style="margin-bottom:14px">
+      <div class="stat"><div class="num">3</div><div class="label">Employee categories</div></div>
+      <div class="stat"><div class="num">2</div><div class="label">Cost centers</div></div>
+      <div class="stat"><div class="num">5</div><div class="label">Public ID prefixes</div></div>
+    </div>
+
+    <div class="diagram">
+      <div class="diagram-title">Employee categories</div>
+      <div class="flow">
+        <div class="node info">Billable<br/><span style="opacity:.85;font-size:8pt">Client delivery</span></div>
+        <div class="arrow">→</div>
+        <div class="node">Non-billable<br/><span style="opacity:.85;font-size:8pt">Internal teams</span></div>
+        <div class="arrow">→</div>
+        <div class="node alt">Bench<br/><span style="opacity:.85;font-size:8pt">Between placements</span></div>
+      </div>
+      <p class="muted" style="margin:10px 0 0;font-size:9.5pt;text-align:center">
+        Timesheets, delivery reviews, and invoices apply to <strong>billable Active</strong> employees only.
+      </p>
+    </div>
+
+    <table>
+      <thead>
+        <tr><th>Concept</th><th>Plain meaning</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>Employee</strong></td><td>Any person tracked in CDT. IDs look like CD-00001.</td></tr>
+        <tr><td><strong>Billable</strong></td><td>Placed at a client; can have timesheets, reviews, invoices.</td></tr>
+        <tr><td><strong>Non-billable</strong></td><td>Internal roles (HR, Finance, Leadership, Delivery staff, etc.).</td></tr>
+        <tr><td><strong>Bench</strong></td><td>Between placements; track interviews and manager feedback.</td></tr>
+        <tr><td><strong>Active / Released</strong></td><td>Currently engaged vs rolled off (history is kept).</td></tr>
+        <tr><td><strong>Cost center</strong></td><td>Filter BrickRed or Agyom so KPIs match that unit.</td></tr>
+        <tr><td><strong>Approved leave only</strong></td><td>Pending/rejected leave does not reduce timesheet days.</td></tr>
+        <tr><td><strong>Public IDs</strong></td><td>CD- employee · LV- leave · TSH- timesheet · DEL- review · INV- invoice.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- FEATURES -->
+  <section class="section page-break">
+    <h2>3. Feature catalog</h2>
+
+    <div class="diagram">
+      <div class="diagram-title">Application map</div>
+      <svg class="flow-svg" viewBox="0 0 740 210" xmlns="http://www.w3.org/2000/svg">
+        <rect x="0" y="0" width="740" height="210" fill="#fff"/>
+        <rect x="250" y="8" width="240" height="36" rx="4" fill="#1e2a3a"/>
+        <text x="370" y="31" text-anchor="middle" fill="#fff" font-size="13" font-family="Segoe UI, Arial">Sign-in · Cost center · Search</text>
+
+        <rect x="20" y="70" width="110" height="42" rx="4" fill="#c45c26"/><text x="75" y="96" text-anchor="middle" fill="#fff" font-size="12">Dashboard</text>
+        <rect x="145" y="70" width="110" height="42" rx="4" fill="#2b3b50"/><text x="200" y="96" text-anchor="middle" fill="#fff" font-size="12">Employees</text>
+        <rect x="270" y="70" width="90" height="42" rx="4" fill="#2b3b50"/><text x="315" y="96" text-anchor="middle" fill="#fff" font-size="12">Clients</text>
+        <rect x="375" y="70" width="80" height="42" rx="4" fill="#2b3b50"/><text x="415" y="96" text-anchor="middle" fill="#fff" font-size="12">Leave</text>
+        <rect x="470" y="70" width="110" height="42" rx="4" fill="#2b3b50"/><text x="525" y="96" text-anchor="middle" fill="#fff" font-size="12">Timesheets</text>
+        <rect x="595" y="70" width="125" height="42" rx="4" fill="#1f6f6a"/><text x="657" y="96" text-anchor="middle" fill="#fff" font-size="12">Approvals</text>
+
+        <rect x="80" y="140" width="150" height="42" rx="4" fill="#2b3b50"/><text x="155" y="166" text-anchor="middle" fill="#fff" font-size="12">Delivery Reviews</text>
+        <rect x="255" y="140" width="110" height="42" rx="4" fill="#2f6b4f"/><text x="310" y="166" text-anchor="middle" fill="#fff" font-size="12">Invoices</text>
+        <rect x="390" y="140" width="250" height="42" rx="4" fill="#1e2a3a"/><text x="515" y="166" text-anchor="middle" fill="#fff" font-size="12">Settings (Admin): Users · Lookups · Import · Audit</text>
+      </svg>
+    </div>
+
+    <div class="feature">
+      <h3>3.1 Sign-in</h3>
+      <p class="purpose"><strong>Purpose:</strong> Secure access with your company account.</p>
+      <p><strong>How to use:</strong> Open the CDT URL → email + password → Sign in. Contact Admin if locked out.</p>
+    </div>
+
+    <div class="feature">
+      <h3>3.2 Cost center filter &amp; search</h3>
+      <p class="purpose"><strong>Purpose:</strong> Focus on BrickRed, Agyom, or everything; find people or clients quickly.</p>
+      <p><strong>How to use:</strong> Header Cost Center dropdown + search box. Filters carry into Dashboard and lists.</p>
+    </div>
+
+    <div class="feature">
+      <h3>3.3 Dashboard</h3>
+      <p class="purpose"><strong>Purpose:</strong> Portfolio health—headcount, bench, engagement risk, leave today, timesheet gaps, billing.</p>
+      <ol class="steps">
+        <li>Open Dashboard.</li>
+        <li>Optionally set Delivery Owner, Account Owner, Client, Health, Month.</li>
+        <li>Click KPI cards for underlying detail.</li>
+      </ol>
+      <p class="muted" style="margin-top:6px;font-size:9.5pt"><strong>Note:</strong> On Leave Today always means <em>today</em>, even if Month is set elsewhere.</p>
+    </div>
+
+    <div class="feature">
+      <h3>3.4 Employees</h3>
+      <p class="purpose"><strong>Purpose:</strong> Single source of truth for every person CDT tracks.</p>
+      <table>
+        <thead><tr><th>Category</th><th>Purpose</th><th>Typical fields</th></tr></thead>
+        <tbody>
+          <tr><td>Billable</td><td>Client delivery</td><td>Client, role, billing, managers</td></tr>
+          <tr><td>Non-billable</td><td>Internal org</td><td>Team, support function</td></tr>
+          <tr><td>Bench</td><td>Awaiting placement</td><td>Bench start, interviews scheduled/cleared, feedback</td></tr>
+        </tbody>
+      </table>
+      <p><strong>Create:</strong> Employees → New → category → save → gets CD-#####.</p>
+      <p><strong>Bench feedback:</strong> Open bench employee → review interviews → add Delivery Manager / Account Manager feedback.</p>
+      <p><strong>Release:</strong> Active billable → Release → end date/reason → leaves Active counts; history remains.</p>
+    </div>
+  </section>
+
+  <section class="section page-break">
+    <h2>3. Feature catalog (continued)</h2>
+
+    <div class="two-col">
+      <div>
+        <div class="feature">
+          <h3>3.5 Clients</h3>
+          <p class="purpose"><strong>Purpose:</strong> Master list of client accounts, cost center, and ownership.</p>
+          <p><strong>How to use:</strong> Clients → create/edit → assign Delivery and Account Owners.</p>
+        </div>
+        <div class="feature">
+          <h3>3.6 Leave</h3>
+          <p class="purpose"><strong>Purpose:</strong> Record planned absence for presence &amp; timesheets.</p>
+          <div class="flow" style="justify-content:flex-start;margin:8px 0">
+            <div class="node warn">Pending</div><div class="arrow">→</div>
+            <div class="node ok">Approved</div>
+            <span style="margin:0 6px;color:#5a6678">or</span>
+            <div class="node" style="background:#a33b3b">Rejected</div>
+          </div>
+          <ol class="steps">
+            <li>Leave → New → employee, type, dates, reason → Save (Pending).</li>
+            <li>Account Owner approves on Approvals.</li>
+          </ol>
+        </div>
+        <div class="feature">
+          <h3>3.7 Timesheets</h3>
+          <p class="purpose"><strong>Purpose:</strong> Monthly work delivery for billable Active employees.</p>
+          <ol class="steps">
+            <li>Timesheets → New → employee + month.</li>
+            <li>Enter working days / days worked (leave from Approved leave).</li>
+            <li>Save Pending → Account Owner approves.</li>
+          </ol>
+          <p class="muted" style="font-size:9.5pt">One timesheet per employee per month. Approving may create a draft invoice.</p>
+        </div>
+      </div>
+      <div>
+        <div class="feature">
+          <h3>3.8 Approvals</h3>
+          <p class="purpose"><strong>Purpose:</strong> Account Owner inbox for pending leave and timesheets.</p>
+          <p><strong>How to use:</strong> Approvals → Leave or Timesheet tab → Approve or Reject.</p>
+        </div>
+        <div class="feature">
+          <h3>3.9 Delivery reviews</h3>
+          <p class="purpose"><strong>Purpose:</strong> Monthly engagement health &amp; client feedback.</p>
+          <div class="pill-row">
+            <span class="pill on">On Track</span>
+            <span class="pill risk">At Risk</span>
+            <span class="pill esc">Escalated*</span>
+          </div>
+          <p class="muted" style="font-size:9.5pt">*Escalated needs notes. Feedback: Good · Average · Poor.</p>
+        </div>
+        <div class="feature">
+          <h3>3.10 Invoices</h3>
+          <p class="purpose"><strong>Purpose:</strong> Turn approved timesheets into a billing workflow.</p>
+          <div class="flow" style="justify-content:flex-start;margin:8px 0">
+            <div class="node warn">Pending</div><div class="arrow">→</div>
+            <div class="node info">Approved</div><div class="arrow">→</div>
+            <div class="node">Sent</div><div class="arrow">→</div>
+            <div class="node ok">Paid</div>
+          </div>
+          <p class="muted" style="font-size:9.5pt">Alternate path: Rejected with reason. Amounts follow hourly or fixed billing.</p>
+        </div>
+        <div class="feature">
+          <h3>3.11 Settings (Admin)</h3>
+          <table>
+            <thead><tr><th>Screen</th><th>Purpose</th></tr></thead>
+            <tbody>
+              <tr><td>Users</td><td>Create/disable accounts &amp; roles</td></tr>
+              <tr><td>Lookups</td><td>Dropdown lists</td></tr>
+              <tr><td>Import</td><td>Bulk load (dry-run → commit)</td></tr>
+              <tr><td>Audit</td><td>Who changed what</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HAPPY PATHS -->
+  <section class="section page-break">
+    <h2>4. Full happy paths by role</h2>
+
+    <div class="path-box">
+      <h3>4.1 Admin — open the month cleanly</h3>
+      <ol class="ol-tight">
+        <li>Sign in as Admin.</li>
+        <li>Settings → Users: confirm Delivery Owner and Account Owner are active.</li>
+        <li>Clients: cost centers and owners are correct.</li>
+        <li>Lookups: leave types and release reasons exist.</li>
+        <li>Optional Import: dry-run → commit.</li>
+        <li>Spot-check Dashboard and Audit after large imports.</li>
+        <li>Hand off to Delivery Owner for day-to-day work.</li>
+      </ol>
+    </div>
+
+    <div class="path-box">
+      <h3>4.2 Delivery Owner — placement to invoice draft</h3>
+      <ol class="ol-tight">
+        <li>Sign in; set cost center if needed.</li>
+        <li>Employees → New (Billable) with client and billing.</li>
+        <li>Bench people as needed; set interviews; add Delivery Manager feedback.</li>
+        <li>Record Leave when away.</li>
+        <li>Enter monthly Timesheet as Pending.</li>
+        <li>After timesheet approval, generate Invoice if not auto-created.</li>
+        <li>Write monthly Delivery Review.</li>
+        <li>Use Dashboard for missing TS, at-risk, and bench aging.</li>
+      </ol>
+    </div>
+
+    <div class="path-box">
+      <h3>4.3 Account Owner — approvals and collections</h3>
+      <ol class="ol-tight">
+        <li>Sign in → Approvals.</li>
+        <li>Clear Leave queue (approve or reject with reason).</li>
+        <li>Clear Timesheet queue when days look right.</li>
+        <li>Invoices: Pending review → Approved → Sent → Paid.</li>
+        <li>Reject mismatches with clear reasons.</li>
+        <li>Dashboard for outstanding/overdue and at-risk clients.</li>
+        <li>Add Account Manager Feedback on commercial bench cases.</li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="section page-break">
+    <h2>4.4 End-to-end happy path</h2>
+    <p class="muted">All roles working together on one placement month.</p>
+
+    <div class="diagram">
+      <div class="diagram-title">Shared delivery loop</div>
+      <svg class="flow-svg" viewBox="0 0 740 420" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="a2" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L6,3 L0,6 Z" fill="#c45c26"/>
+          </marker>
+        </defs>
+        <rect width="740" height="420" fill="#fff"/>
+
+        <rect x="200" y="16" width="340" height="44" rx="4" fill="#1e2a3a"/>
+        <text x="370" y="43" text-anchor="middle" fill="#fff" font-size="14">Admin prepares users &amp; clients</text>
+
+        <path d="M370 60 V84" stroke="#c45c26" stroke-width="2" marker-end="url(#a2)"/>
+
+        <rect x="180" y="88" width="380" height="44" rx="4" fill="#c45c26"/>
+        <text x="370" y="115" text-anchor="middle" fill="#fff" font-size="14">Delivery Owner creates Billable employee</text>
+
+        <path d="M370 132 V156" stroke="#c45c26" stroke-width="2" marker-end="url(#a2)"/>
+
+        <rect x="180" y="160" width="380" height="44" rx="4" fill="#c45c26"/>
+        <text x="370" y="187" text-anchor="middle" fill="#fff" font-size="14">Delivery Owner files Leave (Pending)</text>
+
+        <path d="M370 204 V228" stroke="#1f6f6a" stroke-width="2" marker-end="url(#a2)"/>
+
+        <rect x="180" y="232" width="380" height="44" rx="4" fill="#1f6f6a"/>
+        <text x="370" y="259" text-anchor="middle" fill="#fff" font-size="14">Account Owner Approves Leave</text>
+
+        <path d="M370 276 V300" stroke="#c45c26" stroke-width="2" marker-end="url(#a2)"/>
+
+        <rect x="150" y="304" width="440" height="44" rx="4" fill="#c45c26"/>
+        <text x="370" y="331" text-anchor="middle" fill="#fff" font-size="13">Delivery Owner submits Timesheet → Account Owner Approves → Invoice draft</text>
+
+        <path d="M370 348 V372" stroke="#2f6b4f" stroke-width="2" marker-end="url(#a2)"/>
+
+        <rect x="120" y="376" width="500" height="36" rx="4" fill="#2f6b4f"/>
+        <text x="370" y="399" text-anchor="middle" fill="#fff" font-size="13">Review written · Invoice Paid · Everyone reads the same Dashboard</text>
+      </svg>
+    </div>
+
+    <h2 style="margin-top:18px">5. What CDT does not do yet</h2>
+    <div class="grid-2">
+      <div class="card" style="border-top-color:#5a6678">
+        <h4>Not in shipped MVP</h4>
+        <ul class="ol-tight">
+          <li>Automatic emails / Slack notifications</li>
+          <li>Live sync from SST</li>
+          <li>Half-day leave or holiday calendars</li>
+          <li>Single Sign-On (SSO)</li>
+        </ul>
+      </div>
+      <div class="card" style="border-top-color:#2f6b4f">
+        <h4>What is shipped today</h4>
+        <p>Day-to-day delivery control: employees, leave, timesheets, approvals, engagement health, invoicing, dashboard, admin settings.</p>
+      </div>
+    </div>
+
+    <div class="footer-note">
+      CDT Business Feature Guide · Generated from docs/21-guides/CDT_BUSINESS_FEATURE_GUIDE.md · For related ops detail see USER_MANUAL.md and ADMIN_GUIDE.md
+    </div>
+  </section>
+
+</body>
+</html>

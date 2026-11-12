@@ -10,14 +10,15 @@ Developers, admins performing controlled bootstrap.
 
 ## Scope
 
-MVP. Production re-seed is forbidden except documented one-time bootstrap.
+Shipped schema. Hosted re-seed of demo portfolio is intentional only when operators run full `seed.ts`.
 
 ## Definitions
 
 | Term | Definition |
 |------|------------|
-| Migration | Prisma SQL revision under `apps/api/prisma/migrations` |
-| Seed | `prisma/seed.ts` idempotent-ish bootstrap |
+| Migration | Prisma SQL under `apps/api/prisma/migrations` |
+| Full seed | `prisma/seed.ts` — foundation + demo portfolio |
+| Prod seed | `prisma/seed-prod.ts` — users + lookups only |
 
 ---
 
@@ -25,27 +26,27 @@ MVP. Production re-seed is forbidden except documented one-time bootstrap.
 
 1. Create migrations via `prisma migrate dev` locally.  
 2. Never edit applied migrations; add a new one.  
-3. Expand/contract for breaking column changes.  
-4. Uniqueness indexes required for:
-   - normalized client name  
-   - timesheet `(candidateId, calendarMonth)`  
-   - delivery review `(candidateId, calendarMonth)`  
-5. Review migrations in PR with schema diff.
+3. CI / VPS / Render: `prisma migrate deploy`.  
+4. Review migrations in PR with schema diff.
 
 ---
 
-## 2. Seed contents (MVP)
+## 2. Seed contents
 
-| Entity | Seed behavior |
-|--------|---------------|
-| Roles | Enum in schema; no table rows if enum-based |
-| Admin user | From `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` |
-| Sample users | DELIVERY_MANAGER, HR, INTERNAL_MANAGER (dev/UAT) |
-| Lookups | Leave types, statuses, feedback, health, work locations |
-| Clients | Acme Corp, Globex (dev/UAT) |
-| July fixtures | Optional `seed:july` — Jordan Lee pack for UAT |
+| Entity | Behavior |
+|--------|----------|
+| Organization | `brickred` tenant |
+| Admin | `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` |
+| Demo users | `dm@brickred.local` (`DELIVERY_OWNER`), `am@brickred.local` (`ACCOUNT_OWNER`) via `SEED_DEMO_PASSWORD` (falls back to admin password) |
+| Lookups | Leave types, statuses, feedback, health, work locations, cost centers, release reasons |
+| Full seed clients | Acme, Globex, Initech, Umbrella, Stark, Wayne (+ inactive Cobalt) |
+| Full seed employees | Billable / non-billable / bench with leaves, TS, reviews, invoices, bench feedback |
 
 **Fail loud** if admin seed env vars missing.
+
+Hosted API start (`start:render`): migrate deploy → **seed-prod** → serve. Demo portfolio requires an explicit full seed against `DATABASE_URL`.
+
+Clean business data (keep logins/lookups): `pnpm db:clean`.
 
 ---
 
@@ -54,41 +55,26 @@ MVP. Production re-seed is forbidden except documented one-time bootstrap.
 ```bash
 pnpm --filter @cdt/api prisma:generate
 pnpm --filter @cdt/api exec prisma migrate dev --name <name>
-pnpm --filter @cdt/api exec prisma migrate deploy   # CI/UAT/prod
+pnpm --filter @cdt/api exec prisma migrate deploy
 pnpm --filter @cdt/api prisma:seed
-pnpm --filter @cdt/api seed:july-fixtures           # planned optional
+pnpm db:clean
 ```
 
 ---
 
-## 4. Excel migration (cutover)
-
-1. Export sheets from legacy workbook (Candidates, Leave, Timesheet, Delivery, Setup).  
-2. Map columns to import templates.  
-3. Dry-run import (TC-IMP-001).  
-4. Fix duplicates / date issues.  
-5. Commit import.  
-6. Recompute Leave Days / Attendance server-side; do not trust spreadsheet-derived attendance blindly.  
-7. Spot-check July example and Active headcount vs Excel.  
-8. Freeze Excel writes.
-
-Details for operators: [../21-guides/ADMIN_GUIDE.md](../21-guides/ADMIN_GUIDE.md).
-
----
-
-## 5. Environments
+## 4. Environments
 
 | Env | migrate | seed |
 |-----|---------|------|
-| Local | `migrate dev` | yes |
-| CI | `migrate deploy` on ephemeral DB | optional |
-| UAT | `migrate deploy` | yes once + july fixtures |
-| Prod V1 | `migrate deploy` | one-time admin only |
+| Local | `migrate dev` | full seed OK |
+| CI | `migrate deploy` | foundation as needed |
+| Hosted (Render) | `migrate deploy` on boot | seed-prod on boot |
+| VPS | `migrate deploy` | foundation or full per ops policy |
 
 ---
 
 ## References
 
 - [LOCAL_SETUP.md](./LOCAL_SETUP.md)
-- [../15-testing/v1-catalog/00-test-data.md](../15-testing/v1-catalog/00-test-data.md)
-- [../07-database/MIGRATION_AND_BACKUP.md](../07-database/MIGRATION_AND_BACKUP.md)
+- [DEPLOY_VPS.md](./DEPLOY_VPS.md)
+- [../21-guides/ADMIN_GUIDE.md](../21-guides/ADMIN_GUIDE.md)

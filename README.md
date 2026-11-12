@@ -1,6 +1,8 @@
 # Client Delivery & Resource Tracker (CDT)
 
-Post-placement delivery control: Candidate Master → Leave → Timesheet → Delivery Review → Dashboard → Invoicing.
+Post-placement delivery control: **Employees** → Leave → Timesheet → Delivery Review → Dashboard → Invoicing.
+
+UI says **Employee**; API/DB still use `candidates` / public IDs `CD-#####`.
 
 ## Quick start
 
@@ -28,7 +30,7 @@ Default admin (from seed / `.env`): `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`.
 
 Demo users (same password): `dm@brickred.local`, `am@brickred.local`.
 
-Organizations (`brickred` / `agyom`) are **data-isolated**: pick the org on login; users, clients, and delivery records do not cross between them. The same email can exist in both orgs as separate accounts.
+Single organization tenant (`brickred`) with **cost centers** `BRICKRED` / `AGYOM` for filtering clients and employees in the signed-in shell.
 
 Before delivery, wipe demo/dev business data while keeping logins and lookups:
 
@@ -49,13 +51,19 @@ Do not run `pnpm db:seed` afterward unless you want the Acme/Globex demo portfol
 
 | Role | Typical access |
 |------|----------------|
-| ADMIN | Everything |
-| DELIVERY_MANAGER | Candidates, timesheets entry, delivery reviews, generate invoices |
-| ACCOUNT_MANAGER | Leave/timesheet **approvals**, invoice review, dashboard |
+| `ADMIN` | Everything (users, lookups, audit, import) |
+| `DELIVERY_OWNER` | Employees, clients, timesheet entry, delivery reviews, generate invoices |
+| `ACCOUNT_OWNER` | Leave/timesheet **approvals**, invoice review lifecycle, dashboard |
+
+Demo: `dm@brickred.local` (Delivery Owner), `am@brickred.local` (Account Owner).
 
 ## Docs
 
-Start at [docs/README.md](docs/README.md).
+| Doc | Audience |
+|-----|----------|
+| [docs/README.md](docs/README.md) | Engineering index |
+| [docs/21-guides/CDT_BUSINESS_FEATURE_GUIDE.md](docs/21-guides/CDT_BUSINESS_FEATURE_GUIDE.md) | Non-technical feature + happy-path guide |
+| [docs/17-local-deployment/DEPLOY_VPS.md](docs/17-local-deployment/DEPLOY_VPS.md) | VPS / Docker Compose production |
 
 ## Hosted testing (Vercel + Render)
 

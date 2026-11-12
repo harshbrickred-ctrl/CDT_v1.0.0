@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Define authentication, session/token handling, and role-based access control for CDT MVP.
+Define authentication, session/token handling, and role-based access control for the shipped CDT application.
 
 ## Audience
 
@@ -10,7 +10,7 @@ Backend, frontend, security, QA.
 
 ## Scope
 
-MVP local accounts with JWT access + refresh. SSO/OIDC and fine-grained ABAC are Future.
+Local accounts with JWT access + refresh. SSO/OIDC and fine-grained ABAC remain Future.
 
 ## Definitions
 
@@ -19,16 +19,19 @@ MVP local accounts with JWT access + refresh. SSO/OIDC and fine-grained ABAC are
 | AuthN | Prove identity |
 | AuthZ | Permit action |
 | RBAC | Role-based access control |
-| Soft release | Not an auth concept — domain status; still requires AUTHZ to invoke |
+| Soft release | Domain status on an employee (`RELEASED`); still requires authZ to invoke |
+| Cost center | `BRICKRED` or `AGYOM` filter on clients/employees (not a separate login tenant) |
+| Organization | Single company tenant (`brickred`); users and data are scoped by `organizationId` |
 
-Roles:
+### Roles (Prisma `Role`)
 
 | Role | Intent |
 |------|--------|
-| `ADMIN` | Full control: users, lookups, audit, all domain |
-| `DELIVERY_MANAGER` | Delivery ops: candidates, timesheets, delivery reviews, dashboard |
-| `HR` | Approver: leave/timesheet create as needed + **approve/reject** leave and timesheets |
-| `INTERNAL_MANAGER` | Oversight reads: dashboard, candidate/review visibility |
+| `ADMIN` | Full control: users, lookups, audit, import, all domain |
+| `DELIVERY_OWNER` | Delivery ops: employees, clients, timesheet entry, delivery reviews, generate invoices, dashboard |
+| `ACCOUNT_OWNER` | Approvals: leave/timesheet approve/reject, invoice review (approve/send/paid/reject), dashboard |
+
+> **Naming note:** UI may say Delivery Manager / Account Manager. API and database enums are `DELIVERY_OWNER` / `ACCOUNT_OWNER`. Bench feedback kinds still use `DELIVERY_MANAGER` / `ACCOUNT_OWNER` as timeline labels.
 
 ---
 
@@ -40,7 +43,7 @@ sequenceDiagram
   participant API
   participant DB
   U->>API: POST /auth/login
-  API->>DB: load user (active)
+  API->>DB: load user (active, org)
   API->>API: verify password hash
   API->>DB: store refresh token hash
   API-->>U: access JWT + refresh
@@ -52,38 +55,46 @@ sequenceDiagram
 
 ### Tokens
 
-| Token | Lifetime (suggested) | Storage |
-|-------|----------------------|---------|
-| Access JWT | 15m | SPA memory |
-| Refresh | 7d | HttpOnly Secure SameSite cookie (preferred) |
+| Token | Lifetime | Storage (SPA) |
+|-------|----------|---------------|
+| Access JWT | `JWT_ACCESS_TTL` (default `15m`) | Memory / app state |
+| Refresh | `JWT_REFRESH_TTL` (default `7d`) | App storage; hashed at rest in DB |
 
-JWT claims (minimal): `sub` (user id), `role`, `email`, `iat`, `exp`.
+JWT claims (minimal): `sub` (user id), `role`, `email`, `organizationId`, `iat`, `exp`.
 
-Password hashing: bcrypt or argon2id; cost tuned for server.
+Password hashing: bcrypt.
 
 ## 2. Authorization model
 
 1. Authenticate via JWT guard  
 2. Authorize via `@Roles` on route  
-3. Apply domain rules in service (released candidate, status transitions)  
+3. Apply domain rules in service (released employee, category gates, client ownership scope)  
 4. UI gates are non-authoritative  
 
 ```text
-Request → JwtAuthGuard → RolesGuard → Controller → Service policy checks
+Request → JwtAuthGuard → RolesGuard → Controller → Service policy / client-scope checks
 ```
+
+### Client ownership scoping
+
+- Clients can list **Delivery Owners** and **Account Owners**.
+- Non-admin owners may only see employees/clients in their ownership / cost-center scope as enforced by `client-scope` helpers.
 
 ## 3. Role summaries
 
-| Capability area | ADMIN | DM | HR | IM |
-|-----------------|-------|----|----|-----|
-| Users / lookups / audit | Full | — | — | — |
-| Clients mutate | Yes | Yes | — | — |
-| Candidates mutate / release | Yes | Yes | Yes | — |
-| Leave approve | Yes | Yes | — | — |
-| Leave create/submit | Yes | Yes | Yes | — |
-| Timesheet upsert | Yes | Yes | — | Read |
-| Delivery review upsert | Yes | Yes | — | Read |
-| Dashboard | Yes | Yes | Yes | Yes |
+| Capability area | ADMIN | DELIVERY_OWNER | ACCOUNT_OWNER |
+|-----------------|-------|----------------|---------------|
+| Users / lookups / audit / import | Full | — (users list for assign) | — |
+| Clients mutate | Yes | Yes | Read |
+| Employees mutate / release / bench feedback | Yes | Yes | Read |
+| Leave create | Yes | Yes | Read |
+| Leave approve / reject | Yes | — | Yes |
+| Timesheet upsert | Yes | Yes | Read |
+| Timesheet approve / reject | Yes | — | Yes |
+| Delivery review upsert | Yes | Yes | Read |
+| Invoices generate | Yes | Yes | Yes |
+| Invoices approve / send / paid / reject | Yes | — | Yes |
+| Dashboard / search | Yes | Yes | Yes |
 
 Full matrix: [PERMISSION_MATRIX.md](./PERMISSION_MATRIX.md).
 
@@ -91,55 +102,39 @@ Full matrix: [PERMISSION_MATRIX.md](./PERMISSION_MATRIX.md).
 
 | Route | Reason |
 |-------|--------|
-| `POST /auth/login` | Obtain session |
-| `POST /auth/refresh` | Rotate session |
-| `GET /health`, `/ready` | Probes |
-| `/metrics` | Lock down in non-dev |
+| `POST /api/v1/auth/login` | Obtain session |
+| `POST /api/v1/auth/refresh` | Rotate session |
+| `GET /health` | Probes |
+| `/api/docs` | Swagger (lock down in hardened prod) |
 
 ## 5. Account lifecycle
 
 | Action | Rules |
 |--------|-------|
-| Create user | ADMIN; unique email; initial password |
-| Disable | `isActive=false` → login denied; tokens revoked on next refresh |
-| Reset password | ADMIN; force logout refreshes |
+| Create user | ADMIN; unique email per organization; role one of the three |
+| Disable | `isActive=false` → login denied |
 | Soft delete | Optional; treat like disable |
 
-## 6. Threat-oriented controls (auth)
+## 6. Threat-oriented controls
 
 | Threat | Control |
 |--------|---------|
-| Credential stuffing | Rate-limit login; lockout Future |
-| XSS token theft | Prefer memory access + httpOnly refresh |
+| Credential stuffing | Rate-limit login (ops); strong seed passwords rotated |
+| XSS token theft | Short access TTL; careful SPA storage |
 | Stolen refresh | Hash at rest; rotate; revoke on logout |
-| Privilege escalation | Server role from DB at login; don’t trust client role field on writes |
-| CSRF on cookie refresh | SameSite + CORS allowlist |
+| Privilege escalation | Server role from DB; don’t trust client role field |
+| CSRF / CORS | `CORS_ORIGIN` allowlist to SPA origin |
 
 ## MVP vs Future
 
-| Topic | MVP | Future |
-|-------|-----|--------|
+| Topic | Shipped | Future |
+|-------|---------|--------|
 | Local passwords | Yes | SSO/OIDC |
-| Role-only RBAC | Yes | Resource attributes / client-scoped DM |
+| Three-role RBAC | Yes | Finer ABAC |
 | MFA | No | For ADMIN |
-
-## Trade-offs
-
-| Decision | Why |
-|----------|-----|
-| Four coarse roles | Matches org personas; simpler Guards |
-| Refresh in DB | Revocation without short access-only model pain |
-| No BFF | Shared types; careful cookie CORS setup required |
-
-## Recommendations
-
-- Re-load `isActive` and `role` on refresh (not only at login) to apply disables quickly.
-- Never put secrets in JWT claims beyond role/identity.
-- Align FE nav with matrix but test 403 paths.
 
 ## References
 
 - [PERMISSION_MATRIX.md](./PERMISSION_MATRIX.md)
 - [OWASP_AND_SECRETS.md](./OWASP_AND_SECRETS.md)
 - [../10-api/API_CATALOG.md](../10-api/API_CATALOG.md)
-- [../06-system-design/SEQUENCE_DIAGRAMS.md](../06-system-design/SEQUENCE_DIAGRAMS.md)

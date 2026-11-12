@@ -10,7 +10,7 @@ Backend engineers implementing NestJS + Prisma.
 
 ## Scope
 
-MVP Prisma schema. Workforce/billing models deferred.
+Shipped Prisma schema. **Authoritative file:** `apps/api/prisma/schema.prisma` (prefer it over illustrative snippets below when they diverge).
 
 ## Definitions
 
@@ -18,7 +18,8 @@ MVP Prisma schema. Workforce/billing models deferred.
 |------|------------|
 | Prisma Client | Generated typed DB client |
 | `@@unique` | Compound natural key |
-| Soft delete middleware | Optional filter on `deletedAt` |
+| Soft delete | `deletedAt` on selected models |
+| Employee | Product term for `Candidate` model |
 
 ---
 
@@ -28,6 +29,7 @@ MVP Prisma schema. Workforce/billing models deferred.
 apps/api/prisma/schema.prisma
 apps/api/prisma/migrations/
 apps/api/prisma/seed.ts
+apps/api/prisma/seed-prod.ts   # foundation only on hosted start
 ```
 
 ```prisma
@@ -41,47 +43,47 @@ datasource db {
 }
 ```
 
-## 2. Enums
+## 2. Enums (shipped)
 
 ```prisma
 enum Role {
   ADMIN
-  DELIVERY_MANAGER
-  HR
-  INTERNAL_MANAGER
+  DELIVERY_OWNER
+  ACCOUNT_OWNER
 }
 
-enum CandidateStatus {
-  ACTIVE
-  RELEASED
-}
+enum CandidateStatus { ACTIVE RELEASED }
 
-enum LeaveStatus {
-  PENDING
+enum EmployeeCategory { BILLABLE NON_BILLABLE BENCH }
+
+enum EmployeeTeam { SUPPORT LEADERSHIP DELIVERY }
+
+enum LeaveStatus { PENDING APPROVED REJECTED }
+
+enum ApprovalStatus { PENDING APPROVED REJECTED }
+
+enum InvoiceStatus {
+  PENDING_REVIEW
   APPROVED
+  SENT
+  PAID
   REJECTED
 }
 
-enum ApprovalStatus {
-  PENDING
-  APPROVED
-  REJECTED
-}
+enum BillingType { HOURLY FIXED }
 
-enum ClientFeedback {
-  GOOD
-  AVERAGE
-  POOR
-}
+enum ClientFeedback { GOOD AVERAGE POOR }
 
-enum EngagementHealth {
-  ON_TRACK
-  AT_RISK
-  ESCALATED
-}
+enum EngagementHealth { ON_TRACK AT_RISK ESCALATED }
+
+enum BenchFeedbackKind { DELIVERY_MANAGER ACCOUNT_OWNER }
+
+enum ClientOwnershipRole { DELIVERY_OWNER ACCOUNT_OWNER }
 ```
 
-## 3. Core models (illustrative)
+Also: `Organization`, `ClientOwnership`, `CandidateBenchFeedback`, `Invoice`, cost-center strings on Client/Candidate, bench interview counts.
+
+## 3. Core models (illustrative — may lag schema)
 
 ```prisma
 model User {

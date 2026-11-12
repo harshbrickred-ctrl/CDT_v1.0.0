@@ -10,15 +10,15 @@ Frontend engineers, security reviewers.
 
 ## Scope
 
-MVP JWT access + refresh flow with React Router guards. SSO is Future.
+JWT access + refresh with React Router. SSO is Future.
 
 ## Definitions
 
 | Term | Definition |
 |------|------------|
-| Access token | Short-lived JWT in memory (preferred) |
-| Refresh token | HttpOnly cookie (preferred) or rotated body token |
-| Route guard | Loader/`Navigate` based on auth+role |
+| Access token | Short-lived JWT held by AuthProvider |
+| Refresh token | Rotated body token; hashed server-side |
+| Protected route | Requires `accessToken`; else redirect `/login` |
 
 ---
 
@@ -29,13 +29,13 @@ sequenceDiagram
   participant UI
   participant API
   UI->>API: POST /auth/login
-  API-->>UI: accessToken + user (+ refresh cookie)
-  UI->>UI: AuthProvider holds user + accessToken
-  UI->>API: API calls Authorization Bearer
+  API-->>UI: accessToken + refreshToken + user
+  UI->>UI: AuthProvider holds session
+  UI->>API: Authorization Bearer
   alt 401 access expired
     UI->>API: POST /auth/refresh
-    API-->>UI: new accessToken
-    UI->>API: retry original
+    API-->>UI: new tokens
+    UI->>API: retry
   else refresh fails
     UI->>UI: clear session → /login
   end
@@ -45,93 +45,73 @@ sequenceDiagram
 
 | Duty | Detail |
 |------|--------|
-| Boot | Try refresh or `/auth/me` |
 | Login/logout | Mutations + cache clear |
-| Expose | `user`, `role`, `isAuthenticated`, `hasRole(...)` |
-| Axios | Attach Bearer; single-flight refresh |
+| Expose | `user`, `accessToken`, role helpers |
+| Axios | Attach Bearer; refresh on 401 |
 
-On logout: `POST /auth/logout`, clear QueryClient, redirect `/login`.
-
-## 3. Routing structure
+## 3. Routing structure (`App.tsx`)
 
 ```text
-/login                          PublicOnly
-/                               RequireAuth → Dashboard
-/candidates/*                   RequireAuth + roles
-/leaves/*                       RequireAuth + roles
-/timesheets/*                   RequireAuth + roles
-/delivery-reviews/*             RequireAuth + roles
-/clients/*                      RequireAuth + roles
-/admin/*                        RequireAuth + ADMIN
-/*
+/login
+/dashboard
+/employees
+/employees/:id
+/leave
+/timesheets
+/delivery-reviews
+/approvals
+/invoices
+/clients
+/settings/users
+/settings/lookups
+/settings/audit
+/settings/import
 ```
+
+Redirects: `/` → `/dashboard`, `/candidates` → `/employees`, `/leaves` → `/leave`.
 
 ```mermaid
 flowchart TB
   Req[Request route]
   Authed{Authenticated?}
-  Role{Role allowed?}
   Login[/login]
   Page[Feature page]
-  Forbidden[403 page]
-
   Req --> Authed
   Authed -->|no| Login
-  Authed -->|yes| Role
-  Role -->|yes| Page
-  Role -->|no| Forbidden
+  Authed -->|yes| Page
 ```
+
+Fine-grained **action** gates live on each page (not separate route trees per role).
 
 ## 4. Role → default landing
 
 | Role | Landing |
 |------|---------|
-| ADMIN | Dashboard (or Users if deep-link) |
-| DELIVERY_MANAGER | Dashboard |
-| HR | Candidates |
-| INTERNAL_MANAGER | Dashboard |
+| `ADMIN` | `/dashboard` |
+| `DELIVERY_OWNER` | `/dashboard` |
+| `ACCOUNT_OWNER` | `/dashboard` (Approvals for workflow) |
 
 ## 5. Nav visibility (UX only)
 
-| Nav item | ADMIN | DM | HR | IM |
-|----------|-------|----|----|----|
-| Dashboard | Y | Y | Y | Y |
-| Candidates | Y | Y | Y | Y (read) |
-| Leave | Y | Y | Y | Y (read) |
-| Timesheets | Y | Y | R* | Y (read) |
-| Delivery Reviews | Y | Y | R* | Y (read) |
-| Clients | Y | Y | — | R |
-| Users / Lookups / Audit | Y | — | — | — |
+| Nav item | ADMIN | DELIVERY_OWNER | ACCOUNT_OWNER |
+|----------|-------|----------------|---------------|
+| Dashboard | Y | Y | Y |
+| Employees | Y | Y | Y |
+| Leave | Y | Y | Y |
+| Timesheets | Y | Y | Y |
+| Delivery Reviews | Y | Y | Y |
+| Approvals | Y | — | Y |
+| Invoices | Y | Y | Y |
+| Clients | Y | Y | Y |
+| Settings | Y | — | — |
 
-\* HR read access per permission matrix; mutate limited.
+Authoritative matrix: [../11-security/PERMISSION_MATRIX.md](../11-security/PERMISSION_MATRIX.md).
 
 ## 6. Deep links & public IDs
 
-Routes may accept public ids in path (`/candidates/CD-00012`). API resolves UUID or publicId; FE displays publicId in breadcrumbs.
-
-## MVP vs Future
-
-| Topic | MVP | Future |
-|-------|-----|--------|
-| Password login | Yes | SSO/OIDC |
-| Remember me | Refresh TTL only | Configurable |
-| Step-up auth | No | For release/approve |
-
-## Trade-offs
-
-| Decision | Why |
-|----------|-----|
-| Memory access token | Reduce XSS token theft vs localStorage |
-| FE role gates | UX; server still enforces |
-| PublicOnly on login | Prevent authed users seeing login |
-
-## Recommendations
-
-- Implement axios interceptor with a refresh mutex to avoid stampedes.
-- Never store passwords; never log tokens.
+Employee detail accepts UUID or `CD-#####`. API resolves either.
 
 ## References
 
-- [STATE_AND_DATA_FETCHING.md](./STATE_AND_DATA_FETCHING.md)
+- [FEATURE_MODULES.md](./FEATURE_MODULES.md)
 - [../11-security/AUTH_RBAC.md](../11-security/AUTH_RBAC.md)
-- [../10-api/API_CATALOG.md](../10-api/API_CATALOG.md)

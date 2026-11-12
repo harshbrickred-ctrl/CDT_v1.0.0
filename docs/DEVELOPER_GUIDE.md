@@ -30,7 +30,7 @@ This document is intentionally strategic. It does not replace detailed design, A
 | Standards alignment | IEEE-style SRS/PRD set, C4 model, OWASP ASVS themes, 12-Factor ops mindset, ADR governance |
 | Source of product truth | `docs/` tree |
 | Legacy operational baseline | Client Delivery Tracker Excel + workflow guide |
-| Phase | A — documentation first; application code deferred until docs approved |
+| Phase | Application shipped; docs being aligned to code |
 
 ---
 
@@ -38,17 +38,17 @@ This document is intentionally strategic. It does not replace detailed design, A
 
 ### 1.1 One-sentence product definition
 
-**CDT** is the multi-user **system of record** for *post-placement delivery control*—digitizing the Excel workbook that tracks deployed candidates’ leave, timesheets, delivery health, and operational dashboards.
+**CDT** is the multi-user **system of record** for *post-placement delivery control*—digitizing the Excel workbook that tracks employees’ leave, timesheets, delivery health, invoicing, and operational dashboards.
 
 ### 1.2 North star
 
-Eliminate spreadsheet fragility and give **Delivery Managers**, **HR**, and **Internal Managers** shared real-time visibility with **authentication**, **role-based access**, and an **auditable mutation trail**—then retire the spreadsheet.
+Eliminate spreadsheet fragility and give **Delivery Owners**, **Account Owners**, and **Admins** shared real-time visibility with **authentication**, **role-based access**, and an **auditable mutation trail**—then retire the spreadsheet.
 
 ### 1.3 What leaders own in this codebase
 
 | Layer | Ownership expectation |
 |-------|------------------------|
-| Product fidelity | Excel process parity for Candidate/Leave/TS/DR/Dashboard; no silent divergence from BRs |
+| Product fidelity | Excel process parity for Employee/Leave/TS/DR/Invoice/Dashboard; no silent divergence from BRs |
 | Architecture integrity | Modular monolith boundaries; clean seams for SST sync / billing / notifications later |
 | Security & compliance | JWT auth, RBAC matrix, audit logging, careful PII handling |
 | Delivery quality | Shared types, test strategy, CI gates, observability hooks |
@@ -96,14 +96,15 @@ Product detail: [03-prd/PRD.md](./03-prd/PRD.md).
 
 ### 2.3 Scope governance (MVP vs Future)
 
-| In MVP | Explicitly Future |
+| Shipped | Explicitly Future |
 |--------|-------------------|
-| Candidate Master + Active→Released | Live SST Joined sync |
-| Leave + approval gate | Push/email notifications |
+| Employees (BILLABLE / NON_BILLABLE / BENCH) + Active→Released | Live SST Joined sync |
+| Leave + Account Owner approval | Push/email notifications |
 | Timesheet + leave overlap + attendance % | Half-days / holiday calendars |
-| Delivery Review + utilization pull | Multi-engagement concurrent placements |
-| Dashboard KPIs + filters | Timesheet & Billing Tracker deep integration |
-| Auth (JWT), RBAC, audit, Excel import, search/360 | SSO; cloud multi-region |
+| Delivery Review + utilization | Multi-engagement concurrent placements |
+| Invoices (PENDING_REVIEW → PAID/REJECTED) | External billing-system sync |
+| Dashboard KPIs + cost-center filter | Deep billing-tracker integration |
+| Auth (JWT), 3-role RBAC, audit, import, search | SSO; multi-region |
 
 **Governing ADR:** [14-standards/adr/0001-mvp-delivery-control-first.md](./14-standards/adr/0001-mvp-delivery-control-first.md).
 
@@ -116,19 +117,20 @@ Product detail: [03-prd/PRD.md](./03-prd/PRD.md).
 ### 3.1 Delivery-control value stream
 
 ```text
-Candidate Master  →  Leave  →  Timesheet  →  Delivery Review  →  Dashboard
-     (Active)        (gate)     (attendance)   (health judgment)
+Employee (BILLABLE) → Leave → Timesheet → Invoice + Delivery Review → Dashboard
+     (Active)          (gate)   (attendance)   (billing + health)
 ```
 
 ### 3.2 Core entities
 
 | Entity | Public ID | Notes |
 |--------|-----------|-------|
-| Client | — | Normalized unique name |
-| Candidate | `CD-#####` | Master for all child records |
+| Client | — | Normalized unique name; cost center; ownership |
+| Employee (`Candidate`) | `CD-#####` | Categories BILLABLE / NON_BILLABLE / BENCH |
 | Leave | `LV-#####` | Pending/Approved/Rejected |
-| Timesheet | `TSH-#####` | Unique per candidate/month |
-| Delivery Review | `DEL-#####` | Unique per candidate/month |
+| Timesheet | `TSH-#####` | Unique per employee/month; billable only |
+| Delivery Review | `DEL-#####` | Unique per employee/month; billable only |
+| Invoice | `INV-#####` | One per timesheet |
 
 ### 3.3 Critical calculations
 
@@ -160,18 +162,9 @@ Modular monolith — [adr/0002-modular-monolith.md](./14-standards/adr/0002-modu
 
 ### 4.3 Build sequence (do not reorder casually)
 
-1. Finalize rules  
-2. Masters (Client, User/Role, lookups)  
-3. Candidate Master + lifecycle  
-4. Leave + approval  
-5. Timesheet + leave calc  
-6. Delivery Reviews + utilization  
-7. Dashboard KPIs  
-8. Reporting / search / 360  
-9. Audit / overdue listing (notifications Future)  
-10. Excel migration  
-11. UAT  
-12. Retire spreadsheet  
+Shipped build order (historical): masters → employees → leave → timesheets → reviews → invoices → dashboard → import → audit.  
+
+Canonical RBAC: [11-security/AUTH_RBAC.md](./11-security/AUTH_RBAC.md). Business guide: [21-guides/CDT_BUSINESS_FEATURE_GUIDE.md](./21-guides/CDT_BUSINESS_FEATURE_GUIDE.md).
 
 Detail: [12-planning/DEPENDENCY_GRAPH.md](./12-planning/DEPENDENCY_GRAPH.md).
 

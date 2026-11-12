@@ -86,6 +86,7 @@ Follow [../16-cicd/RELEASE_AND_ROLLBACK.md](../16-cicd/RELEASE_AND_ROLLBACK.md).
 
 ## References
 
+- **Preferred detailed VPS runbook:** [DEPLOY_VPS.md](./DEPLOY_VPS.md)
 - [DOCKER_COMPOSE.md](./DOCKER_COMPOSE.md)
 - [SEED_AND_MIGRATION.md](./SEED_AND_MIGRATION.md)
 - [../15-testing/v1-catalog/11-signoff.md](../15-testing/v1-catalog/11-signoff.md)

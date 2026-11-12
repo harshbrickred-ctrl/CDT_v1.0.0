@@ -2,24 +2,34 @@
 
 ## Purpose
 
-Day-to-day instructions for Delivery Managers, HR, and Internal Managers using Client Delivery & Resource Tracker.
+Day-to-day instructions for Delivery Owners and Account Owners using Client Delivery & Resource Tracker.
 
 ## Audience
 
-End users (non-admin).
+End users (non-admin). Admins also use [ADMIN_GUIDE.md](./ADMIN_GUIDE.md).
 
 ## Scope
 
-MVP screens: Dashboard, Candidates, Leave, Timesheets, Delivery Reviews. Notifications are not sent automatically.
+Shipped screens: Dashboard, Employees, Leave, Timesheets, Delivery Reviews, Approvals, Invoices, Clients. Notifications are not automatic.
 
 ## Definitions
 
 | Term | Meaning |
 |------|---------|
-| Active | Currently deployed; counts in headcount |
-| Released | Rolled off; history kept |
+| Employee | Person tracked in CDT (billable, non-billable, or bench) |
+| Active / Released | Currently engaged vs rolled off (history kept) |
 | Attendance % | Days Worked ÷ Working Days |
-| Engagement Health | Your judgment: On Track / At Risk / Escalated |
+| Engagement Health | On Track / At Risk / Escalated |
+| Cost center | BrickRed or Agyom filter in the header |
+
+### Roles
+
+| Role | You typically… |
+|------|----------------|
+| Delivery Owner | Maintain employees, enter timesheets, write delivery reviews, generate invoices |
+| Account Owner | Approve leave/timesheets, review invoices, watch Approvals |
+
+For a fuller non-technical walkthrough, see [CDT_BUSINESS_FEATURE_GUIDE.md](./CDT_BUSINESS_FEATURE_GUIDE.md).
 
 ---
 
@@ -27,94 +37,92 @@ MVP screens: Dashboard, Candidates, Leave, Timesheets, Delivery Reviews. Notific
 
 Open CDT → enter email/password from your admin → Dashboard.
 
-If locked out, contact an ADMIN (not engineering first).
+Use the **cost center** control when you want BrickRed-only or Agyom-only numbers.
 
 ---
 
 ## 2. Dashboard
 
-**Filters:** Client, Engagement Health, Month.
+**Filters:** Delivery Owner, Account Owner, Client, Health, Month, plus shell cost center.
 
-**KPIs:** Active Candidates, Pending Leave Approvals, Pending Timesheet Approvals, Avg Utilization, health breakdown, Good feedback, Released in month.
+**KPIs** include headcount, bench, engagement health, missing/pending timesheets, leave today, invoicing amounts, and feedback.
 
-**On Leave Today:** who is on Approved leave **today**. Changing the Month filter does **not** change this tile.
+**On Leave Today** uses **today’s date** and ignores the Month filter.
 
 ---
 
-## 3. Candidates
+## 3. Employees
 
-### Add deployed person
+### Categories
 
-Candidates → New → client, project/account, role, managers, start date, work location → Status Active → Save.
+| Tab | Who |
+|-----|-----|
+| Billable | Placed at a client (billing + reviews + timesheets) |
+| Non-billable | Internal SUPPORT / LEADERSHIP / DELIVERY |
+| Bench | Between placements; interviews + manager feedback |
 
-System assigns `CD-#####`.
+### Add billable employee
+
+Employees → New → category Billable → client, role, dates, billing → Save (`CD-#####`).
+
+### Bench
+
+Set bench start, **interviews scheduled**, **interviews cleared** (cleared cannot exceed scheduled). On the detail page, add **Delivery Manager Feedback** and **Account Manager Feedback** entries.
 
 ### Release
 
-Open candidate → Release → set Contract End Date → confirm.
-
-Person drops from Active headcount; Leave/Timesheet/Reviews remain for history.
+Open employee → Release → contract end / reason → confirm. They leave Active headcount; history remains.
 
 ---
 
 ## 4. Leave
 
-1. Leave → New → select candidate (name/client fill in).  
-2. Choose type; From / To (days auto = inclusive calendar days).  
-3. Save as Pending.  
-4. HR (or authorized role) Approves or Rejects.
+1. Leave → New → employee, type, dates, reason → Save (Pending).  
+2. Account Owner (or Admin) Approves or Rejects on **Approvals** or the leave row.
 
-**Important:** Only **Approved** leave counts toward Timesheet Leave Days. Pending and Rejected do not.
+**Only Approved** leave counts in timesheet leave days.
 
 ---
 
 ## 5. Timesheets
 
-1. Timesheets → New → candidate + period.  
-2. Enter Working Days and Days Worked.  
-3. Leave Days calculate from Approved overlapping leave.  
-4. Attendance % calculates automatically (example: 21 ÷ 23 = **91.3%**).  
-5. Submit; HR approves as required.
+1. Timesheets → New → billable employee + month.  
+2. Enter working days / days worked (leave days from Approved leave).  
+3. Attendance % calculates automatically.  
+4. Submit Pending → Account Owner approves.
 
-**One timesheet per candidate per calendar month.** A second July entry is blocked.
-
----
-
-## 6. Delivery Reviews
-
-1. Delivery Reviews → New → candidate + any date in the review month.  
-2. Utilization pulls from that month’s timesheet (blank if none).  
-3. Set Client Feedback and Engagement Health.  
-4. If health is **At Risk** or **Escalated**, Escalation Notes are required (including Poor + At Risk).  
-5. Save.
-
-**One review per candidate per calendar month.**
-
-Health is your judgment — the system does not auto-set it from utilization.
+**One timesheet per employee per calendar month.** Approving may create a draft invoice.
 
 ---
 
-## 7. Search & 360
+## 6. Delivery reviews
 
-Use search for public IDs (`CD-`, `LV-`, `TSH-`, `DEL-`) or names.
-
-Candidate detail shows placement plus related leave, timesheets, and reviews.
+Delivery Reviews → upsert for billable employee + month → utilization, client feedback, engagement health. Escalated requires notes.
 
 ---
 
-## 8. Role quick guide
+## 7. Approvals (Account Owner)
 
-| Role | Typical actions |
-|------|-----------------|
-| DELIVERY_MANAGER | Candidates, reviews, dashboard |
-| HR | Leave/timesheet approvals |
-| INTERNAL_MANAGER | Visibility / escalation context; dashboard |
-| ADMIN | Users, masters, import (see Admin Guide) |
+Approvals → Leave tab / Timesheet tab → Approve or Reject with reason when needed.
+
+---
+
+## 8. Invoices
+
+Invoices list statuses: Pending review → Approved → Sent → Paid (or Rejected).
+
+- Delivery Owner can **generate** from approved timesheets.  
+- Account Owner drives approve / send / paid / reject.
+
+---
+
+## 9. Clients
+
+Maintain client name, code, cost center, and owner assignments so Delivery/Account Owners see the right portfolio.
 
 ---
 
 ## References
 
-- [ADMIN_GUIDE.md](./ADMIN_GUIDE.md)
-- [TROUBLESHOOTING_AND_FAQ.md](./TROUBLESHOOTING_AND_FAQ.md)
-- [../15-testing/v1-catalog/12-ui-uat.md](../15-testing/v1-catalog/12-ui-uat.md)
+- [CDT_BUSINESS_FEATURE_GUIDE.md](./CDT_BUSINESS_FEATURE_GUIDE.md)
+- [../11-security/PERMISSION_MATRIX.md](../11-security/PERMISSION_MATRIX.md)

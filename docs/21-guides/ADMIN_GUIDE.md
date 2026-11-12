@@ -2,106 +2,91 @@
 
 ## Purpose
 
-Operator guide for ADMIN users: users, clients, lookups, import, audit, and cutover tasks.
+Day-to-day administration for CDT: users, lookups, import, audit, and environment hygiene.
 
 ## Audience
 
-Application administrators.
+Users with role `ADMIN`.
 
 ## Scope
 
-MVP. Push notifications are not available.
-
-## Definitions
-
-| Term | Definition |
-|------|------------|
-| SoR | System of record (CDT after cutover) |
-| Dry-run | Import validation without commit |
+Shipped Settings screens and seed/clean operations. Notifications are not sent automatically.
 
 ---
 
-## 1. First login
+## 1. Sign in
 
-1. Open the CDT URL.  
-2. Sign in with the bootstrap admin credentials issued by engineering.  
-3. Change password if policy requires (when feature exists) / rotate seed password after first deploy.  
-4. Create named admin backup account before day-to-day use.
-
----
-
-## 2. Manage users
-
-| Task | Steps |
-|------|-------|
-| Create user | Users → New → email, name, role (`ADMIN`, `DELIVERY_MANAGER`, `HR`, `INTERNAL_MANAGER`) → save |
-| Deactivate | Users → select → Deactivate (blocks login) |
-| Reset access | Coordinate password reset per org policy |
-
-**Least privilege:** prefer DELIVERY_MANAGER / HR over ADMIN for daily work.
+1. Open the CDT URL (local `http://localhost:5173` or your Vercel/VPS host).  
+2. Sign in with the seeded admin (`SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`, e.g. `admin@sst.local`).  
+3. You land on **Dashboard**. Use the cost-center filter (All / BrickRed / Agyom) as needed.
 
 ---
 
-## 3. Clients & lookups
+## 2. Users
 
-### Clients
+**Settings → Users**
 
-- Create clients before candidates.  
-- Names are **normalized** (trim/casefold): duplicates are rejected.  
-- Prefer fixing spelling once; do not create near-duplicates (`Acme` vs `Acme Corp`) unless truly different legal entities.
+| Task | How |
+|------|-----|
+| Create user | New → email, full name, role (`ADMIN`, `DELIVERY_OWNER`, `ACCOUNT_OWNER`), password → Save |
+| Disable | Edit → set inactive (login blocked) |
+| Least privilege | Prefer Delivery/Account Owner for daily work; keep few Admins |
 
-### Lookups (Setup Lists)
-
-Maintain: leave types, employment statuses, work locations, client feedback, engagement health, approval statuses.
-
-Deactivating a value hides it from new forms but keeps history readable.
+Demo accounts (seed): `dm@brickred.local` (Delivery Owner), `am@brickred.local` (Account Owner).
 
 ---
 
-## 4. Excel import (migration)
+## 3. Lookups
 
-1. Obtain latest workbook export.  
-2. Use Admin → Import → select entity pack.  
-3. **Dry-run** and download/error list.  
-4. Fix duplicates, missing clients, bad dates.  
-5. **Commit** when clean.  
-6. Spot-check:
-   - Active headcount vs Excel  
-   - Sample candidate 360  
-   - July attendance 91.3% fixture if used  
-7. Record import batch id in change log.
+**Settings → Lookups**
 
-Server recalculates Leave Days and Attendance % — do not expect file formulas to win.
+Maintain dropdown codes (leave types, release reasons, work locations, cost centers, etc.). Prefer activating/deactivating over deleting codes that already appear on historical rows.
 
 ---
 
-## 5. Audit
+## 4. Clients
 
-Admin → Audit: filter by actor, entity type, date.
+**Clients**
 
-Use after disputed approve/reject or unexpected release.
-
----
-
-## 6. Overdue delivery reviews
-
-Open the overdue list (Reports/Admin). Contact Delivery Managers manually — MVP has **no** automatic email/push.
+- Create clients with unique name, optional code, cost center.  
+- Assign **Delivery Owners** and **Account Owners** so scoped users see the right portfolio.
 
 ---
 
-## 7. Spreadsheet retirement checklist
+## 5. Import
 
-1. Parallel run complete  
-2. Import reconciled  
-3. UAT sign-off filed  
-4. Excel file moved to read-only archive  
-5. Announce CDT URL as SoR  
+**Settings → Import**
+
+1. Choose clients or employees.  
+2. Paste JSON or CSV.  
+3. **Dry-run** → fix errors → **Commit**.  
+
+Employees require `category`: `BILLABLE`, `NON_BILLABLE`, or `BENCH` with category-specific columns (see import template notes on the page).
+
+---
+
+## 6. Audit
+
+**Settings → Audit**
+
+Read-only trail of create/update/import-style actions. Use when investigating “who changed what.”
+
+---
+
+## 7. Data hygiene (ops)
+
+| Command | Effect |
+|---------|--------|
+| `pnpm db:seed` | Full demo portfolio (local/dev) |
+| `pnpm db:clean` | Wipe business data; keep users/lookups |
+| Hosted start | `seed-prod` = foundation users/lookups only |
+
+Never commit real `.env` secrets. Rotate JWT secrets after any leak.
 
 ---
 
 ## References
 
 - [USER_MANUAL.md](./USER_MANUAL.md)
-- [TROUBLESHOOTING_AND_FAQ.md](./TROUBLESHOOTING_AND_FAQ.md)
-- [../15-testing/v1-catalog/11-signoff.md](../15-testing/v1-catalog/11-signoff.md)
-- [../17-local-deployment/SEED_AND_MIGRATION.md](../17-local-deployment/SEED_AND_MIGRATION.md)
+- [CDT_BUSINESS_FEATURE_GUIDE.md](./CDT_BUSINESS_FEATURE_GUIDE.md)
+- [../11-security/AUTH_RBAC.md](../11-security/AUTH_RBAC.md)

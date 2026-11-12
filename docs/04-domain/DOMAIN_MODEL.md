@@ -1,4 +1,4 @@
-# Domain Model — CDT MVP
+# Domain Model — CDT
 
 ## Purpose
 
@@ -10,7 +10,9 @@ Backend engineers, architects, data modelers.
 
 ## Scope
 
-MVP domain. Future contexts sketched in [FUTURE_MODULES.md](./FUTURE_MODULES.md).
+Shipped domain. Future contexts sketched in [FUTURE_MODULES.md](./FUTURE_MODULES.md).
+
+> **Current-state note (2026):** UI says **Employee**; Prisma model remains `Candidate`. Roles are `ADMIN` / `DELIVERY_OWNER` / `ACCOUNT_OWNER`. Categories: `BILLABLE` / `NON_BILLABLE` / `BENCH`. Cost centers `BRICKRED` / `AGYOM`. Invoice aggregate is first-class. Prefer [../07-database/PRISMA_DESIGN.md](../07-database/PRISMA_DESIGN.md) and `schema.prisma` when this file conflicts.
 
 ## Definitions
 
@@ -20,6 +22,7 @@ MVP domain. Future contexts sketched in [FUTURE_MODULES.md](./FUTURE_MODULES.md)
 | VO | Immutable value object |
 | yearMonth | Value object `YYYY-MM` |
 | Public ID | Human-readable sequential ID per type |
+| Employee | Product name for Candidate aggregate |
 
 ---
 

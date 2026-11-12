@@ -12,8 +12,10 @@ DevOps, backend engineers, tech leads.
 
 | Label | Meaning |
 |-------|---------|
-| **MVP** | Docker Compose local: `web`, `api`, `postgres`, optional observability |
-| **Future** | Cloud VMs/K8s, managed Postgres, secrets manager, TLS edge |
+| **Local** | Docker Compose: `web`, `api`, `postgres`, optional observability |
+| **VPS** | Compose + Nginx TLS — see [../17-local-deployment/DEPLOY_VPS.md](../17-local-deployment/DEPLOY_VPS.md) |
+| **Hosted testing** | Web on Vercel, API+Postgres on Render (root README) |
+| **Future** | K8s, managed Postgres, secrets manager, multi-region |
 
 ## Definitions
 

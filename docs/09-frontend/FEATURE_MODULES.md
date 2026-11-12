@@ -10,13 +10,13 @@ Frontend engineers, UX implementers, QA.
 
 ## Scope
 
-MVP screens aligned to Candidate → Leave/Timesheet → Delivery Review → Dashboard.
+Shipped screens aligned to Employees → Leave / Timesheet → Delivery Review → Approvals → Invoices → Dashboard.
 
 ## Definitions
 
 | Term | Definition |
 |------|------------|
-| Screen | Routable page |
+| Screen | Routable page under `apps/web/src/pages/` |
 | Action | Button/mutation gated by role |
 
 ---
@@ -27,140 +27,58 @@ MVP screens aligned to Candidate → Leave/Timesheet → Delivery Review → Das
 flowchart LR
   Auth --> Shell
   Shell --> Dashboard
-  Shell --> Candidates
+  Shell --> Employees
   Shell --> Leave
   Shell --> Timesheets
   Shell --> Reviews[Delivery Reviews]
+  Shell --> Approvals
+  Shell --> Invoices
   Shell --> Clients
-  Shell --> Admin
+  Shell --> Settings
 ```
 
-| Feature | Routes (illustrative) | Primary roles |
-|---------|----------------------|---------------|
-| auth | `/login` | Public |
-| dashboard | `/` or `/dashboard` | All |
-| candidates | `/candidates`, `/candidates/:id` | DM, HR, ADMIN |
-| leave | `/leaves`, `/leaves/new`, `/leaves/:id` | DM, HR, ADMIN |
-| timesheets | `/timesheets`, `/timesheets/:id` | DM, ADMIN |
-| delivery-reviews | `/delivery-reviews`, `/delivery-reviews/:id` | DM, ADMIN |
-| clients | `/clients` | DM, ADMIN |
-| admin/users | `/admin/users` | ADMIN |
-| admin/lookups | `/admin/lookups` | ADMIN |
+| Feature | Routes | Primary roles | API |
+|---------|--------|---------------|-----|
+| auth | `/login` | Public | `/auth/*` |
+| dashboard | `/dashboard` | All | `/dashboard/*` |
+| employees | `/employees`, `/employees/:id` | All (mutate: ADM/DO) | `/candidates/*` |
+| leave | `/leave` | All (approve: ADM/AO) | `/leaves/*` |
+| timesheets | `/timesheets` | All (approve: ADM/AO) | `/timesheets/*` |
+| delivery reviews | `/delivery-reviews` | All (upsert: ADM/DO) | `/delivery-reviews/*` |
+| approvals | `/approvals` | ADM, AO | pending leaves/TS |
+| invoices | `/invoices` | All (lifecycle: ADM/AO) | `/invoices/*` |
+| clients | `/clients` | All (mutate: ADM/DO) | `/clients/*` |
+| settings users | `/settings/users` | ADMIN | `/users/*` |
+| settings lookups | `/settings/lookups` | ADMIN | `/lookups/*` |
+| settings audit | `/settings/audit` | ADMIN | `/audit` |
+| settings import | `/settings/import` | ADMIN | `/import/*` |
+
+Aliases: `/candidates` → `/employees`, `/leaves` → `/leave`.
 
 ---
 
-## auth
+## Employees (categories)
 
-| Screen | Behavior |
-|--------|----------|
-| Login | Email/password → store session → redirect |
-| Session restore | `GET /auth/me` on boot |
+| Category | Purpose | Notable fields |
+|----------|---------|----------------|
+| BILLABLE | Client deployment | Client, billing, sales/account owners |
+| NON_BILLABLE | Internal teams | Team (`SUPPORT`/`LEADERSHIP`/`DELIVERY`), support function |
+| BENCH | Between placements | Bench start, interviews scheduled/cleared, DM/AM feedback timelines |
 
----
-
-## dashboard
-
-| Widget | Source |
-|--------|--------|
-| Summary tiles | `GET /dashboard/summary` |
-| Utilization table | `GET /dashboard/utilization?yearMonth=` |
-| Health RAG | `GET /dashboard/engagement-health` |
-| At risk list | `GET /dashboard/candidates-at-risk` |
-
-Filters: month, client. Read-only.
+Timesheets, invoices, and delivery reviews are **billable-only**.
 
 ---
 
-## candidates
+## Shell concerns
 
-| Screen | Actions |
-|--------|---------|
-| List | Search, filter status ACTIVE/RELEASED, client |
-| Create/Edit | Master fields, client select |
-| Detail | Tabs: Leave, Timesheets, Reviews |
-| Release | Confirm dialog → `POST /candidates/:id/release` |
-
-Show publicId `CD-#####` prominently.
+- Cost-center filter: `ALL` / `BRICKRED` / `AGYOM`  
+- Global search (employees/clients)  
+- Branding from selected cost center  
 
 ---
-
-## leave
-
-| Screen | Actions |
-|--------|---------|
-| List | Filter status, candidate, date range |
-| Create | Candidate, type, dates, days, reason |
-| Submit | DRAFT → PENDING |
-| Approve/Reject | DM/ADMIN; reject requires reason |
-| Cancel | When allowed by status |
-
-UI must not treat non-approved leave as affecting attendance displays except as “pending impact” hints.
-
----
-
-## timesheets
-
-| Screen | Actions |
-|--------|---------|
-| List | Filter yearMonth, client, candidate |
-| Upsert form | workingDays, remarks; show approvedLeaveDays + computed attendance |
-| Recalculate | Calls `POST /timesheets/:id/recalculate` after late approvals |
-
-Enforce one row per candidate+month in UI (disable duplicate create; use edit).
-
----
-
-## delivery-reviews
-
-| Screen | Actions |
-|--------|---------|
-| List | Filter month, health |
-| Upsert form | health select; escalationNotes required when ESCALATED |
-| Snapshot | Show timesheet attendance if exists |
-
----
-
-## clients
-
-| Screen | Actions |
-|--------|---------|
-| List/Create/Edit | Name, code, active |
-
----
-
-## admin
-
-| Screen | Actions |
-|--------|---------|
-| Users | CRUD-ish, role, active, reset password |
-| Lookups | Manage LEAVE_TYPE, RELEASE_REASON, … |
-| Audit (optional MVP UI) | Read-only table |
-
----
-
-## MVP vs Future
-
-| Feature | MVP | Future |
-|---------|-----|--------|
-| SST import UI | Manual/CSV optional | Sync status panel |
-| Notifications center | No | Escalation inbox |
-| Holiday calendar admin | No | Yes |
-
-## Trade-offs
-
-| Decision | Why |
-|----------|-----|
-| Detail tabs for candidate | Natural chain navigation |
-| Separate timesheet vs leave apps areas | Different approvers/cadence |
-| Dashboard home | Managers land on oversight |
-
-## Recommendations
-
-- Gate nav items with the permission matrix but still handle 403.
-- Use identical yearMonth picker component across TS, DR, dashboard.
 
 ## References
 
-- [FRONTEND_ARCHITECTURE.md](./FRONTEND_ARCHITECTURE.md)
 - [AUTH_AND_ROUTING.md](./AUTH_AND_ROUTING.md)
 - [../11-security/PERMISSION_MATRIX.md](../11-security/PERMISSION_MATRIX.md)
+- [../21-guides/CDT_BUSINESS_FEATURE_GUIDE.md](../21-guides/CDT_BUSINESS_FEATURE_GUIDE.md)
