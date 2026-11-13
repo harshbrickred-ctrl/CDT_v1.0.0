@@ -13,6 +13,7 @@ import {
 import { periodFromYearMonth, previousYearMonth, utcToday, missingDueTimesheetMonths } from '../common/dates';
 import { toNumber } from '../common/prisma-error';
 import {
+  candidateAccessWhere,
   emptyIfNoAccess,
   resolveClientIdsForOwnerFilters,
   resolveOwnedClientIds,
@@ -110,12 +111,18 @@ export class DashboardService {
       deliveryOwnerUserId: params.deliveryOwnerUserId,
       accountOwnerUserId: params.accountOwnerUserId,
     });
-    if (emptyIfNoAccess(ownedClientIds)) {
+    const access = candidateAccessWhere(
+      params.user.role,
+      ownedClientIds,
+      params.clientId,
+    );
+    if (access === null) {
       return this.emptySummary(month);
     }
     const clientFilter = withClientIdScope(ownedClientIds, params.clientId);
     const cc = withCostCenterFilter(params.costCenter);
 
+    // Client placements only (invoices, reviews, utilization).
     const candidateBase: Prisma.CandidateWhereInput = {
       organizationId: params.user.organizationId,
       deletedAt: null,
@@ -123,8 +130,15 @@ export class DashboardService {
       ...(cc ? { costCenter: cc } : {}),
     };
 
+    // Same visibility rules as the Employees list (includes non-client categories).
+    const employeeScope: Prisma.CandidateWhereInput = {
+      organizationId: params.user.organizationId,
+      deletedAt: null,
+      AND: [access, ...(cc ? [{ costCenter: cc }] : [])],
+    };
+
     const activeWhere: Prisma.CandidateWhereInput = {
-      ...candidateBase,
+      ...employeeScope,
       status: CandidateStatus.ACTIVE,
     };
     const billableCandidate: Prisma.CandidateWhereInput = {
@@ -162,9 +176,9 @@ export class DashboardService {
       nonBillableHeadcount,
     ] = await Promise.all([
       this.prisma.candidate.count({ where: activeWhere }),
-      this.prisma.candidate.count({ where: candidateBase }),
+      this.prisma.candidate.count({ where: employeeScope }),
       this.prisma.candidate.count({
-        where: { ...candidateBase, status: CandidateStatus.RELEASED },
+        where: { ...employeeScope, status: CandidateStatus.RELEASED },
       }),
       this.prisma.leave.count({
         where: {
@@ -181,7 +195,7 @@ export class DashboardService {
           organizationId,
           deletedAt: null,
           status: LeaveStatus.PENDING,
-          candidate: candidateBase,
+          candidate: employeeScope,
         },
       }),
       this.prisma.timesheet.count({
@@ -190,7 +204,7 @@ export class DashboardService {
           deletedAt: null,
           approvalStatus: ApprovalStatus.PENDING,
           ...monthScope,
-          candidate: candidateBase,
+          candidate: employeeScope,
         },
       }),
       this.prisma.deliveryReview.findMany({
@@ -286,11 +300,8 @@ export class DashboardService {
       seesBench
         ? this.prisma.candidate.count({
             where: {
-              organizationId,
-              deletedAt: null,
-              status: CandidateStatus.ACTIVE,
+              ...activeWhere,
               category: EmployeeCategory.BENCH,
-              ...(cc ? { costCenter: cc } : {}),
             },
           })
         : Promise.resolve(0),
@@ -484,7 +495,7 @@ export class DashboardService {
       goodClientFeedback,
       releasedInMonth: await this.prisma.candidate.count({
         where: {
-          ...candidateBase,
+          ...employeeScope,
           status: CandidateStatus.RELEASED,
           releasedAt: { gte: periodStart, lte: periodEnd },
         },
