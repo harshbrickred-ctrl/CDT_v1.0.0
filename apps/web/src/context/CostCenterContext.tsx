@@ -9,7 +9,8 @@ import {
 import { COST_CENTER_OPTIONS } from '../lib/masterLists';
 import { brandForCostCenter, type OrganizationId } from '../lib/organizations';
 
-export type CostCenterFilter = 'ALL' | 'BRICKRED' | 'AGYOM';
+/** ALL or any COST_CENTER lookup code. */
+export type CostCenterFilter = string;
 
 export { COST_CENTER_OPTIONS };
 
@@ -29,7 +30,7 @@ const CostCenterContext = createContext<CostCenterContextValue | null>(null);
 function readStored(): CostCenterFilter {
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY);
-    if (raw === 'BRICKRED' || raw === 'AGYOM' || raw === 'ALL') return raw;
+    if (raw && raw.trim()) return raw.trim().toUpperCase();
   } catch {
     /* ignore */
   }
@@ -40,9 +41,10 @@ export function CostCenterProvider({ children }: { children: ReactNode }) {
   const [costCenter, setCostCenterState] = useState<CostCenterFilter>(readStored);
 
   const setCostCenter = useCallback((value: CostCenterFilter) => {
-    setCostCenterState(value);
+    const next = value.trim().toUpperCase() || 'ALL';
+    setCostCenterState(next);
     try {
-      sessionStorage.setItem(STORAGE_KEY, value);
+      sessionStorage.setItem(STORAGE_KEY, next);
     } catch {
       /* ignore */
     }

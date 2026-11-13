@@ -16,7 +16,6 @@ import {
   BillingType,
   CandidateStatus,
   EmployeeCategory,
-  EmployeeTeam,
 } from '@prisma/client';
 import { SUPPORT_FUNCTIONS } from '../employee-category';
 
@@ -78,9 +77,9 @@ export class CreateCandidateDto {
   @IsString()
   workLocation?: string;
 
-  @ApiProperty({ enum: ['BRICKRED', 'AGYOM'], example: 'BRICKRED' })
+  @ApiProperty({ example: 'BRICKRED' })
   @IsString()
-  @IsIn(['BRICKRED', 'AGYOM'])
+  @MinLength(1)
   costCenter!: string;
 
   @ApiPropertyOptional({
@@ -104,10 +103,12 @@ export class CreateCandidateDto {
   @IsUUID()
   salesOwnerUserId?: string | null;
 
-  @ApiPropertyOptional({ enum: EmployeeTeam })
+  @ApiPropertyOptional({
+    description: 'EMPLOYEE_TEAM lookup code (e.g. SUPPORT, LEADERSHIP, DELIVERY)',
+  })
   @IsOptional()
-  @IsEnum(EmployeeTeam)
-  team?: EmployeeTeam | null;
+  @IsString()
+  team?: string | null;
 
   @ApiPropertyOptional({ enum: SUPPORT_FUNCTIONS })
   @IsOptional()
@@ -231,10 +232,10 @@ export class UpdateCandidateDto {
   @IsString()
   workLocation?: string | null;
 
-  @ApiPropertyOptional({ enum: ['BRICKRED', 'AGYOM'] })
+  @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  @IsIn(['BRICKRED', 'AGYOM'])
+  @MinLength(1)
   costCenter?: string;
 
   @ApiPropertyOptional()
@@ -252,10 +253,10 @@ export class UpdateCandidateDto {
   @IsUUID()
   salesOwnerUserId?: string | null;
 
-  @ApiPropertyOptional({ enum: EmployeeTeam })
+  @ApiPropertyOptional()
   @IsOptional()
-  @IsEnum(EmployeeTeam)
-  team?: EmployeeTeam | null;
+  @IsString()
+  team?: string | null;
 
   @ApiPropertyOptional({ enum: SUPPORT_FUNCTIONS })
   @IsOptional()

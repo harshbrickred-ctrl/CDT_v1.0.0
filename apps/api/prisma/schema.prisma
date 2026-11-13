@@ -66,11 +66,6 @@ enum EmployeeCategory {
   BENCH
 }
 
-enum EmployeeTeam {
-  SUPPORT
-  LEADERSHIP
-  DELIVERY
-}
 
 enum BenchFeedbackKind {
   DELIVERY_MANAGER
@@ -208,7 +203,7 @@ model Candidate {
   accountManagerUserId     String?          @map("account_manager_user_id") @db.Uuid
   deliveryOwnerUserId      String?          @map("delivery_owner_user_id") @db.Uuid
   salesOwnerUserId         String?          @map("sales_owner_user_id") @db.Uuid
-  team                     EmployeeTeam?
+  team                     String?
   supportFunction          String?          @map("support_function")
   benchStartDate           DateTime?        @map("bench_start_date") @db.Date
   interviewsScheduledCount Int              @default(0) @map("interviews_scheduled_count")

@@ -158,6 +158,8 @@ export class DashboardService {
       outstandingAgg,
       paidInvoicesForTat,
       benchHeadcount,
+      billableHeadcount,
+      nonBillableHeadcount,
     ] = await Promise.all([
       this.prisma.candidate.count({ where: activeWhere }),
       this.prisma.candidate.count({ where: candidateBase }),
@@ -292,6 +294,18 @@ export class DashboardService {
             },
           })
         : Promise.resolve(0),
+      this.prisma.candidate.count({
+        where: {
+          ...activeWhere,
+          category: EmployeeCategory.BILLABLE,
+        },
+      }),
+      this.prisma.candidate.count({
+        where: {
+          ...activeWhere,
+          category: EmployeeCategory.NON_BILLABLE,
+        },
+      }),
     ]);
 
     const healthBreakdown = {
@@ -374,6 +388,20 @@ export class DashboardService {
       },
     ];
 
+    const categoryChart = [
+      { key: 'BILLABLE', label: 'Billable', count: billableHeadcount },
+      {
+        key: 'NON_BILLABLE',
+        label: 'Non-billable',
+        count: nonBillableHeadcount,
+      },
+      {
+        key: 'BENCH',
+        label: 'Bench',
+        count: seesBench ? benchHeadcount : 0,
+      },
+    ];
+
     const timesheetsByCandidate = new Map<string, Set<string>>();
     for (const t of await this.prisma.timesheet.findMany({
       where: {
@@ -433,6 +461,8 @@ export class DashboardService {
       month,
       activeCandidates,
       benchHeadcount,
+      billableHeadcount,
+      nonBillableHeadcount,
       totalCandidates,
       onTrackEngagements: healthBreakdown.onTrack,
       atRiskEngagements: healthBreakdown.atRisk,
@@ -462,6 +492,7 @@ export class DashboardService {
       healthBreakdown,
       missingTimesheetsCount,
       healthChart,
+      categoryChart,
       topClients,
       charts,
     };
@@ -472,6 +503,8 @@ export class DashboardService {
       month,
       activeCandidates: 0,
       benchHeadcount: 0,
+      billableHeadcount: 0,
+      nonBillableHeadcount: 0,
       totalCandidates: 0,
       onTrackEngagements: 0,
       atRiskEngagements: 0,
@@ -498,6 +531,11 @@ export class DashboardService {
         { key: 'ON_TRACK', label: 'On Track', count: 0 },
         { key: 'AT_RISK', label: 'At Risk', count: 0 },
         { key: 'ESCALATED', label: 'Escalated', count: 0 },
+      ],
+      categoryChart: [
+        { key: 'BILLABLE', label: 'Billable', count: 0 },
+        { key: 'NON_BILLABLE', label: 'Non-billable', count: 0 },
+        { key: 'BENCH', label: 'Bench', count: 0 },
       ],
       topClients: [],
       charts: {

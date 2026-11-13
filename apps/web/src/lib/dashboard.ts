@@ -20,6 +20,8 @@ export function normalizeDashboardSummary(
     month: raw.month ?? null,
     activeCandidates: raw.activeCandidates ?? 0,
     benchHeadcount: raw.benchHeadcount ?? 0,
+    billableHeadcount: raw.billableHeadcount ?? 0,
+    nonBillableHeadcount: raw.nonBillableHeadcount ?? 0,
     totalCandidates: raw.totalCandidates ?? 0,
     onTrackEngagements:
       raw.onTrackEngagements ?? breakdown.onTrack ?? 0,
@@ -48,6 +50,15 @@ export function normalizeDashboardSummary(
       escalated: breakdown.escalated ?? 0,
     },
     healthChart,
+    categoryChart: raw.categoryChart ?? [
+      { key: 'BILLABLE', label: 'Billable', count: raw.billableHeadcount ?? 0 },
+      {
+        key: 'NON_BILLABLE',
+        label: 'Non-billable',
+        count: raw.nonBillableHeadcount ?? 0,
+      },
+      { key: 'BENCH', label: 'Bench', count: raw.benchHeadcount ?? 0 },
+    ],
     topClients: (raw.topClients ?? []).slice(0, 3).map((c) => ({
       clientId: c.clientId,
       name: c.name,

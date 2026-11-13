@@ -1,9 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import {
-  CandidateStatus,
-  EmployeeCategory,
-  EmployeeTeam,
-} from '@prisma/client';
+import { CandidateStatus, EmployeeCategory } from '@prisma/client';
 import { utcToday } from '../common/dates';
 
 export const SUPPORT_FUNCTIONS = [
@@ -15,10 +11,13 @@ export const SUPPORT_FUNCTIONS = [
 ] as const;
 export type SupportFunction = (typeof SUPPORT_FUNCTIONS)[number];
 
+/** Built-in team that requires a support role. */
+export const SUPPORT_TEAM_CODE = 'SUPPORT';
+
 export type CategoryFieldInput = {
   category: EmployeeCategory;
   clientId?: string | null;
-  team?: EmployeeTeam | null;
+  team?: string | null;
   supportFunction?: string | null;
   salesOwnerUserId?: string | null;
   benchStartDate?: string | Date | null;
@@ -30,7 +29,7 @@ export type CategoryFieldInput = {
 export type NormalizedEmployeeCategory = {
   category: EmployeeCategory;
   clientId: string | null;
-  team: EmployeeTeam | null;
+  team: string | null;
   supportFunction: string | null;
   salesOwnerUserId: string | null;
   benchStartDate: Date | null;
@@ -72,7 +71,7 @@ function parseDateOnly(value: string | Date): Date {
 }
 
 function resolveSupportFunction(
-  team: EmployeeTeam | null,
+  team: string | null,
   supportFunction: string | null | undefined,
 ): string | null {
   const value = blankToNull(supportFunction)?.toUpperCase() ?? null;
@@ -83,7 +82,7 @@ function resolveSupportFunction(
     return null;
   }
   if (!value) {
-    if (team === EmployeeTeam.SUPPORT) {
+    if (team === SUPPORT_TEAM_CODE) {
       throw new BadRequestException(
         'Role is required when team is SUPPORT',
       );
@@ -132,7 +131,8 @@ export function normalizeEmployeeCategory(
   }
 
   if (category === EmployeeCategory.NON_BILLABLE) {
-    if (!input.team) {
+    const team = blankToNull(input.team)?.toUpperCase() ?? null;
+    if (!team) {
       throw new BadRequestException(
         'A non-billable employee requires a team',
       );
@@ -140,8 +140,8 @@ export function normalizeEmployeeCategory(
     return {
       category,
       clientId: null,
-      team: input.team,
-      supportFunction: resolveSupportFunction(input.team, input.supportFunction),
+      team,
+      supportFunction: resolveSupportFunction(team, input.supportFunction),
       salesOwnerUserId: null,
       benchStartDate: null,
       interviewsScheduledCount: 0,
@@ -151,7 +151,7 @@ export function normalizeEmployeeCategory(
   }
 
   if (category === EmployeeCategory.BENCH) {
-    const team = input.team ?? null;
+    const team = blankToNull(input.team)?.toUpperCase() ?? null;
     const benchStartDate = input.benchStartDate
       ? parseDateOnly(input.benchStartDate)
       : today;

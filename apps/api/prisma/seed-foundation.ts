@@ -107,6 +107,12 @@ export async function seedLookups(prisma: PrismaClient) {
     { code: 'AGYOM', label: 'Agyom', sortOrder: 2 },
   ]);
 
+  await seedLookupType(prisma, 'EMPLOYEE_TEAM', [
+    { code: 'SUPPORT', label: 'Support', sortOrder: 1 },
+    { code: 'LEADERSHIP', label: 'Leadership Team', sortOrder: 2 },
+    { code: 'DELIVERY', label: 'Delivery Team', sortOrder: 3 },
+  ]);
+
   await seedLookupType(prisma, 'LEAVE_TYPE', [
     { code: 'CASUAL', label: 'Casual', sortOrder: 1 },
     { code: 'SICK', label: 'Sick', sortOrder: 2 },

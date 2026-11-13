@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -6,11 +6,16 @@ import {
   candidatesApi,
   deliveryReviewsApi,
   leavesApi,
+  lookupsApi,
   timesheetsApi,
 } from '../lib/api';
 import type { BenchFeedback, BenchFeedbackKind, Candidate } from '../lib/types';
 import { clientFeedbackLabel, formatDate, formatPct } from '../lib/format';
-import { COST_CENTER_OPTIONS, labelFromOptions } from '../lib/masterLists';
+import {
+  COST_CENTER_OPTIONS,
+  EMPLOYEE_TEAM_FALLBACK,
+  labelFromOptions,
+} from '../lib/masterLists';
 import { useAuth } from '../context/AuthContext';
 import PageHeader from '../components/ui/PageHeader';
 import PublicId from '../components/ui/PublicId';
@@ -51,11 +56,9 @@ function agingLabel(candidate: Candidate) {
   return `${months}, ${days}`;
 }
 
-const TEAM_LABEL: Record<string, string> = {
-  SUPPORT: 'Support',
-  LEADERSHIP: 'Leadership Team',
-  DELIVERY: 'Delivery Team',
-};
+const TEAM_LABEL: Record<string, string> = Object.fromEntries(
+  EMPLOYEE_TEAM_FALLBACK.map((t) => [t.code, t.label]),
+);
 
 const SUPPORT_ROLE_LABEL: Record<string, string> = {
   HR: 'HR',
@@ -85,6 +88,35 @@ export default function CandidateDetailPage() {
     queryFn: () => candidatesApi.get(id),
     enabled: Boolean(id),
   });
+
+  const costCentersQuery = useQuery({
+    queryKey: ['lookups', 'COST_CENTER'],
+    queryFn: () => lookupsApi.list('COST_CENTER'),
+  });
+  const teamsQuery = useQuery({
+    queryKey: ['lookups', 'EMPLOYEE_TEAM'],
+    queryFn: () => lookupsApi.list('EMPLOYEE_TEAM'),
+  });
+
+  const costCenterOptions = useMemo(() => {
+    const items = (costCentersQuery.data?.items ?? []).filter(
+      (v) => v.isActive !== false,
+    );
+    if (items.length) {
+      return items.map((v) => ({ code: v.code, label: v.label }));
+    }
+    return COST_CENTER_OPTIONS.map((o) => ({ code: o.code, label: o.label }));
+  }, [costCentersQuery.data]);
+
+  const teamLabelMap = useMemo(() => {
+    const items = (teamsQuery.data?.items ?? []).filter(
+      (v) => v.isActive !== false,
+    );
+    if (items.length) {
+      return Object.fromEntries(items.map((v) => [v.code, v.label]));
+    }
+    return TEAM_LABEL;
+  }, [teamsQuery.data]);
 
   const candidate = detailQuery.data;
   const candidateKey = candidate?.id ?? id;
@@ -300,12 +332,15 @@ export default function CandidateDetailPage() {
       {category !== 'BILLABLE' ? (
         <Card accent className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Field label="Employee ID" value={<PublicId value={candidate.publicId} />} />
-          <Field label="Cost Center" value={labelFromOptions(COST_CENTER_OPTIONS, candidate.costCenter)} />
+          <Field
+            label="Cost Center"
+            value={labelFromOptions(costCenterOptions, candidate.costCenter)}
+          />
           <Field
             label="Team"
             value={
               candidate.team
-                ? (TEAM_LABEL[candidate.team] ?? candidate.team)
+                ? (teamLabelMap[candidate.team] ?? candidate.team)
                 : 'Not Applicable'
             }
           />
@@ -370,7 +405,7 @@ export default function CandidateDetailPage() {
             Cost Center
           </p>
           <p className="mt-1 text-sm font-medium">
-            {labelFromOptions(COST_CENTER_OPTIONS, candidate.costCenter)}
+            {labelFromOptions(costCenterOptions, candidate.costCenter)}
           </p>
         </div>
         <div>

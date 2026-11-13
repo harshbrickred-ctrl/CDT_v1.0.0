@@ -12,6 +12,7 @@ import {
 } from '@prisma/client';
 import { toNumber } from '../common/prisma-error';
 import {
+  candidateAccessWhere,
   emptyIfNoAccess,
   withClientIdScope,
   withCostCenterFilter,
@@ -31,6 +32,8 @@ const INVOICED_STATUSES: InvoiceStatus[] = [
 export const DASHBOARD_KPI_IDS = [
   'total',
   'active',
+  'billable',
+  'non-billable',
   'bench',
   'on-track',
   'at-risk',
@@ -167,27 +170,63 @@ export async function fetchKpiDetail(
     throw new Error(`Unknown KPI: ${params.kpi}`);
   }
 
-  if (kpi === 'bench') {
+  if (kpi === 'bench' || kpi === 'billable' || kpi === 'non-billable') {
     const seesBench =
       params.role === Role.ADMIN || params.role === Role.DELIVERY_OWNER;
     const cc = withCostCenterFilter(params.costCenter);
+    if (kpi === 'bench') {
+      return candidateRows(
+        kpi,
+        'Bench',
+        seesBench
+          ? await prisma.candidate.findMany({
+              where: {
+                organizationId: params.organizationId,
+                deletedAt: null,
+                status: CandidateStatus.ACTIVE,
+                category: EmployeeCategory.BENCH,
+                ...(cc ? { costCenter: cc } : {}),
+              },
+              select: candidateSelect,
+              orderBy: { fullName: 'asc' },
+              take: 200,
+            })
+          : [],
+      );
+    }
+    const category =
+      kpi === 'billable'
+        ? EmployeeCategory.BILLABLE
+        : EmployeeCategory.NON_BILLABLE;
+    const owned = params.ownedClientIds ?? null;
+    const access = candidateAccessWhere(
+      params.role as Role,
+      owned,
+      undefined,
+    );
+    if (access === null) {
+      return candidateRows(
+        kpi,
+        kpi === 'billable' ? 'Billable employees' : 'Non-billable employees',
+        [],
+      );
+    }
     return candidateRows(
       kpi,
-      'Bench',
-      seesBench
-        ? await prisma.candidate.findMany({
-            where: {
-              organizationId: params.organizationId,
-              deletedAt: null,
-              status: CandidateStatus.ACTIVE,
-              category: EmployeeCategory.BENCH,
-              ...(cc ? { costCenter: cc } : {}),
-            },
-            select: candidateSelect,
-            orderBy: { fullName: 'asc' },
-            take: 200,
-          })
-        : [],
+      kpi === 'billable' ? 'Billable employees' : 'Non-billable employees',
+      await prisma.candidate.findMany({
+        where: {
+          organizationId: params.organizationId,
+          deletedAt: null,
+          status: CandidateStatus.ACTIVE,
+          category,
+          AND: [access],
+          ...(cc ? { costCenter: cc } : {}),
+        },
+        select: candidateSelect,
+        orderBy: { fullName: 'asc' },
+        take: 200,
+      }),
     );
   }
 

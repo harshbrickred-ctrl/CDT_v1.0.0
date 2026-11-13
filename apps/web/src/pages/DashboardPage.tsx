@@ -28,6 +28,7 @@ import DashboardSection, {
 } from '../components/dashboard/DashboardSection';
 import ChartPanel from '../components/dashboard/ChartPanel';
 import HealthDonutChart from '../components/dashboard/HealthDonutChart';
+import CategoryDonutChart from '../components/dashboard/CategoryDonutChart';
 import TopClientsBarChart from '../components/dashboard/TopClientsBarChart';
 import {
   AtRiskClientsChart,
@@ -282,6 +283,18 @@ export default function DashboardPage() {
         id: 'active',
         label: 'Active Employees',
         value: summary?.activeCandidates ?? 0,
+        icon: kpiIcons.users,
+      },
+      {
+        id: 'billable',
+        label: 'Billable Employees',
+        value: summary?.billableHeadcount ?? 0,
+        icon: kpiIcons.users,
+      },
+      {
+        id: 'non-billable',
+        label: 'Non-billable Employees',
+        value: summary?.nonBillableHeadcount ?? 0,
         icon: kpiIcons.users,
       },
       {
@@ -608,11 +621,12 @@ export default function DashboardPage() {
             <div>
               <DashboardBlockLabel>Charts</DashboardBlockLabel>
               <motion.div
-                className="grid gap-4 lg:grid-cols-2"
+                className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3"
                 variants={fadeUp}
                 initial={prefersReducedMotion ? false : 'hidden'}
                 animate="visible"
               >
+                <CategoryDonutChart data={summary?.categoryChart ?? []} />
                 <HealthDonutChart data={summary?.healthChart ?? []} />
                 <AtRiskClientsChart
                   data={summary?.charts?.atRiskClients ?? []}

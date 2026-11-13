@@ -11,6 +11,7 @@ import { scopeClientsForUser } from '../lib/client-scope';
 import { formatDate } from '../lib/format';
 import {
   COST_CENTER_OPTIONS,
+  EMPLOYEE_TEAM_FALLBACK,
   labelFromOptions,
   WORK_LOCATION_OPTIONS,
 } from '../lib/masterLists';
@@ -63,17 +64,9 @@ const CATEGORY_LABEL: Record<EmployeeCategory, string> = {
   BENCH: 'Bench',
 };
 
-const TEAM_OPTIONS: { value: EmployeeTeam; label: string }[] = [
-  { value: 'SUPPORT', label: 'Support' },
-  { value: 'LEADERSHIP', label: 'Leadership Team' },
-  { value: 'DELIVERY', label: 'Delivery Team' },
-];
-
-const TEAM_LABEL: Record<string, string> = {
-  SUPPORT: 'Support',
-  LEADERSHIP: 'Leadership Team',
-  DELIVERY: 'Delivery Team',
-};
+const TEAM_LABEL: Record<string, string> = Object.fromEntries(
+  EMPLOYEE_TEAM_FALLBACK.map((t) => [t.code, t.label]),
+);
 
 const SUPPORT_ROLE_OPTIONS = [
   { value: 'HR', label: 'HR' },
@@ -289,6 +282,16 @@ export default function CandidatesPage() {
     enabled: formOpen || !!selectedCandidate,
   });
 
+  const costCentersQuery = useQuery({
+    queryKey: ['lookups', 'COST_CENTER'],
+    queryFn: () => lookupsApi.list('COST_CENTER'),
+  });
+
+  const teamsQuery = useQuery({
+    queryKey: ['lookups', 'EMPLOYEE_TEAM'],
+    queryFn: () => lookupsApi.list('EMPLOYEE_TEAM'),
+  });
+
   const workLocations = useMemo(() => {
     const items = workLocationsQuery.data?.items ?? [];
     if (items.length) return items;
@@ -300,6 +303,35 @@ export default function CandidatesPage() {
       isActive: true,
     }));
   }, [workLocationsQuery.data]);
+
+  const costCenterOptions = useMemo(() => {
+    const items = (costCentersQuery.data?.items ?? []).filter(
+      (v) => v.isActive !== false,
+    );
+    if (items.length) {
+      return items.map((v) => ({ code: v.code, label: v.label }));
+    }
+    return COST_CENTER_OPTIONS.map((o) => ({ code: o.code, label: o.label }));
+  }, [costCentersQuery.data]);
+
+  const teamOptions = useMemo(() => {
+    const items = (teamsQuery.data?.items ?? []).filter(
+      (v) => v.isActive !== false,
+    );
+    if (items.length) {
+      return items.map((v) => ({ value: v.code, label: v.label }));
+    }
+    return EMPLOYEE_TEAM_FALLBACK.map((t) => ({
+      value: t.code,
+      label: t.label,
+    }));
+  }, [teamsQuery.data]);
+
+  const teamLabel = (code?: string | null) =>
+    teamOptions.find((t) => t.value === code)?.label ??
+    TEAM_LABEL[code ?? ''] ??
+    code ??
+    '—';
 
   const workLocationLabel = (code?: string | null) =>
     labelFromOptions(workLocations, code);
@@ -574,7 +606,7 @@ export default function CandidatesPage() {
               }}
             >
               <option value="">All teams</option>
-              {TEAM_OPTIONS.map((team) => (
+              {teamOptions.map((team) => (
                 <option key={team.value} value={team.value}>
                   {team.label}
                 </option>
@@ -661,13 +693,13 @@ export default function CandidatesPage() {
                   </td>
                   <td className={tdClass}>
                     {c.team ? (
-                      <StatusPill status={c.team} label={TEAM_LABEL[c.team] ?? c.team} />
+                      <StatusPill status={c.team} label={teamLabel(c.team)} />
                     ) : (
                       '—'
                     )}
                   </td>
                   <td className={tdClass}>
-                    {labelFromOptions(COST_CENTER_OPTIONS, c.costCenter)}
+                    {labelFromOptions(costCenterOptions, c.costCenter)}
                   </td>
                   <td className={tdClass}>
                     <StatusPill status={c.status} />
@@ -721,14 +753,14 @@ export default function CandidatesPage() {
               <DetailField
                 label="Cost Center"
                 value={labelFromOptions(
-                  COST_CENTER_OPTIONS,
+                  costCenterOptions,
                   selectedCandidate.costCenter,
                 )}
               />
               {selectedCandidate.team && (
                 <DetailField
                   label="Team"
-                  value={TEAM_LABEL[selectedCandidate.team] ?? selectedCandidate.team}
+                  value={teamLabel(selectedCandidate.team)}
                 />
               )}
               {selectedCandidate.team && (
@@ -996,7 +1028,7 @@ export default function CandidatesPage() {
                 setForm({ ...form, costCenter: e.target.value })
               }
             >
-              {COST_CENTER_OPTIONS.map((o) => (
+              {costCenterOptions.map((o) => (
                 <option key={o.code} value={o.code}>
                   {o.label}
                 </option>
@@ -1032,7 +1064,7 @@ export default function CandidatesPage() {
                 <option value="">
                   {form.category === 'NON_BILLABLE' ? 'Select team' : NA}
                 </option>
-                {TEAM_OPTIONS.map((team) => (
+                {teamOptions.map((team) => (
                   <option key={team.value} value={team.value}>
                     {team.label}
                   </option>

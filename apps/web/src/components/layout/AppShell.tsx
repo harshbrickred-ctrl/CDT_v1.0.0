@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { motion, useReducedMotion } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -7,6 +8,7 @@ import {
   useCostCenter,
   type CostCenterFilter,
 } from '../../context/CostCenterContext';
+import { lookupsApi } from '../../lib/api';
 import { pageEnter } from '../../lib/motion';
 import { getOrganization } from '../../lib/organizations';
 import BrandLogo from '../brand/BrandLogo';
@@ -204,6 +206,20 @@ export default function AppShell() {
   const role = user?.role;
   const primary = visible(PRIMARY_NAV, role);
   const settings = visible(SETTINGS_NAV, role);
+
+  const costCentersQuery = useQuery({
+    queryKey: ['lookups', 'COST_CENTER'],
+    queryFn: () => lookupsApi.list('COST_CENTER'),
+  });
+  const costCenterOptions = useMemo(() => {
+    const items = (costCentersQuery.data?.items ?? []).filter(
+      (v) => v.isActive !== false,
+    );
+    if (items.length) {
+      return items.map((v) => ({ code: v.code, label: v.label }));
+    }
+    return COST_CENTER_OPTIONS.map((o) => ({ code: o.code, label: o.label }));
+  }, [costCentersQuery.data]);
 
   const [collapsed, setCollapsed] = useState(() => {
     try {
@@ -457,7 +473,7 @@ export default function AppShell() {
                 title="Cost Center"
               >
                 <option value="ALL">All cost centers</option>
-                {COST_CENTER_OPTIONS.map((o) => (
+                {costCenterOptions.map((o) => (
                   <option key={o.code} value={o.code}>
                     {o.label}
                   </option>

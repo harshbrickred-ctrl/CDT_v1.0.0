@@ -6,7 +6,8 @@ export type CandidateStatus = 'ACTIVE' | 'RELEASED';
 
 export type EmployeeCategory = 'BILLABLE' | 'NON_BILLABLE' | 'BENCH';
 
-export type EmployeeTeam = 'SUPPORT' | 'LEADERSHIP' | 'DELIVERY';
+/** EMPLOYEE_TEAM lookup code (seeded: SUPPORT, LEADERSHIP, DELIVERY; extensible). */
+export type EmployeeTeam = string;
 
 export type BenchFeedbackKind = 'DELIVERY_MANAGER' | 'ACCOUNT_OWNER';
 
@@ -326,6 +327,8 @@ export interface DashboardCharts {
 export type DashboardKpiId =
   | 'total'
   | 'active'
+  | 'billable'
+  | 'non-billable'
   | 'bench'
   | 'on-track'
   | 'at-risk'
@@ -374,6 +377,8 @@ export interface DashboardSummaryRaw {
   month?: string | null;
   activeCandidates?: number;
   benchHeadcount?: number;
+  billableHeadcount?: number;
+  nonBillableHeadcount?: number;
   totalCandidates?: number;
   onTrackEngagements?: number;
   atRiskEngagements?: number;
@@ -401,6 +406,7 @@ export interface DashboardSummaryRaw {
     escalated?: number;
   };
   healthChart?: DashboardHealthChartItem[];
+  categoryChart?: DashboardHealthChartItem[];
   topClients?: DashboardTopClient[];
   charts?: DashboardCharts;
 }
@@ -409,6 +415,8 @@ export interface DashboardSummary {
   month: string | null;
   activeCandidates: number;
   benchHeadcount: number;
+  billableHeadcount: number;
+  nonBillableHeadcount: number;
   totalCandidates: number;
   onTrackEngagements: number;
   atRiskEngagements: number;
@@ -436,6 +444,7 @@ export interface DashboardSummary {
     escalated: number;
   };
   healthChart: DashboardHealthChartItem[];
+  categoryChart: DashboardHealthChartItem[];
   topClients: DashboardTopClient[];
   charts: DashboardCharts;
 }

@@ -23,6 +23,7 @@ import {
 } from '../common/client-scope';
 import type { AuthUser } from '../common/decorators/current-user.decorator';
 import { throwConflictIfUnique } from '../common/prisma-error';
+import { assertCostCenterCode } from '../common/cost-center';
 import { AuditService } from '../audit/audit.service';
 
 const ownershipInclude = {
@@ -299,6 +300,7 @@ export class ClientsService {
     if (wantsOwners && user.role !== Role.ADMIN && user.role !== 'ADMIN') {
       throw new ForbiddenException('Only ADMIN can assign client owners');
     }
+    const costCenter = await assertCostCenterCode(this.prisma, dto.costCenter);
 
     const name = dto.name.trim().replace(/\s+/g, ' ');
     const nameNormalized = normalizeClientName(name);
@@ -319,7 +321,7 @@ export class ClientsService {
                 name,
                 nameNormalized,
                 code: dto.code ?? null,
-                costCenter: dto.costCenter.trim().toUpperCase(),
+                costCenter,
                 isActive: dto.isActive ?? true,
                 deletedAt: null,
               },
@@ -330,7 +332,7 @@ export class ClientsService {
                 name,
                 nameNormalized,
                 code: dto.code ?? null,
-                costCenter: dto.costCenter.trim().toUpperCase(),
+                costCenter,
                 isActive: dto.isActive ?? true,
               },
             });
@@ -395,8 +397,9 @@ export class ClientsService {
       }
     }
     if (dto.code !== undefined) data.code = dto.code;
-    if (dto.costCenter !== undefined)
-      data.costCenter = dto.costCenter.trim().toUpperCase();
+    if (dto.costCenter !== undefined) {
+      data.costCenter = await assertCostCenterCode(this.prisma, dto.costCenter);
+    }
     if (dto.isActive !== undefined) data.isActive = dto.isActive;
     try {
       await this.prisma.client.update({

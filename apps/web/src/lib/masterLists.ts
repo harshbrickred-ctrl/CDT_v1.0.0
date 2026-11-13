@@ -11,11 +11,18 @@ export const LOOKUP_TYPE_CODES = [
   'YES_NO',
   'RELEASE_REASON',
   'COST_CENTER',
+  'EMPLOYEE_TEAM',
 ] as const;
 
 export const COST_CENTER_OPTIONS = [
   { code: 'BRICKRED', label: 'BrickRed' },
   { code: 'AGYOM', label: 'Agyom' },
+] as const;
+
+export const EMPLOYEE_TEAM_FALLBACK = [
+  { code: 'SUPPORT', label: 'Support' },
+  { code: 'LEADERSHIP', label: 'Leadership Team' },
+  { code: 'DELIVERY', label: 'Delivery Team' },
 ] as const;
 
 export const CLIENT_FEEDBACK_OPTIONS = [

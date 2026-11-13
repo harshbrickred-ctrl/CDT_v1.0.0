@@ -71,8 +71,9 @@ function toImportBody(
 
 const EMPLOYEE_TEMPLATE_NOTE = `Employees require category: BILLABLE, NON_BILLABLE, or BENCH.
 BILLABLE: clientName, clientCode, or clientId. Client must already have Delivery Owner and Account Owner. Optional deliveryOwnerEmail/deliveryOwnerUserId and accountManagerEmail/accountManagerUserId (defaults to the client's primary owners). Optional salesOwnerEmail or salesOwnerUserId, plus roleTitle, joinedOn, costCenter, projectAccount, workLocation.
-NON_BILLABLE: team is required (SUPPORT, LEADERSHIP, or DELIVERY). supportFunction/role values: HR, TA, ACCOUNTS, ADMIN, or FINANCE. Required when team is SUPPORT; optional (omit for Not Applicable) for Leadership and Delivery. Do not send a client, roleTitle, or bench columns.
-BENCH: benchStartDate (defaults to today if omitted). team is optional. Role uses the same rules as non-billable. interviewsScheduledCount and interviewsClearedCount are optional (default 0; cleared cannot exceed scheduled). Optional interviewRemark. Do not send a client or roleTitle.
+NON_BILLABLE: team is required (active EMPLOYEE_TEAM lookup, e.g. SUPPORT, LEADERSHIP, DELIVERY). supportFunction/role values: HR, TA, ACCOUNTS, ADMIN, or FINANCE. Required when team is SUPPORT; optional (omit for Not Applicable) otherwise. Do not send a client, roleTitle, or bench columns.
+BENCH: benchStartDate (defaults to today if omitted). team is optional (EMPLOYEE_TEAM lookup). Role uses the same rules as non-billable. interviewsScheduledCount and interviewsClearedCount are optional (default 0; cleared cannot exceed scheduled). Optional interviewRemark. Do not send a client or roleTitle.
+Cost center must be an active COST_CENTER lookup (defaults to BRICKRED). Add new cost centers / teams under Settings → Lookups.
 A row is rejected when its category and columns disagree.`;
 
 function samplePayload(mode: 'json' | 'csv', kind: EntityKind) {

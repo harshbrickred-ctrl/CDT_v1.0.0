@@ -1,6 +1,6 @@
 import { FormEvent, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiErrorMessage, clientsApi, usersApi } from '../lib/api';
+import { apiErrorMessage, clientsApi, lookupsApi, usersApi } from '../lib/api';
 import { COST_CENTER_OPTIONS, labelFromOptions } from '../lib/masterLists';
 import type { Client } from '../lib/types';
 import { useAuth } from '../context/AuthContext';
@@ -67,6 +67,21 @@ export default function ClientsPage() {
     queryFn: () => usersApi.list({ pageSize: 200 }),
     enabled: open && isAdmin,
   });
+
+  const costCentersQuery = useQuery({
+    queryKey: ['lookups', 'COST_CENTER'],
+    queryFn: () => lookupsApi.list('COST_CENTER'),
+  });
+
+  const costCenterOptions = useMemo(() => {
+    const items = (costCentersQuery.data?.items ?? []).filter(
+      (v) => v.isActive !== false,
+    );
+    if (items.length) {
+      return items.map((v) => ({ code: v.code, label: v.label }));
+    }
+    return COST_CENTER_OPTIONS.map((o) => ({ code: o.code, label: o.label }));
+  }, [costCentersQuery.data]);
 
   const deliveryOwners = useMemo(
     () =>
@@ -202,7 +217,7 @@ export default function ClientsPage() {
                     {c.code ?? '—'}
                   </td>
                   <td className={tdClass}>
-                    {labelFromOptions(COST_CENTER_OPTIONS, c.costCenter)}
+                    {labelFromOptions(costCenterOptions, c.costCenter)}
                   </td>
                   <td className={tdClass}>{ownerNames(c.deliveryOwners)}</td>
                   <td className={tdClass}>{ownerNames(c.accountOwners)}</td>
@@ -279,7 +294,7 @@ export default function ClientsPage() {
                 setForm({ ...form, costCenter: e.target.value })
               }
             >
-              {COST_CENTER_OPTIONS.map((o) => (
+              {costCenterOptions.map((o) => (
                 <option key={o.code} value={o.code}>
                   {o.label}
                 </option>

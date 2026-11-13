@@ -55,9 +55,7 @@ export function isOrganizationId(value: string): value is OrganizationId {
   return value === 'cdt' || value === 'brickred' || value === 'agyom';
 }
 
-export function brandForCostCenter(
-  costCenter: 'ALL' | 'BRICKRED' | 'AGYOM',
-): OrganizationId {
+export function brandForCostCenter(costCenter: string): OrganizationId {
   if (costCenter === 'BRICKRED') return 'brickred';
   if (costCenter === 'AGYOM') return 'agyom';
   return 'cdt';

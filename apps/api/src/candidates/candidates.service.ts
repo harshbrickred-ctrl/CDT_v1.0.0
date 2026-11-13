@@ -7,9 +7,10 @@ import {
   CandidateStatus,
   ClientOwnershipRole,
   EmployeeCategory,
-  EmployeeTeam,
   Prisma,
 } from '@prisma/client';
+import { assertCostCenterCode } from '../common/cost-center';
+import { assertActiveLookupCode } from '../common/lookup-codes';
 import { paginationMeta, paginationSkip } from '@cdt/shared-types';
 import { PrismaService } from '../prisma/prisma.service';
 import { IdSequenceService } from '../common/id-sequence.service';
@@ -179,7 +180,7 @@ export class CandidatesService {
     q?: string;
     costCenter?: string;
     category?: EmployeeCategory;
-    team?: EmployeeTeam;
+    team?: string;
     supportFunction?: string;
   }) {
     const page = params.page ?? 1;
@@ -190,12 +191,7 @@ export class CandidatesService {
     ) {
       throw new BadRequestException('Invalid category');
     }
-    if (
-      params.team &&
-      !Object.values(EmployeeTeam).includes(params.team)
-    ) {
-      throw new BadRequestException('Invalid team');
-    }
+    const teamFilter = params.team?.trim().toUpperCase() || undefined;
     const supportFunction = params.supportFunction?.trim().toUpperCase() || undefined;
     if (
       supportFunction &&
@@ -220,7 +216,7 @@ export class CandidatesService {
         access,
         ...(costCenter ? [{ costCenter }] : []),
         ...(params.category ? [{ category: params.category }] : []),
-        ...(params.team ? [{ team: params.team }] : []),
+        ...(teamFilter ? [{ team: teamFilter }] : []),
         ...(supportFunction ? [{ supportFunction }] : []),
         ...(params.statuses?.length
           ? [{ status: { in: params.statuses } }]
@@ -322,6 +318,14 @@ export class CandidatesService {
     input: CategoryFieldInput,
   ) {
     const normalized = normalizeEmployeeCategory(input);
+    if (normalized.team) {
+      await assertActiveLookupCode(
+        this.prisma,
+        'EMPLOYEE_TEAM',
+        normalized.team,
+        'Team',
+      );
+    }
     if (normalized.category === EmployeeCategory.BILLABLE && normalized.clientId) {
       const ownedClientIds = await resolveOwnedClientIds(this.prisma, user);
       assertClientAccess(ownedClientIds, normalized.clientId);
@@ -343,6 +347,7 @@ export class CandidatesService {
 
   async create(user: CandidateReader, dto: CreateCandidateDto) {
     const organizationId = user.organizationId;
+    const costCenter = await assertCostCenterCode(this.prisma, dto.costCenter);
     const normalized = await this.prepareCategory(user, dto);
     const billable = normalized.category === EmployeeCategory.BILLABLE;
     const accountManagerUserId =
@@ -382,7 +387,7 @@ export class CandidatesService {
           : null,
         projectAccount: billable ? dto.projectAccount?.trim() || null : null,
         workLocation: billable ? dto.workLocation?.trim() || null : null,
-        costCenter: dto.costCenter.trim().toUpperCase(),
+        costCenter,
         clientReportingManager: null,
         accountManagerUserId,
         deliveryOwnerUserId,
@@ -480,8 +485,9 @@ export class CandidatesService {
       data.contractEndDate = dto.contractEndDate
         ? new Date(dto.contractEndDate)
         : null;
-    if (dto.costCenter !== undefined)
-      data.costCenter = dto.costCenter.trim().toUpperCase();
+    if (dto.costCenter !== undefined) {
+      data.costCenter = await assertCostCenterCode(this.prisma, dto.costCenter);
+    }
     if (dto.status !== undefined) data.status = dto.status;
 
     if (billable) {

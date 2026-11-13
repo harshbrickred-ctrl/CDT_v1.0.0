@@ -1,7 +1,6 @@
 import {
   IsArray,
   IsBoolean,
-  IsIn,
   IsOptional,
   IsString,
   IsUUID,
@@ -20,9 +19,9 @@ export class CreateClientDto {
   @IsString()
   code?: string;
 
-  @ApiProperty({ enum: ['BRICKRED', 'AGYOM'], example: 'BRICKRED' })
+  @ApiProperty({ example: 'BRICKRED' })
   @IsString()
-  @IsIn(['BRICKRED', 'AGYOM'])
+  @MinLength(1)
   costCenter!: string;
 
   @ApiPropertyOptional()
@@ -55,10 +54,10 @@ export class UpdateClientDto {
   @IsString()
   code?: string | null;
 
-  @ApiPropertyOptional({ enum: ['BRICKRED', 'AGYOM'] })
+  @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  @IsIn(['BRICKRED', 'AGYOM'])
+  @MinLength(1)
   costCenter?: string;
 
   @ApiPropertyOptional()

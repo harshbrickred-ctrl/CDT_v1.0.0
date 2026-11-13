@@ -4,7 +4,6 @@ import {
   ClientFeedback,
   ClientOwnershipRole,
   EmployeeCategory,
-  EmployeeTeam,
   EngagementHealth,
   LeaveStatus,
 } from '@prisma/client';
@@ -19,7 +18,8 @@ import { IdSequenceService } from '../common/id-sequence.service';
 import { AuditService } from '../audit/audit.service';
 import { periodFromYearMonth } from '../common/dates';
 import { isUniqueConflict } from '../common/prisma-error';
-import { isCostCenterCode } from '../common/cost-center';
+import { isActiveCostCenterCode } from '../common/cost-center';
+import { findActiveLookupValue } from '../common/lookup-codes';
 import {
   normalizeEmployeeCategory,
   SUPPORT_FUNCTIONS,
@@ -43,28 +43,6 @@ function num(v: unknown): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
-/** Resolve costCenter from an import row; prefer explicit value, else BRICKRED. */
-function resolveImportCostCenter(
-  row: Record<string, unknown>,
-  rowIndex: number,
-  errors: ImportRowError[],
-): string | null {
-  const raw = str(row.costCenter);
-  if (!raw) {
-    // Default when import CSV/row omits costCenter (required on Client/Candidate).
-    return 'BRICKRED';
-  }
-  const code = raw.toUpperCase();
-  if (!isCostCenterCode(code)) {
-    errors.push({
-      row: rowIndex,
-      field: 'costCenter',
-      message: `costCenter must be one of: BRICKRED, AGYOM`,
-    });
-    return null;
-  }
-  return code;
-}
 
 @Injectable()
 export class ImportService {
@@ -190,7 +168,7 @@ export class ImportService {
         });
         continue;
       }
-      const costCenter = resolveImportCostCenter(row, i, errors);
+      const costCenter = await this.resolveImportCostCenter(row, i, errors);
       if (!costCenter) continue;
       if (!commit) continue;
       try {
@@ -305,18 +283,23 @@ export class ImportService {
         deliveryOwnerUserId = owners.deliveryOwnerUserId;
       }
 
-      const teamRaw = str(row.team)?.toUpperCase();
-      let team: EmployeeTeam | null = null;
+      const teamRaw = str(row.team)?.toUpperCase() ?? null;
+      let team: string | null = null;
       if (teamRaw) {
-        if (!Object.values(EmployeeTeam).includes(teamRaw as EmployeeTeam)) {
+        const teamLookup = await findActiveLookupValue(
+          this.prisma,
+          'EMPLOYEE_TEAM',
+          teamRaw,
+        );
+        if (!teamLookup) {
           errors.push({
             row: i,
             field: 'team',
-            message: 'team must be SUPPORT, LEADERSHIP, or DELIVERY',
+            message: 'team must be an active EMPLOYEE_TEAM lookup value',
           });
           continue;
         }
-        team = teamRaw as EmployeeTeam;
+        team = teamLookup.code;
       }
       const supportFunction = str(row.supportFunction)?.toUpperCase() ?? null;
       if (
@@ -378,7 +361,7 @@ export class ImportService {
         continue;
       }
 
-      const costCenter = resolveImportCostCenter(row, i, errors);
+      const costCenter = await this.resolveImportCostCenter(row, i, errors);
       if (!costCenter) continue;
       const billable = normalized.category === EmployeeCategory.BILLABLE;
       if (!commit) continue;
@@ -608,6 +591,28 @@ export class ImportService {
       return undefined;
     }
     return byId?.id ?? byEmail?.id ?? null;
+  }
+
+  /** Resolve costCenter from an import row; prefer explicit value, else BRICKRED. */
+  private async resolveImportCostCenter(
+    row: Record<string, unknown>,
+    rowIndex: number,
+    errors: ImportRowError[],
+  ): Promise<string | null> {
+    const raw = str(row.costCenter);
+    if (!raw) {
+      return 'BRICKRED';
+    }
+    const code = raw.toUpperCase();
+    if (!(await isActiveCostCenterCode(this.prisma, code))) {
+      errors.push({
+        row: rowIndex,
+        field: 'costCenter',
+        message: 'costCenter must be an active COST_CENTER lookup value',
+      });
+      return null;
+    }
+    return code;
   }
 
   /** null means the row already has an error. */
